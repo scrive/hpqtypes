@@ -3,23 +3,19 @@
 module DB.Monad where
 
 import Control.Applicative
-import Control.Concurrent.MVar
-import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
-import Foreign.C.String
 import Foreign.ForeignPtr.Safe
-import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import Foreign.Storable
 import qualified Control.Exception.Lifted as E
 import qualified Data.ByteString as BS
 
 import DB.Class
-import DB.FromSQL
 import DB.Primitive.Interface
+import DB.Primitive.Types
+import DB.Row
 
 data DBState = DBState {
     dbConn     :: Ptr PGconn
@@ -45,18 +41,16 @@ instance MonadIO m => MonadDB (DBT m) where
       =<< BS.useAsCString query (\q -> pqParamExec conn nullPtr q 1)
     modify $ \st -> st { dbResult = Just res }
 
-  fold (f :: acc -> dest -> acc) initAcc = DBT $ do
+  fold (f :: acc -> dest -> IO acc) initAcc = DBT $ do
     mres <- gets dbResult
     case mres of
       Nothing  -> error "No query result"
-      Just res -> liftIO $ BS.useAsCString (pqTypesFormat (undefined::dest)) $ \fmt ->
-        withForeignPtr res pqNTuples >>= worker fmt initAcc 0
+      Just res -> liftIO $ BS.useAsCString (rowFormat dest) $ \fmt ->
+        withForeignPtr res (return . pqNTuples) >>= worker fmt initAcc 0
         where
+          dest = undefined :: dest
           worker fmt acc !i !n
             | i == n = return acc
             | otherwise = do
-              obj <- withForeignPtr res $ \pres -> alloca $ \pObj -> do
-                success <- pqGet pres i fmt 0 pObj
-                when (success == 0) $ pqGetError >>= peekCString >>= error
-                peek pObj
-              worker fmt (f acc $ fromSQL obj) (i+1) n
+              acc' <- f acc =<< withForeignPtr res (parseRow fmt i)
+              worker fmt acc' (i+1) n
