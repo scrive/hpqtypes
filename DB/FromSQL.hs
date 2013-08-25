@@ -1,11 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, OverloadedStrings
-  , RecordWildCards, ScopedTypeVariables, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies, RecordWildCards
+  , ScopedTypeVariables, UndecidableInstances #-}
 module DB.FromSQL (FromSQL(..)) where
 
 import Control.Applicative
 import Control.Monad
-import Data.ByteString.Char8 (ByteString)
 import Data.Int
 import Data.Ratio
 import Data.Text (Text)
@@ -18,7 +17,7 @@ import qualified Data.ByteString as BS
 import DB.Primitive.Types
 
 class Storable base => FromSQL base dest | dest -> base where
-  pqTypesFormat :: dest -> ByteString
+  pqTypesFormat :: dest -> String
   fromSQL       :: Bool -> base -> IO dest
 
 instance FromSQL base dest => FromSQL base (Maybe dest) where
@@ -55,7 +54,7 @@ instance FromSQL PGtimestamp UTCTime where
     where
       (mins, rest) = fromIntegral (pgTimeGMTOff pgTimestampTime) `divMod` 60
 
-instance FromSQL CString ByteString where
+instance FromSQL CString BS.ByteString where
   pqTypesFormat _ = "%text"
   fromSQL _ = BS.packCString
 
