@@ -8,33 +8,35 @@ import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Foreign.Ptr
+import qualified Data.ByteString as BS
 
 import DB.FromSQL
 import DB.Primitive.Get
-import DB.Primitive.Types
 import DB.Primitive.Interface
+import DB.Primitive.Types
+import DB.Primitive.Utils
 
 u :: a
 u = undefined
 
-isColumnNull :: Ptr PGresult -> CInt -> CInt -> Bool
-isColumnNull res tuple column = pqGetIsNull res tuple column == 1
-
-checkSuccess :: CInt -> IO ()
-checkSuccess 0 = pqGetError >>= peekCString >>= error
-checkSuccess _ = return ()
+nullCheck :: Storable base => Ptr PGresult -> CInt -> CInt -> base -> IO (Maybe base)
+nullCheck res tuple column base = do
+  isNull <- c_PQgetisnull res tuple column
+  return $ if isNull == 1
+    then Nothing
+    else Just base
 
 ----------------------------------------
 
 class Row base dest | dest -> base where
-  rowFormat :: dest -> String
-  parseRow :: Ptr PGresult -> CInt -> CString -> IO dest
+  rowFormat :: dest -> BS.ByteString
+  parseRow  :: Ptr PGresult -> CInt -> CString -> IO dest
 
 instance FromSQL base dest => Row base dest where
-  parseRow res i fmt = alloca $ \ptr -> do
-    success <- pqGet1 res i fmt 0 ptr
-    checkSuccess success
-    peek ptr >>= fromSQL (isColumnNull res i 0)
+  parseRow res i fmt = alloca $ \p1 -> do
+    success <- c_PQgetf1 res i fmt 0 p1
+    successCheck success
+    peek p1 >>= nullCheck res i 0 >>= fromSQL
 
   rowFormat = pqTypesFormat
 
@@ -44,13 +46,13 @@ instance (
            (d1, d2) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> do
-        success <- pqGet2 res i fmt 0 p0 1 p1
-        checkSuccess success
+        success <- c_PQgetf2 res i fmt 0 p0 1 p1
+        successCheck success
         (,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
 
-    rowFormat _ = concat [pqTypesFormat (u::d1), pqTypesFormat (u::d2)]
+    rowFormat _ = BS.concat [pqTypesFormat (u::d1), pqTypesFormat (u::d2)]
 
 instance (
     FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3
@@ -58,14 +60,14 @@ instance (
            (d1, d2, d3) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> do
-        success <- pqGet3 res i fmt 0 p0 1 p1 2 p2
-        checkSuccess success
+        success <- c_PQgetf3 res i fmt 0 p0 1 p1 2 p2
+        successCheck success
         (,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       ]
 
@@ -75,15 +77,15 @@ instance (
            (d1, d2, d3, d4) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> do
-        success <- pqGet4 res i fmt 0 p0 1 p1 2 p2 3 p3
-        checkSuccess success
+        success <- c_PQgetf4 res i fmt 0 p0 1 p1 2 p2 3 p3
+        successCheck success
         (,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4)
       ]
@@ -94,16 +96,16 @@ instance (
            (d1, d2, d3, d4, d5) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 -> do
-        success <- pqGet5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
-        checkSuccess success
+        success <- c_PQgetf5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
+        successCheck success
         (,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5)
       ]
@@ -116,17 +118,17 @@ instance (
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> do
-        success <- pqGet6 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
-        checkSuccess success
+        success <- c_PQgetf6 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
+        successCheck success
         (,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       ]
@@ -139,18 +141,18 @@ instance (
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> do
-        success <- pqGet7 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
-        checkSuccess success
+        success <- c_PQgetf7 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
+        successCheck success
         (,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7)
@@ -164,19 +166,19 @@ instance (
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> do
-        success <- pqGet8 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
-        checkSuccess success
+        success <- c_PQgetf8 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
+        successCheck success
         (,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8)
@@ -190,20 +192,20 @@ instance (
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> do
-        success <- pqGet9 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
-        checkSuccess success
+        success <- c_PQgetf9 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
+        successCheck success
         (,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -217,21 +219,21 @@ instance (
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 -> do
-        success <- pqGet10 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
-        checkSuccess success
+        success <- c_PQgetf10 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
+        successCheck success
         (,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -248,22 +250,22 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> do
-        success <- pqGet11 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
-        checkSuccess success
+        success <- c_PQgetf11 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
+        successCheck success
         (,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -280,23 +282,23 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> do
-        success <- pqGet12 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
-        checkSuccess success
+        success <- c_PQgetf12 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
+        successCheck success
         (,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -313,24 +315,24 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> do
-        success <- pqGet13 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
-        checkSuccess success
+        success <- c_PQgetf13 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
+        successCheck success
         (,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -348,25 +350,25 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> do
-        success <- pqGet14 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
-        checkSuccess success
+        success <- c_PQgetf14 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
+        successCheck success
         (,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -384,26 +386,26 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 -> do
-        success <- pqGet15 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
-        checkSuccess success
+        success <- c_PQgetf15 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
+        successCheck success
         (,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -423,27 +425,27 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> do
-        success <- pqGet16 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
-        checkSuccess success
+        success <- c_PQgetf16 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
+        successCheck success
         (,,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
-          <*> (peek p15 >>= fromSQL (isColumnNull res i 15))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
+          <*> (peek p15 >>= nullCheck res i 15 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -464,28 +466,28 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> do
-        success <- pqGet17 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
-        checkSuccess success
+        success <- c_PQgetf17 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
+        successCheck success
         (,,,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
-          <*> (peek p15 >>= fromSQL (isColumnNull res i 15))
-          <*> (peek p16 >>= fromSQL (isColumnNull res i 16))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
+          <*> (peek p15 >>= nullCheck res i 15 >>= fromSQL)
+          <*> (peek p16 >>= nullCheck res i 16 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -506,29 +508,29 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> do
-        success <- pqGet18 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
-        checkSuccess success
+        success <- c_PQgetf18 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
+        successCheck success
         (,,,,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
-          <*> (peek p15 >>= fromSQL (isColumnNull res i 15))
-          <*> (peek p16 >>= fromSQL (isColumnNull res i 16))
-          <*> (peek p17 >>= fromSQL (isColumnNull res i 17))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
+          <*> (peek p15 >>= nullCheck res i 15 >>= fromSQL)
+          <*> (peek p16 >>= nullCheck res i 16 >>= fromSQL)
+          <*> (peek p17 >>= nullCheck res i 17 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -549,30 +551,30 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> do
-        success <- pqGet19 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
-        checkSuccess success
+        success <- c_PQgetf19 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
+        successCheck success
         (,,,,,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
-          <*> (peek p15 >>= fromSQL (isColumnNull res i 15))
-          <*> (peek p16 >>= fromSQL (isColumnNull res i 16))
-          <*> (peek p17 >>= fromSQL (isColumnNull res i 17))
-          <*> (peek p18 >>= fromSQL (isColumnNull res i 18))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
+          <*> (peek p15 >>= nullCheck res i 15 >>= fromSQL)
+          <*> (peek p16 >>= nullCheck res i 16 >>= fromSQL)
+          <*> (peek p17 >>= nullCheck res i 17 >>= fromSQL)
+          <*> (peek p18 >>= nullCheck res i 18 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)
@@ -594,31 +596,31 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> alloca $ \p19 -> do
-        success <- pqGet20 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
-        checkSuccess success
+        success <- c_PQgetf20 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
+        successCheck success
         (,,,,,,,,,,,,,,,,,,,)
-          <$> (peek p0 >>= fromSQL (isColumnNull res i 0))
-          <*> (peek p1 >>= fromSQL (isColumnNull res i 1))
-          <*> (peek p2 >>= fromSQL (isColumnNull res i 2))
-          <*> (peek p3 >>= fromSQL (isColumnNull res i 3))
-          <*> (peek p4 >>= fromSQL (isColumnNull res i 4))
-          <*> (peek p5 >>= fromSQL (isColumnNull res i 5))
-          <*> (peek p6 >>= fromSQL (isColumnNull res i 6))
-          <*> (peek p7 >>= fromSQL (isColumnNull res i 7))
-          <*> (peek p8 >>= fromSQL (isColumnNull res i 8))
-          <*> (peek p9 >>= fromSQL (isColumnNull res i 9))
-          <*> (peek p10 >>= fromSQL (isColumnNull res i 10))
-          <*> (peek p11 >>= fromSQL (isColumnNull res i 11))
-          <*> (peek p12 >>= fromSQL (isColumnNull res i 12))
-          <*> (peek p13 >>= fromSQL (isColumnNull res i 13))
-          <*> (peek p14 >>= fromSQL (isColumnNull res i 14))
-          <*> (peek p15 >>= fromSQL (isColumnNull res i 15))
-          <*> (peek p16 >>= fromSQL (isColumnNull res i 16))
-          <*> (peek p17 >>= fromSQL (isColumnNull res i 17))
-          <*> (peek p18 >>= fromSQL (isColumnNull res i 18))
-          <*> (peek p19 >>= fromSQL (isColumnNull res i 19))
+          <$> (peek p0 >>= nullCheck res i 0 >>= fromSQL)
+          <*> (peek p1 >>= nullCheck res i 1 >>= fromSQL)
+          <*> (peek p2 >>= nullCheck res i 2 >>= fromSQL)
+          <*> (peek p3 >>= nullCheck res i 3 >>= fromSQL)
+          <*> (peek p4 >>= nullCheck res i 4 >>= fromSQL)
+          <*> (peek p5 >>= nullCheck res i 5 >>= fromSQL)
+          <*> (peek p6 >>= nullCheck res i 6 >>= fromSQL)
+          <*> (peek p7 >>= nullCheck res i 7 >>= fromSQL)
+          <*> (peek p8 >>= nullCheck res i 8 >>= fromSQL)
+          <*> (peek p9 >>= nullCheck res i 9 >>= fromSQL)
+          <*> (peek p10 >>= nullCheck res i 10 >>= fromSQL)
+          <*> (peek p11 >>= nullCheck res i 11 >>= fromSQL)
+          <*> (peek p12 >>= nullCheck res i 12 >>= fromSQL)
+          <*> (peek p13 >>= nullCheck res i 13 >>= fromSQL)
+          <*> (peek p14 >>= nullCheck res i 14 >>= fromSQL)
+          <*> (peek p15 >>= nullCheck res i 15 >>= fromSQL)
+          <*> (peek p16 >>= nullCheck res i 16 >>= fromSQL)
+          <*> (peek p17 >>= nullCheck res i 17 >>= fromSQL)
+          <*> (peek p18 >>= nullCheck res i 18 >>= fromSQL)
+          <*> (peek p19 >>= nullCheck res i 19 >>= fromSQL)
 
-    rowFormat _ = concat [
+    rowFormat _ = BS.concat [
         pqTypesFormat (u::d1), pqTypesFormat (u::d2), pqTypesFormat (u::d3)
       , pqTypesFormat (u::d4), pqTypesFormat (u::d5), pqTypesFormat (u::d6)
       , pqTypesFormat (u::d7), pqTypesFormat (u::d8), pqTypesFormat (u::d9)

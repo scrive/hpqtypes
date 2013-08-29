@@ -16,6 +16,7 @@ import qualified Data.ByteString as BS
 data PGconn
 data PGparam
 data PGresult
+data PGparam
 
 newtype QueryResult = QueryResult { unQueryResult :: ForeignPtr PGresult }
 

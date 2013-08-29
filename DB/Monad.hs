@@ -11,15 +11,19 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans
 import Control.Monad.Trans.State.Strict
 import Foreign.C.String
-import Foreign.Marshal.Alloc
 import Foreign.ForeignPtr.Safe
 import Foreign.Ptr
 import qualified Control.Exception as E
+import qualified Data.ByteString as BS
 
 import DB.Class
 import DB.Primitive.Interface
+import DB.Primitive.Put
 import DB.Primitive.Types
+import DB.Primitive.Utils
 import DB.Row
+import DB.SQL
+import DB.ToSQL
 
 data DBState = DBState {
   dbConn   :: MVar (Maybe (Ptr PGconn))
@@ -34,13 +38,13 @@ runDBT conf m = liftBaseOp (E.bracket connect disconnect) $ \conn -> do
   evalStateT (unDBT m) (DBState conn Nothing)
   where
     connect = do
-      conn <- withCString conf pqConnectDb
-      pqInitTypes conn
+      conn <- withCString conf c_PQconnectdb
+      c_PQinitTypes conn
       newMVar $ Just conn
 
     disconnect mvconn = modifyMVar_ mvconn $ \mconn -> do
       case mconn of
-        Just conn -> pqFinish conn
+        Just conn -> c_PQfinish conn
         Nothing   -> error "runDBT.disconnect: no connection (shouldn't happen)"
       return Nothing
 
@@ -51,11 +55,10 @@ foldDB f initAcc = do
   case mres of
     Nothing  -> error "foldDB: no query result"
     Just res -> do
-      fmt <- liftIO . E.mask_ $ newForeignPtr finalizerFree =<< newCString rowFmt
-      liftIO (withForeignPtr res $ return . pqNTuples)
+      fmt <- liftIO . bsToCString $ rowFormat (undefined::dest)
+      liftIO (withForeignPtr res c_PQntuples)
         >>= worker fmt initAcc 0
       where
-        rowFmt = rowFormat (undefined::dest)
         worker fmt acc !i !n
           | i == n = return acc
           | otherwise = do
@@ -66,13 +69,29 @@ foldDB f initAcc = do
             worker fmt acc' (i+1) n
 
 instance MonadIO m => MonadDB (DBT m) where
-  runQuery query = DBT $ do
+  runQuery sql = DBT $ do
     mvconn <- gets dbConn
     res <- liftIO . modifyMVar mvconn $ \mconn -> case mconn of
       Nothing -> error "runQuery: no connection"
-      Just conn -> (mconn, ) `liftM` E.mask_ (newForeignPtr pqClear
-        =<< withCString query (\q -> pqParamExec conn nullPtr q 1))
+      Just conn -> do
+        fparam <- pqParamCreate conn
+        res <- withForeignPtr fparam $ \param -> do
+          query <- loadSQL param
+          withCString query $ \q -> pqParamExec conn param q 1
+        return (mconn, res)
     modify $ \st -> st { dbResult = Just (QueryResult res) }
+    where
+      loadSQL param = do
+        nums <- newMVar (1::Int)
+        concat <$> mapM (f nums) (unSQL sql)
+        where
+          f _ (SCString s) = return s
+          f nums (SCValue v) = toSQL v $ \mbase -> case mbase of
+            Nothing -> return "NULL"
+            Just (fmt, base) -> BS.useAsCString fmt $ \cfmt -> do
+              success <- pqPut param cfmt base
+              successCheck success
+              modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
   queryResult = DBT $ do
     mres <- gets dbResult

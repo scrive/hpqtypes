@@ -8,139 +8,139 @@ import Foreign.Ptr
 import DB.Primitive.Types
 
 foreign import ccall unsafe "PQgetf"
-  pqGet1 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1
-         -> IO CInt
+  c_PQgetf1 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet2 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2
-         -> IO CInt
+  c_PQgetf2 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet3 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3
-         -> IO CInt
+  c_PQgetf3 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet4 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> IO CInt
+  c_PQgetf4 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet5 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> CInt -> Ptr t5
-         -> IO CInt
+  c_PQgetf5 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> CInt -> Ptr t5
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet6 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> CInt -> Ptr t5 -> CInt -> Ptr t6
-         -> IO CInt
+  c_PQgetf6 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> CInt -> Ptr t5 -> CInt -> Ptr t6
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet7 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7
-         -> IO CInt
+  c_PQgetf7 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet8 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-         -> IO CInt
+  c_PQgetf8 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+            -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet9 :: Ptr PGresult -> CInt -> CString
-         -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-         -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-         -> CInt -> Ptr t9 -> IO CInt
+  c_PQgetf9 :: Ptr PGresult -> CInt -> CString
+            -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+            -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+            -> CInt -> Ptr t9 -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet10 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10
-          -> IO CInt
+  c_PQgetf10 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet11 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11
-          -> IO CInt
+  c_PQgetf11 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet12 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> IO CInt
+  c_PQgetf12 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet13 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> IO CInt
+  c_PQgetf13 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet14 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14
-          -> IO CInt
+  c_PQgetf14 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet15 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15
-          -> IO CInt
+  c_PQgetf15 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet16 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
-          -> IO CInt
+  c_PQgetf16 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet17 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
-          -> CInt -> Ptr t17
-          -> IO CInt
+  c_PQgetf17 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
+             -> CInt -> Ptr t17
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet18 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
-          -> CInt -> Ptr t17 -> CInt -> Ptr t18
-          ->IO CInt
+  c_PQgetf18 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
+             -> CInt -> Ptr t17 -> CInt -> Ptr t18
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet19 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
-          -> CInt -> Ptr t17 -> CInt -> Ptr t18 -> CInt -> Ptr t19
-          -> IO CInt
+  c_PQgetf19 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
+             -> CInt -> Ptr t17 -> CInt -> Ptr t18 -> CInt -> Ptr t19
+             -> IO CInt
 
 foreign import ccall unsafe "PQgetf"
-  pqGet20 :: Ptr PGresult -> CInt -> CString
-          -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
-          -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
-          -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
-          -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
-          -> CInt -> Ptr t17 -> CInt -> Ptr t18 -> CInt -> Ptr t19 -> CInt -> Ptr t20
-          -> IO CInt
+  c_PQgetf20 :: Ptr PGresult -> CInt -> CString
+             -> CInt -> Ptr t1 -> CInt -> Ptr t2 -> CInt -> Ptr t3 -> CInt -> Ptr t4
+             -> CInt -> Ptr t5 -> CInt -> Ptr t6 -> CInt -> Ptr t7 -> CInt -> Ptr t8
+             -> CInt -> Ptr t9 -> CInt -> Ptr t10 -> CInt -> Ptr t11 -> CInt -> Ptr t12
+             -> CInt -> Ptr t13 -> CInt -> Ptr t14 -> CInt -> Ptr t15 -> CInt -> Ptr t16
+             -> CInt -> Ptr t17 -> CInt -> Ptr t18 -> CInt -> Ptr t19 -> CInt -> Ptr t20
+             -> IO CInt
