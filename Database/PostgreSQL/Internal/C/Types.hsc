@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE EmptyDataDecls, RecordWildCards #-}
-module DB.Primitive.Types where
+module Database.PostgreSQL.Internal.C.Types where
 
 import Control.Applicative
 import Data.ByteString.Unsafe
@@ -16,7 +16,6 @@ import qualified Data.ByteString as BS
 data PGconn
 data PGparam
 data PGresult
-data PGparam
 
 newtype QueryResult = QueryResult { unQueryResult :: ForeignPtr PGresult }
 

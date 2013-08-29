@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
-module DB.Class where
+module Database.PostgreSQL.Class where
 
-import DB.Primitive.Types
-import DB.Row
-import DB.SQL
+import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.Internal.SQL
+import Database.PostgreSQL.Row
 
 class Monad m => MonadDB m where
   runQuery  :: SQL -> m ()

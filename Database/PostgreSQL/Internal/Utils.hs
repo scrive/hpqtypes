@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module DB.Primitive.Utils where
+module Database.PostgreSQL.Internal.Utils where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Unsafe
@@ -8,7 +8,7 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Utils
 import Foreign.Storable
 
-import DB.Primitive.Interface
+import Database.PostgreSQL.Internal.C.Interface
 
 bsToCString :: ByteString -> IO (ForeignPtr CChar)
 bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do

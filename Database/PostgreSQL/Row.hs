@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, OverlappingInstances
   , ScopedTypeVariables, UndecidableInstances #-}
-module DB.Row (Row(..)) where
+module Database.PostgreSQL.Row (Row(..)) where
 
 import Control.Applicative
 import Foreign.C
@@ -10,11 +10,11 @@ import Foreign.Storable
 import Foreign.Ptr
 import qualified Data.ByteString as BS
 
-import DB.FromSQL
-import DB.Primitive.Get
-import DB.Primitive.Interface
-import DB.Primitive.Types
-import DB.Primitive.Utils
+import Database.PostgreSQL.FromSQL
+import Database.PostgreSQL.Internal.C.Get
+import Database.PostgreSQL.Internal.C.Interface
+import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.Internal.Utils
 
 u :: a
 u = undefined

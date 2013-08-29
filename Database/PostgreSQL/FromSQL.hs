@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, RecordWildCards
   , ScopedTypeVariables, UndecidableInstances #-}
-module DB.FromSQL (FromSQL(..)) where
+module Database.PostgreSQL.FromSQL (FromSQL(..)) where
 
 import Control.Applicative
 import Control.Monad
@@ -14,7 +14,7 @@ import Foreign.C
 import Foreign.Storable
 import qualified Data.ByteString.Char8 as BS
 
-import DB.Primitive.Types
+import Database.PostgreSQL.Internal.C.Types
 
 errorNull :: IO a
 errorNull = error "unexpected NULL value"

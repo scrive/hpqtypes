@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, GeneralizedNewtypeDeriving
   , ScopedTypeVariables, TupleSections #-}
-module DB.Monad where
+module Database.PostgreSQL.Internal.Monad where
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -16,14 +16,14 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
-import DB.Class
-import DB.Primitive.Interface
-import DB.Primitive.Put
-import DB.Primitive.Types
-import DB.Primitive.Utils
-import DB.Row
-import DB.SQL
-import DB.ToSQL
+import Database.PostgreSQL.Class
+import Database.PostgreSQL.Internal.C.Interface
+import Database.PostgreSQL.Internal.C.Put
+import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.Internal.SQL
+import Database.PostgreSQL.Internal.Utils
+import Database.PostgreSQL.Row
+import Database.PostgreSQL.ToSQL
 
 data DBState = DBState {
   dbConn   :: MVar (Maybe (Ptr PGconn))

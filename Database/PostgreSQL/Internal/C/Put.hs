@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module DB.Primitive.Put where
+module Database.PostgreSQL.Internal.C.Put where
 
 import Foreign.C
 import Foreign.Ptr
 
-import DB.Primitive.Types
+import Database.PostgreSQL.Internal.C.Types
 
 foreign import ccall unsafe "PQputf"
   c_PQputfCInt :: Ptr PGparam -> CString -> CInt -> IO CInt

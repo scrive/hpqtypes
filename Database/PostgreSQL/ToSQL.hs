@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses
   , UndecidableInstances #-}
-module DB.ToSQL (ToSQL(..)) where
+module Database.PostgreSQL.ToSQL (ToSQL(..)) where
 
 import Data.Int
 import Data.Text (Text)

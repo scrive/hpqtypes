@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module DB.Primitive.Interface where
+module Database.PostgreSQL.Internal.C.Interface where
 
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
 
-import DB.Primitive.Types
+import Database.PostgreSQL.Internal.C.Types
 
 foreign import ccall unsafe "PQconnectdb"
   c_PQconnectdb :: CString -> IO (Ptr PGconn)
