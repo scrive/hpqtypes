@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings #-}
 module Database.PostgreSQL.Internal.SQL where
 
 import Data.Monoid
@@ -11,7 +11,7 @@ import Database.PostgreSQL.ToSQL
 
 data SqlChunk
   = SCString String
-  | forall dest base. (Show dest, PutSQL base, ToSQL dest base) => SCValue dest
+  | forall dest base. (Show dest, PQPut base, ToSQL dest base) => SCValue dest
 
 newtype SQL = SQL (D.DList SqlChunk)
 
@@ -22,7 +22,7 @@ instance IsString SQL where
   fromString = SQL . D.singleton . SCString
 
 instance Show SQL where
-  show = concatMap conv . unSQL
+  show = ("\"" ++) . concatMap conv . unSQL . (<> "\"")
     where
       conv (SCString s) = s
       conv (SCValue v) = "<" ++ show v ++ ">"
@@ -31,9 +31,9 @@ instance Monoid SQL where
   mempty = SQL D.empty
   SQL a `mappend` SQL b = SQL (a <> b)
 
-value :: (Show dest, PutSQL base, ToSQL dest base) => dest -> SQL
+value :: (Show dest, PQPut base, ToSQL dest base) => dest -> SQL
 value = SQL . D.singleton . SCValue
 
-(<?>) :: (Show dest, PutSQL base, ToSQL dest base) => SQL -> dest -> SQL
+(<?>) :: (Show dest, PQPut base, ToSQL dest base) => SQL -> dest -> SQL
 s <?> v = s <> value v
 infixl 7 <?>
