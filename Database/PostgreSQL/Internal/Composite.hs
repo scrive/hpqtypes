@@ -2,7 +2,6 @@
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
 module Database.PostgreSQL.Internal.Composite where
 
-import Data.Monoid
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -20,7 +19,7 @@ registerComposites conn names =
     withArray (map nameToTypeRep cnames) $ \typereps -> do
       let len = fromIntegral $ length cnames
       c_PQregisterTypes conn c_PQT_COMPOSITE typereps len 0
-        >>= verifyPQTRes mempty
+        >>= verifyPQTRes "registerComposites"
   where
     nameToTypeRep name = PGregisterType {
       pgRegisterTypeTypName = name

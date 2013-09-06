@@ -25,6 +25,7 @@ import Database.PostgreSQL.Internal.C.Put
 import Database.PostgreSQL.Internal.C.Types
 import Database.PostgreSQL.Internal.Composite
 import Database.PostgreSQL.Internal.Exception
+import Database.PostgreSQL.Internal.Error
 import Database.PostgreSQL.Internal.State
 import Database.PostgreSQL.Internal.SQL
 import Database.PostgreSQL.Internal.Transaction
@@ -49,7 +50,7 @@ runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
       conn <- withCString conf c_PQconnectdb
       status <- c_PQstatus conn
       when (status /= c_CONNECTION_OK) $
-        throwLibPQError conn mempty
+        throwLibPQError conn "runDBT.connect"
       c_PQinitTypes conn
       registerComposites conn ["simple"]
       newMVar $ Just conn
@@ -57,7 +58,7 @@ runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
     disconnect mvconn = modifyMVar_ mvconn $ \mconn -> do
       case mconn of
         Just conn -> c_PQfinish conn
-        Nothing   -> throwInternalError mempty "runDBT.disconnect: no connection (shouldn't happen)"
+        Nothing   -> E.throwIO $ InternalError "runDBT.disconnect: no connection (shouldn't happen)"
       return Nothing
 
     action = unDBT $
@@ -88,8 +89,11 @@ instance MonadIO m => MonadDB (DBT m) where
   runQuery sql = DBT $ do
     mvconn <- gets dbConnection
     (affected, res) <- liftIO . modifyMVar mvconn $ \mconn -> case mconn of
-      Nothing -> throwInternalError sql "runQuery: no connection"
-      Just conn -> do
+      Nothing -> E.throwIO DBException {
+        dbeQueryContext = sql
+      , dbeError = InternalError "runQuery: no connection"
+      }
+      Just conn -> E.handle (addContext sql) $ do
         res <- withPGparam conn $ \param -> do
           query <- loadSQL conn param
           withCString query $ \q -> c_safePQparamExec conn param q 1
@@ -107,31 +111,35 @@ instance MonadIO m => MonadDB (DBT m) where
         where
           f _ (SCString s) = return s
           f nums (SCValue v) = toSQL conn v $ \embase -> case embase of
-            Left msg -> throwInternalError sql msg
-            Right Nothing -> return "NULL"
-            Right (Just base) -> BS.useAsCString (pqFormatPut v) $ \fmt -> do
-              verifyPQTRes sql =<< c_PQPutf param fmt base
+            Nothing   -> return "NULL"
+            Just base -> BS.useAsCString (pqFormatPut v) $ \fmt -> do
+              verifyPQTRes "runQuery.loadSQL" =<< c_PQPutf param fmt base
               modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
       verifyResult conn res
-        | res == nullPtr = throwLibPQError conn sql
+        | res == nullPtr = throwPQError
         | otherwise = do
           st <- c_PQresultStatus res
           case st of
             _ | st == c_PGRES_COMMAND_OK -> do
               mn <- c_PQcmdTuples res >>= BS.packCString
-              let parseError = throwInternalError sql "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
               case BS.readInt mn of
                 Nothing
                   | BS.null mn -> return 0
-                  | otherwise  -> parseError
+                  | otherwise  -> throwParseError
                 Just (n, rest)
-                  | rest /= BS.empty -> parseError
+                  | rest /= BS.empty -> throwParseError
                   | otherwise        -> return n
             _ | st == c_PGRES_TUPLES_OK    -> fromIntegral <$> c_PQntuples res
-            _ | st == c_PGRES_FATAL_ERROR  -> throwLibPQError conn sql
-            _ | st == c_PGRES_BAD_RESPONSE -> throwLibPQError conn sql
+            _ | st == c_PGRES_FATAL_ERROR  -> throwPQError
+            _ | st == c_PGRES_BAD_RESPONSE -> throwPQError
             _ | otherwise                  -> return 0
+            where
+              throwPQError = throwLibPQError conn "runQuery.verifyResult"
+              throwParseError = E.throwIO DBException {
+                dbeQueryContext = sql
+              , dbeError = InternalError "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
+              }
 
   getLastQuery = DBT . gets $ dbLastQuery
 

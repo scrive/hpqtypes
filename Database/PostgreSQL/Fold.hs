@@ -5,10 +5,12 @@ module Database.PostgreSQL.Fold where
 import Control.Monad
 import Control.Monad.Trans
 import Foreign.ForeignPtr.Safe
+import qualified Control.Exception as E
 
 import Database.PostgreSQL.Class
 import Database.PostgreSQL.Internal.C.Interface
 import Database.PostgreSQL.Internal.Exception
+import Database.PostgreSQL.Internal.Error
 import Database.PostgreSQL.Internal.State
 import Database.PostgreSQL.Internal.Utils
 import Database.PostgreSQL.Row
@@ -19,14 +21,19 @@ foldDB f initAcc = do
   mres <- liftM unQueryResult `liftM` getQueryResult
   ctx <- getLastQuery
   case mres of
-    Nothing  -> liftIO . throwInternalError ctx $ "foldDB: no query result"
+    Nothing  -> liftIO . E.throwIO $ DBException {
+      dbeQueryContext = ctx
+    , dbeError = InternalError "foldDB: no query result"
+    }
     Just res -> do
       liftIO $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
-        case rowLength (undefined::dest) of
-          expected
-            | rowlen /= expected -> throwRowLengthMismatch ctx expected rowlen
-            | otherwise          -> return ()
+        let expected = rowLength (undefined::dest)
+        when (rowlen /= expected) $
+          E.throwIO DBException {
+            dbeQueryContext = ctx
+          , dbeError = RowLengthMismatch expected rowlen
+          }
       fmt <- liftIO . bsToCString $ rowFormat (undefined::dest)
       acc <- liftIO (withForeignPtr res c_PQntuples)
         >>= worker fmt initAcc 0
@@ -38,6 +45,6 @@ foldDB f initAcc = do
           | otherwise = do
             obj <- liftIO $ withForeignPtr res $ \pres ->
                             withForeignPtr fmt $ \pfmt ->
-                              parseRow pres ctx i pfmt
+                              E.handle (addContext ctx) (parseRow pres i pfmt)
             acc' <- f acc obj
             worker fmt acc' (i+1) n
