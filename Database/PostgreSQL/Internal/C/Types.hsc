@@ -17,6 +17,7 @@ import qualified Data.ByteString as BS
 data PGconn
 data PGparam
 data PGresult
+data PGtypeArgs
 
 #include <libpqtypes.h>
 #include <postgresql/libpq-fe.h>
@@ -50,6 +51,33 @@ newtype ExecStatusType = ExecStatusType CInt
 , c_PGRES_FATAL_ERROR = PGRES_FATAL_ERROR
 , c_PGRES_COPY_BOTH = PGRES_COPY_BOTH
 }
+
+newtype TypeClass = TypeClass CInt
+  deriving Eq
+
+#{enum TypeClass, TypeClass
+, c_PQT_SUBCLASS = PQT_SUBCLASS
+, c_PQT_COMPOSITE = PQT_COMPOSITE
+, c_PQT_USERDEFINED = PQT_USERDEFINED
+}
+
+data PGregisterType = PGregisterType {
+  pgRegisterTypeTypName :: CString
+, pgRegisterTypeTypPut  :: FunPtr (Ptr PGtypeArgs -> IO CInt)
+, pgRegisterTypeTypGet  :: FunPtr (Ptr PGtypeArgs -> IO CInt)
+} deriving Show
+
+instance Storable PGregisterType where
+  sizeOf _ = #{size PGregisterType}
+  alignment _ = #{alignment PGregisterType}
+  peek ptr = PGregisterType
+    <$> #{peek PGregisterType, typname} ptr
+    <*> #{peek PGregisterType, typput} ptr
+    <*> #{peek PGregisterType, typget} ptr
+  poke ptr PGregisterType{..} = do
+    #{poke PGregisterType, typname} ptr pgRegisterTypeTypName
+    #{poke PGregisterType, typput} ptr pgRegisterTypeTypPut
+    #{poke PGregisterType, typget} ptr pgRegisterTypeTypGet
 
 c_MAXDIM :: Int
 c_MAXDIM = #{const MAXDIM}

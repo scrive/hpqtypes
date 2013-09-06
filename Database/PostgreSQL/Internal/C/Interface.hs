@@ -22,6 +22,9 @@ foreign import ccall unsafe "PQerrorMessage"
 foreign import ccall unsafe "PQinitTypes"
   c_PQinitTypes :: Ptr PGconn -> IO ()
 
+foreign import ccall unsafe "PQregisterTypes"
+  c_PQregisterTypes :: Ptr PGconn -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
+
 foreign import ccall unsafe "PQparamCreate"
   c_PQparamCreate :: Ptr PGconn -> IO (Ptr PGparam)
 
@@ -59,17 +62,13 @@ foreign import ccall unsafe "PQclear"
 foreign import ccall unsafe "PQfinish"
   c_PQfinish :: Ptr PGconn -> IO ()
 
-foreign import ccall unsafe "&PQparamClear"
-  c_ptr_PQparamClear :: FunPtr (Ptr PGparam -> IO ())
-
 foreign import ccall unsafe "&PQclear"
   c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
 
 ----------------------------------------
 
-c_safePQparamCreate :: Ptr PGconn -> IO (ForeignPtr PGparam)
-c_safePQparamCreate conn = E.mask_ $ newForeignPtr c_ptr_PQparamClear
-  =<< c_PQparamCreate conn
+withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
+withPGparam conn = E.bracket (c_PQparamCreate conn) c_PQparamClear
 
 c_safePQparamExec :: Ptr PGconn -> Ptr PGparam -> CString -> CInt -> IO (ForeignPtr PGresult)
 c_safePQparamExec conn param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear

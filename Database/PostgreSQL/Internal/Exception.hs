@@ -17,10 +17,7 @@ data DBException = DBException {
 } deriving (Show, Typeable)
 
 data Error
-  = LibPQError {
-    libPQMessage :: String
-  }
-  | InternalError {
+  = InternalError {
     internalMessage :: String
   }
   | ConversionError {
@@ -45,7 +42,7 @@ throwLibPQError conn ctx = do
   msg <- peekCString =<< c_PQerrorMessage conn
   throwIO DBException {
     dbeQueryContext = ctx
-  , dbeError = LibPQError msg
+  , dbeError = InternalError msg
   }
 
 throwLibPQTypesError :: SQL -> IO a
@@ -53,7 +50,7 @@ throwLibPQTypesError ctx = do
   msg <- peekCString =<< c_PQgeterror
   throwIO DBException {
     dbeQueryContext = ctx
-  , dbeError = LibPQError msg
+  , dbeError = InternalError msg
   }
 
 throwInternalError :: SQL -> String -> IO a

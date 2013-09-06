@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
-  , FunctionalDependencies, OverloadedStrings, RecordWildCards
+  , FunctionalDependencies, RecordWildCards
   , ScopedTypeVariables, UndecidableInstances #-}
-module Database.PostgreSQL.FromSQL (FromSQL(..)) where
+module Database.PostgreSQL.FromSQL {-(FromSQL(..))-} where
 
 import Control.Applicative
 import Data.Int
@@ -41,34 +41,34 @@ instance FromSQL base dest => FromSQL base (Maybe dest) where
 -- NUMERICS
 
 instance FromSQL CShort Int16 where
-  pqFormatGet _ = "%int2"
+  pqFormatGet _ = BS.pack "%int2"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just n) = return . Right . fromIntegral $ n
 
 instance FromSQL CInt Int32 where
-  pqFormatGet _ = "%int4"
+  pqFormatGet _ = BS.pack "%int4"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just n) = return . Right . fromIntegral $ n
 
 instance FromSQL CLLong Int64 where
-  pqFormatGet _ = "%int8"
+  pqFormatGet _ = BS.pack "%int8"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just n) = return . Right . fromIntegral $ n
 
 instance FromSQL CFloat Float where
-  pqFormatGet _ = "%float4"
+  pqFormatGet _ = BS.pack "%float4"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just n) = return . Right . realToFrac $ n
 
 instance FromSQL CDouble Double where
-  pqFormatGet _ = "%float8"
+  pqFormatGet _ = BS.pack "%float8"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just n) = return . Right . realToFrac $ n
 
 -- ARRAYS
 
 instance FromSQL base dest => FromSQL PGarray (Array dest) where
-  pqFormatGet _ = pqFormatGet (undefined::dest) `BS.append` "[]"
+  pqFormatGet _ = pqFormatGet (undefined::dest) `BS.append` BS.pack "[]"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just PGarray{..}) =
     flip E.finally (c_PQclear pgArrayRes) $ if pgArrayNDims > 1
@@ -94,7 +94,7 @@ instance FromSQL base dest => FromSQL PGarray (Array dest) where
 -- TIMESTAMP
 
 instance FromSQL PGtimestamp LocalTime where
-  pqFormatGet _ = "%timestamp"
+  pqFormatGet _ = BS.pack "%timestamp"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just PGtimestamp{..}) = return . Right $ LocalTime day tod
     where
@@ -123,26 +123,26 @@ localToZoned construct jts@(Just PGtimestamp{..}) = do
     (mins, rest) = fromIntegral gmtoff `divMod` 60
 
 instance FromSQL PGtimestamp UTCTime where
-  pqFormatGet _ = "%timestamptz"
+  pqFormatGet _ = BS.pack "%timestamptz"
   fromSQL = localToZoned localTimeToUTC
 
 instance FromSQL PGtimestamp ZonedTime where
-  pqFormatGet _ = "%timestamptz"
+  pqFormatGet _ = BS.pack "%timestamptz"
   fromSQL = localToZoned (flip ZonedTime)
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance FromSQL CString String where
-  pqFormatGet _ = "%text"
+  pqFormatGet _ = BS.pack "%text"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just cs) = Right <$> peekCString cs
 
 instance FromSQL CString BS.ByteString where
-  pqFormatGet _ = "%text"
+  pqFormatGet _ = BS.pack "%text"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just cs) = Right <$> BS.packCString cs
 
 instance FromSQL CString Text where
-  pqFormatGet _ = "%text"
+  pqFormatGet _ = BS.pack "%text"
   fromSQL Nothing = unexpectedNullValue
   fromSQL (Just cs) = either (Left . show) Right . decodeUtf8' <$> BS.packCString cs

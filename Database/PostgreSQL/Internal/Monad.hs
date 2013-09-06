@@ -23,6 +23,7 @@ import Database.PostgreSQL.Fold
 import Database.PostgreSQL.Internal.C.Interface
 import Database.PostgreSQL.Internal.C.Put
 import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.Internal.Composite
 import Database.PostgreSQL.Internal.Exception
 import Database.PostgreSQL.Internal.State
 import Database.PostgreSQL.Internal.SQL
@@ -50,6 +51,7 @@ runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
       when (status /= c_CONNECTION_OK) $
         throwLibPQError conn mempty
       c_PQinitTypes conn
+      registerComposites conn ["simple"]
       newMVar $ Just conn
 
     disconnect mvconn = modifyMVar_ mvconn $ \mconn -> do
@@ -88,8 +90,7 @@ instance MonadIO m => MonadDB (DBT m) where
     (affected, res) <- liftIO . modifyMVar mvconn $ \mconn -> case mconn of
       Nothing -> throwInternalError sql "runQuery: no connection"
       Just conn -> do
-        fparam <- c_safePQparamCreate conn
-        res <- withForeignPtr fparam $ \param -> do
+        res <- withPGparam conn $ \param -> do
           query <- loadSQL conn param
           withCString query $ \q -> c_safePQparamExec conn param q 1
         affected <- withForeignPtr res $ verifyResult conn
@@ -105,10 +106,11 @@ instance MonadIO m => MonadDB (DBT m) where
         concat <$> mapM (f nums) (unSQL sql)
         where
           f _ (SCString s) = return s
-          f nums (SCValue v) = toSQL conn v $ \mbase -> case mbase of
-            Nothing -> return "NULL"
-            Just base -> BS.useAsCString (pqFormatPut v) $ \cfmt -> do
-              verifyGetPut sql =<< c_PQPutf param cfmt base
+          f nums (SCValue v) = toSQL conn v $ \embase -> case embase of
+            Left msg -> throwInternalError sql msg
+            Right Nothing -> return "NULL"
+            Right (Just base) -> BS.useAsCString (pqFormatPut v) $ \fmt -> do
+              verifyPQTRes sql =<< c_PQPutf param fmt base
               modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
       verifyResult conn res

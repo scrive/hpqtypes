@@ -24,6 +24,6 @@ bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do
     pokeByteOff ptr len (0::CChar)
   return fptr
 
-verifyGetPut :: SQL -> CInt -> IO ()
-verifyGetPut ctx 0 = throwLibPQTypesError ctx
-verifyGetPut _   _ = return ()
+verifyPQTRes :: SQL -> CInt -> IO ()
+verifyPQTRes ctx 0 = throwLibPQTypesError ctx
+verifyPQTRes _   _ = return ()

@@ -40,7 +40,7 @@ class Row base dest | dest -> base where
 
 instance FromSQL base dest => Row base dest where
   parseRow res ctx i fmt = alloca $ \p1 -> do
-    verifyGetPut ctx =<< c_PQgetf1 res i fmt 0 p1
+    verifyPQTRes ctx =<< c_PQgetf1 res i fmt 0 p1
     peek p1 >>= convert res ctx i 0
 
   rowFormat = pqFormatGet
@@ -52,7 +52,7 @@ instance (
            (d1, d2) where
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> do
-        verifyGetPut ctx =<< c_PQgetf2 res i fmt 0 p0 1 p1
+        verifyPQTRes ctx =<< c_PQgetf2 res i fmt 0 p0 1 p1
         (,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -66,7 +66,7 @@ instance (
            (d1, d2, d3) where
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> do
-        verifyGetPut ctx =<< c_PQgetf3 res i fmt 0 p0 1 p1 2 p2
+        verifyPQTRes ctx =<< c_PQgetf3 res i fmt 0 p0 1 p1 2 p2
         (,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -83,7 +83,7 @@ instance (
            (d1, d2, d3, d4) where
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> do
-        verifyGetPut ctx =<< c_PQgetf4 res i fmt 0 p0 1 p1 2 p2 3 p3
+        verifyPQTRes ctx =<< c_PQgetf4 res i fmt 0 p0 1 p1 2 p2 3 p3
         (,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -102,7 +102,7 @@ instance (
            (d1, d2, d3, d4, d5) where
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 -> do
-        verifyGetPut ctx =<< c_PQgetf5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
+        verifyPQTRes ctx =<< c_PQgetf5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
         (,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -124,7 +124,7 @@ instance (
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> do
-        verifyGetPut ctx =<< c_PQgetf6 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
+        verifyPQTRes ctx =<< c_PQgetf6 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
         (,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -147,7 +147,7 @@ instance (
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> do
-        verifyGetPut ctx =<< c_PQgetf7 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
+        verifyPQTRes ctx =<< c_PQgetf7 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
         (,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -172,7 +172,7 @@ instance (
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> do
-        verifyGetPut ctx =<< c_PQgetf8 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
+        verifyPQTRes ctx =<< c_PQgetf8 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
         (,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -198,7 +198,7 @@ instance (
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> do
-        verifyGetPut ctx =<< c_PQgetf9 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
+        verifyPQTRes ctx =<< c_PQgetf9 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
         (,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -225,7 +225,7 @@ instance (
     parseRow res ctx i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 -> do
-        verifyGetPut ctx =<< c_PQgetf10 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
+        verifyPQTRes ctx =<< c_PQgetf10 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
         (,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -256,7 +256,7 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> do
-        verifyGetPut ctx =<< c_PQgetf11 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
+        verifyPQTRes ctx =<< c_PQgetf11 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
         (,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -288,7 +288,7 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> do
-        verifyGetPut ctx =<< c_PQgetf12 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
+        verifyPQTRes ctx =<< c_PQgetf12 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
         (,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -321,7 +321,7 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> do
-        verifyGetPut ctx =<< c_PQgetf13 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
+        verifyPQTRes ctx =<< c_PQgetf13 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
         (,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -356,7 +356,7 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> do
-        verifyGetPut ctx =<< c_PQgetf14 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
+        verifyPQTRes ctx =<< c_PQgetf14 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
         (,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -392,7 +392,7 @@ instance (
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 -> do
-        verifyGetPut ctx =<< c_PQgetf15 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
+        verifyPQTRes ctx =<< c_PQgetf15 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
         (,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -431,7 +431,7 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> do
-        verifyGetPut ctx =<< c_PQgetf16 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
+        verifyPQTRes ctx =<< c_PQgetf16 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
         (,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -472,7 +472,7 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> do
-        verifyGetPut ctx =<< c_PQgetf17 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
+        verifyPQTRes ctx =<< c_PQgetf17 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
         (,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -514,7 +514,7 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> do
-        verifyGetPut ctx =<< c_PQgetf18 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
+        verifyPQTRes ctx =<< c_PQgetf18 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
         (,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -557,7 +557,7 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> do
-        verifyGetPut ctx =<< c_PQgetf19 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
+        verifyPQTRes ctx =<< c_PQgetf19 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
         (,,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)
@@ -602,7 +602,7 @@ instance (
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> alloca $ \p19 -> do
-        verifyGetPut ctx =<< c_PQgetf20 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
+        verifyPQTRes ctx =<< c_PQgetf20 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
         (,,,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res ctx i 0)
           <*> (peek p1 >>= convert res ctx i 1)

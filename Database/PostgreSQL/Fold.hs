@@ -17,12 +17,10 @@ foldDB :: forall m base dest acc. (MonadDB m, MonadIO m, Row base dest)
        => (acc -> dest -> m acc) -> acc -> m acc
 foldDB f initAcc = do
   mres <- liftM unQueryResult `liftM` getQueryResult
+  ctx <- getLastQuery
   case mres of
-    Nothing  -> do
-      sql <- getLastQuery
-      liftIO $ throwInternalError sql "foldDB: no query result"
+    Nothing  -> liftIO . throwInternalError ctx $ "foldDB: no query result"
     Just res -> do
-      ctx <- getLastQuery
       liftIO $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
         case rowLength (undefined::dest) of
@@ -31,15 +29,15 @@ foldDB f initAcc = do
             | otherwise          -> return ()
       fmt <- liftIO . bsToCString $ rowFormat (undefined::dest)
       acc <- liftIO (withForeignPtr res c_PQntuples)
-        >>= worker ctx fmt initAcc 0
+        >>= worker fmt initAcc 0
       clearQueryResult
       return acc
       where
-        worker ctx fmt acc !i !n
-          | i == n = return acc
+        worker fmt acc !i !n
+          | i == n    = return acc
           | otherwise = do
             obj <- liftIO $ withForeignPtr res $ \pres ->
                             withForeignPtr fmt $ \pfmt ->
                               parseRow pres ctx i pfmt
             acc' <- f acc obj
-            worker ctx fmt acc' (i+1) n
+            worker fmt acc' (i+1) n
