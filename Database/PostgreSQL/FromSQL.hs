@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
   , FunctionalDependencies, RecordWildCards, ScopedTypeVariables
   , UndecidableInstances #-}
-module Database.PostgreSQL.FromSQL {-(FromSQL(..))-} where
+module Database.PostgreSQL.FromSQL (FromSQL(..)) where
 
 import Control.Applicative
 import Data.Int
@@ -20,12 +20,8 @@ import Database.PostgreSQL.Internal.C.Get
 import Database.PostgreSQL.Internal.C.Interface
 import Database.PostgreSQL.Internal.C.Types
 import Database.PostgreSQL.Internal.Error
+import Database.PostgreSQL.Internal.Utils
 import Database.PostgreSQL.Types
-
-unexpectedNullValue :: IO a
-unexpectedNullValue = E.throwIO . InternalError $ "unexpected NULL value"
-
-----------------------------------------
 
 class Storable base => FromSQL base dest | dest -> base where
   pqFormatGet :: dest -> BS.ByteString
@@ -43,34 +39,34 @@ instance FromSQL base dest => FromSQL base (Maybe dest) where
 
 instance FromSQL CShort Int16 where
   pqFormatGet _ = BS.pack "%int2"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
 instance FromSQL CInt Int32 where
   pqFormatGet _ = BS.pack "%int4"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
 instance FromSQL CLLong Int64 where
   pqFormatGet _ = BS.pack "%int8"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
 instance FromSQL CFloat Float where
   pqFormatGet _ = BS.pack "%float4"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . realToFrac $ n
 
 instance FromSQL CDouble Double where
   pqFormatGet _ = BS.pack "%float8"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . realToFrac $ n
 
 -- ARRAYS
 
 instance FromSQL base dest => FromSQL PGarray (Array dest) where
   pqFormatGet _ = pqFormatGet (undefined::dest) `BS.append` BS.pack "[]"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGarray{..}) = flip E.finally (c_PQclear pgArrayRes) $ if pgArrayNDims > 1
     then E.throwIO . InternalError $ "Array type supports 1-dimensional arrays only, given array is " ++ show pgArrayNDims ++ "-dimensional"
     else do
@@ -80,14 +76,11 @@ instance FromSQL base dest => FromSQL PGarray (Array dest) where
     where
       loop acc (-1) _ = return . Array $ acc
       loop acc !i fmt = alloca $ \ptr -> do
-        success <- c_PQgetf1 pgArrayRes i fmt 0 ptr
-        if success == 0
-          then throwLibPQTypesError "fromSQL (Array)"
-          else do
-            isNull <- c_PQgetisnull pgArrayRes i 0
-            mbase  <- if isNull == 1 then return Nothing else Just <$> peek ptr
-            item   <- fromSQL mbase `E.catch` addArrayInfo i
-            loop (item : acc) (i-1) fmt
+        verifyPQTRes "fromSQL (Array)" =<< c_PQgetf1 pgArrayRes i fmt 0 ptr
+        isNull <- c_PQgetisnull pgArrayRes i 0
+        mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
+        item <- fromSQL mbase `E.catch` addArrayInfo i
+        loop (item : acc) (i-1) fmt
 
       addArrayInfo :: CInt -> E.SomeException -> IO a
       addArrayInfo i (E.SomeException e) =
@@ -100,7 +93,7 @@ instance FromSQL base dest => FromSQL PGarray (Array dest) where
 
 instance FromSQL PGtimestamp LocalTime where
   pqFormatGet _ = BS.pack "%timestamp"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGtimestamp{..}) = return $ LocalTime day tod
     where
       day = fromGregorian year mon mday
@@ -117,7 +110,7 @@ instance FromSQL PGtimestamp LocalTime where
 -- TIMESTAMPTZ
 
 localToZoned :: (TimeZone -> LocalTime -> a) -> Maybe PGtimestamp -> IO a
-localToZoned _ Nothing = unexpectedNullValue
+localToZoned _ Nothing = unexpectedNULL
 localToZoned construct jts@(Just PGtimestamp{..}) = do
   localTime <- fromSQL jts
   case rest of
@@ -139,15 +132,15 @@ instance FromSQL PGtimestamp ZonedTime where
 
 instance FromSQL CString String where
   pqFormatGet _ = BS.pack "%text"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = peekCString cs
 
 instance FromSQL CString BS.ByteString where
   pqFormatGet _ = BS.pack "%text"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = BS.packCString cs
 
 instance FromSQL CString Text where
   pqFormatGet _ = BS.pack "%text"
-  fromSQL Nothing = unexpectedNullValue
+  fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = either E.throwIO return . decodeUtf8' =<< BS.packCString cs

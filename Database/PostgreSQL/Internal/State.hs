@@ -9,9 +9,9 @@ import Database.PostgreSQL.Internal.C.Types
 import Database.PostgreSQL.Internal.SQL
 
 data TransactionMode = TransactionMode {
-  tmAutoTransaction :: !Bool
-, tmIsolationLevel  :: !IsolationLevel
-, tmPermissions     :: !Permissions
+  tmAutoTransaction :: Bool
+, tmIsolationLevel  :: IsolationLevel
+, tmPermissions     :: Permissions
 }
 
 data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializable

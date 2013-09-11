@@ -3,6 +3,7 @@
   , ScopedTypeVariables, UndecidableInstances #-}
 module Database.PostgreSQL.ToSQL (ToSQL(..)) where
 
+import Control.Monad
 import Data.Int
 import Data.Text (Text)
 import Data.Text.Encoding
@@ -16,7 +17,7 @@ import qualified Data.Vector.Unboxed as V
 import Database.PostgreSQL.Internal.C.Interface
 import Database.PostgreSQL.Internal.C.Put
 import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Error
+import Database.PostgreSQL.Internal.Utils
 import Database.PostgreSQL.Types
 
 class Storable base => ToSQL dest base | dest -> base where
@@ -58,28 +59,16 @@ instance ToSQL Double CDouble where
 instance (ToSQL dest base, PQPut base) => ToSQL (Array dest) (Ptr PGarray) where
   pqFormatPut _ = pqFormatPut (undefined::dest) `BS.append` BS.pack "[]"
   toSQL conn (Array arr) conv = alloca $ \ptr -> withPGparam conn $ \param -> do
-    let fmt = pqFormatPut (undefined::dest)
-    ok <- BS.useAsCString fmt $ putValues arr param
-    if not ok
-      then throwLibPQTypesError "toSQL (Array)"
-      else do
-        poke ptr PGarray {
-          pgArrayNDims = 0
-        , pgArrayLBound = V.empty
-        , pgArrayDims = V.empty
-        , pgArrayParam = param
-        , pgArrayRes = nullPtr
-        }
-        conv . Just $ ptr
-    where
-      putValues [] _ _ = return True
-      putValues (item : rest) param fmt = do
-        success <- toSQL conn item $ \embase -> case embase of
-          Nothing   -> c_PQPutfNULL param
-          Just base -> c_PQPutf param fmt base
-        if success == 0
-          then return False
-          else putValues rest param fmt
+    BS.useAsCString (pqFormatPut (undefined::dest)) $ \fmt -> forM_ arr $ \item ->
+      verifyPQTRes "toSQL (Array)" =<< toSQL conn item (c_PQPutfMaybe param fmt)
+    poke ptr PGarray {
+      pgArrayNDims = 0
+    , pgArrayLBound = V.empty
+    , pgArrayDims = V.empty
+    , pgArrayParam = param
+    , pgArrayRes = nullPtr
+    }
+    conv . Just $ ptr
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 

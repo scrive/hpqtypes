@@ -9,6 +9,7 @@ import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Utils
 import Foreign.Storable
+import qualified Control.Exception as E
 
 import Database.PostgreSQL.Internal.Error
 
@@ -22,6 +23,9 @@ bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do
     copyBytes ptr cs len
     pokeByteOff ptr len (0::CChar)
   return fptr
+
+unexpectedNULL :: IO a
+unexpectedNULL = E.throwIO . InternalError $ "unexpected NULL"
 
 verifyPQTRes :: String -> CInt -> IO ()
 verifyPQTRes ctx 0 = throwLibPQTypesError ctx

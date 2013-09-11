@@ -22,7 +22,7 @@ instance IsString SQL where
   fromString = SQL . D.singleton . SCString
 
 instance Show SQL where
-  show = ("\"" ++) . concatMap conv . unSQL . (<> "\"")
+  show = show . concatMap conv . unSQL
     where
       conv (SCString s) = s
       conv (SCValue v) = "<" ++ show v ++ ">"

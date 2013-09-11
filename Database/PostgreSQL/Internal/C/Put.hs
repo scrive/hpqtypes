@@ -2,7 +2,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 module Database.PostgreSQL.Internal.C.Put where
 
-import Data.ByteString.Unsafe
 import Foreign.C
 import Foreign.Ptr
 import qualified Data.ByteString.Char8 as BS
@@ -32,8 +31,9 @@ foreign import ccall unsafe "PQputf"
 
 ----------------------------------------
 
-c_PQPutfNULL :: Ptr PGparam -> IO CInt
-c_PQPutfNULL = unsafeUseAsCString (BS.pack "%null\0") . c_PQputf0
+c_PQPutfMaybe :: PQPut base => Ptr PGparam -> CString -> Maybe base -> IO CInt
+c_PQPutfMaybe param _ Nothing = BS.useAsCString (BS.pack "%null") (c_PQputf0 param)
+c_PQPutfMaybe param fmt (Just base) = c_PQPutf param fmt base
 
 ----------------------------------------
 

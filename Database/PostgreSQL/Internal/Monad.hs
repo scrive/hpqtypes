@@ -52,7 +52,7 @@ runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
       when (status /= c_CONNECTION_OK) $
         throwLibPQError conn "runDBT.connect"
       c_PQinitTypes conn
-      registerComposites conn ["simple"]
+      registerComposites conn ["simple", "nested"]
       newMVar $ Just conn
 
     disconnect mvconn = modifyMVar_ mvconn $ \mconn -> do
@@ -110,10 +110,9 @@ instance MonadIO m => MonadDB (DBT m) where
         concat <$> mapM (f nums) (unSQL sql)
         where
           f _ (SCString s) = return s
-          f nums (SCValue v) = toSQL conn v $ \embase -> case embase of
-            Nothing   -> return "NULL"
-            Just base -> BS.useAsCString (pqFormatPut v) $ \fmt -> do
-              verifyPQTRes "runQuery.loadSQL" =<< c_PQPutf param fmt base
+          f nums (SCValue v) = toSQL conn v $ \mbase -> do
+            BS.useAsCString (pqFormatPut v) $ \fmt -> do
+              verifyPQTRes "runQuery.loadSQL" =<< c_PQPutfMaybe param fmt mbase
               modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
       verifyResult conn res
