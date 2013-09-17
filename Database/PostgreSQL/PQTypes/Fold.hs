@@ -15,8 +15,8 @@ import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Row
 
-foldDB :: forall m base dest acc. (MonadDB m, MonadIO m, Row base dest)
-       => (acc -> dest -> m acc) -> acc -> m acc
+foldDB :: forall m row acc. (MonadDB m, MonadIO m, Row row)
+       => (acc -> row -> m acc) -> acc -> m acc
 foldDB f initAcc = do
   mres <- liftM unQueryResult `liftM` getQueryResult
   ctx <- getLastQuery
@@ -28,13 +28,13 @@ foldDB f initAcc = do
     Just res -> do
       liftIO $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
-        let expected = rowLength (undefined::dest)
+        let expected = rowLength (undefined::row)
         when (rowlen /= expected) $
           E.throwIO DBException {
             dbeQueryContext = ctx
           , dbeError = RowLengthMismatch expected rowlen
           }
-      fmt <- liftIO . bsToCString $ rowFormat (undefined::dest)
+      fmt <- liftIO . bsToCString $ rowFormat (undefined::row)
       acc <- liftIO (withForeignPtr res c_PQntuples)
         >>= worker fmt initAcc 0
       clearQueryResult

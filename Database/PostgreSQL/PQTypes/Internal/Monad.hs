@@ -24,8 +24,9 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Composite
-import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Transaction
@@ -111,7 +112,7 @@ instance MonadIO m => MonadDB (DBT m) where
         where
           f _ (SCString s) = return s
           f nums (SCValue v) = toSQL conn v $ \mbase -> do
-            BS.useAsCString (pqFormatPut v) $ \fmt -> do
+            BS.useAsCString (pqFormat v) $ \fmt -> do
               verifyPQTRes "runQuery.loadSQL" =<< c_PQPutfMaybe param fmt mbase
               modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 

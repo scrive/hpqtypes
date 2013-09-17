@@ -2,8 +2,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Database.PostgreSQL.PQTypes.Types where
 
-import Control.Applicative
-
 newtype Array a = Array [a]
   deriving (Eq, Functor, Ord, Show)
 

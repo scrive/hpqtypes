@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
-  , FunctionalDependencies, RecordWildCards, ScopedTypeVariables
-  , UndecidableInstances #-}
+  , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.FromSQL (FromSQL(..)) where
 
 import Control.Applicative
@@ -21,57 +20,58 @@ import Database.PostgreSQL.PQTypes.Internal.C.Get
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
-class Storable base => FromSQL base dest | dest -> base where
-  pqFormatGet :: dest -> BS.ByteString
-  fromSQL     :: Maybe base -> IO dest
+class (PQFormat t, Storable (PQBase t)) => FromSQL t where
+  type PQBase t
+  fromSQL :: Maybe (PQBase t) -> IO t
 
 -- NULLables
 
-instance FromSQL base dest => FromSQL base (Maybe dest) where
-  pqFormatGet _ = pqFormatGet (undefined::dest)
+instance FromSQL t => FromSQL (Maybe t) where
+  type PQBase (Maybe t) = PQBase t
   fromSQL mbase = case mbase of
     Just _  -> Just <$> fromSQL mbase
     Nothing -> return Nothing
 
 -- NUMERICS
 
-instance FromSQL CShort Int16 where
-  pqFormatGet _ = BS.pack "%int2"
+instance FromSQL Int16 where
+  type PQBase Int16 = CShort
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
-instance FromSQL CInt Int32 where
-  pqFormatGet _ = BS.pack "%int4"
+instance FromSQL Int32 where
+  type PQBase Int32 = CInt
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
-instance FromSQL CLLong Int64 where
-  pqFormatGet _ = BS.pack "%int8"
+instance FromSQL Int64 where
+  type PQBase Int64 = CLLong
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . fromIntegral $ n
 
-instance FromSQL CFloat Float where
-  pqFormatGet _ = BS.pack "%float4"
+instance FromSQL Float where
+  type PQBase Float = CFloat
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . realToFrac $ n
 
-instance FromSQL CDouble Double where
-  pqFormatGet _ = BS.pack "%float8"
+instance FromSQL Double where
+  type PQBase Double = CDouble
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . realToFrac $ n
 
 -- ARRAYS
 
-instance FromSQL base dest => FromSQL PGarray (Array dest) where
-  pqFormatGet _ = pqFormatGet (undefined::dest) `BS.append` BS.pack "[]"
+instance FromSQL t => FromSQL (Array t) where
+  type PQBase (Array t) = PGarray
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGarray{..}) = flip E.finally (c_PQclear pgArrayRes) $ if pgArrayNDims > 1
     then E.throwIO . InternalError $ "Array type supports 1-dimensional arrays only, given array is " ++ show pgArrayNDims ++ "-dimensional"
     else do
-      let fmt = pqFormatGet (undefined::dest)
+      let fmt = pqFormat (undefined::t)
       size <- c_PQntuples pgArrayRes
       BS.useAsCString fmt (loop [] $ size - 1)
     where
@@ -92,59 +92,59 @@ instance FromSQL base dest => FromSQL PGarray (Array dest) where
 
 -- CHAR
 
-instance FromSQL CChar Char where
-  pqFormatGet _ = BS.pack "%char"
+instance FromSQL Char where
+  type PQBase Char = CChar
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just c) = return . castCCharToChar $ c
 
-instance FromSQL CChar Word8 where
-  pqFormatGet _ = BS.pack "%char"
+instance FromSQL Word8 where
+  type PQBase Word8 = CChar
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just c) = return . fromIntegral $ c
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
-instance FromSQL CString String where
-  pqFormatGet _ = BS.pack "%text"
+instance FromSQL String where
+  type PQBase String = CString
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = peekCString cs
 
-instance FromSQL CString BS.ByteString where
-  pqFormatGet _ = BS.pack "%text"
+instance FromSQL BS.ByteString where
+  type PQBase BS.ByteString = CString
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = BS.packCString cs
 
-instance FromSQL CString Text where
-  pqFormatGet _ = BS.pack "%text"
+instance FromSQL Text where
+  type PQBase Text = CString
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = either E.throwIO return . decodeUtf8' =<< BS.packCString cs
 
 -- BYTEA
 
-instance FromSQL PGbytea (Binary BS.ByteString) where
-  pqFormatGet _ = BS.pack "%bytea"
+instance FromSQL (Binary BS.ByteString) where
+  type PQBase (Binary BS.ByteString) = PGbytea
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGbytea{..}) = Binary
     <$> BS.packCStringLen (pgByteaData, fromIntegral pgByteaLen)
 
 -- DATE
 
-instance FromSQL PGdate Day where
-  pqFormatGet _ = BS.pack "%date"
+instance FromSQL Day where
+  type PQBase Day = PGdate
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just date) = return . pgDateToDay $ date
 
 -- TIME
 
-instance FromSQL PGtime TimeOfDay where
-  pqFormatGet _ = BS.pack "%time"
+instance FromSQL TimeOfDay where
+  type PQBase TimeOfDay = PGtime
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just time) = return . pgTimeToTimeOfDay $ time
 
 -- TIMESTAMP
 
-instance FromSQL PGtimestamp LocalTime where
-  pqFormatGet _ = BS.pack "%timestamp"
+instance FromSQL LocalTime where
+  type PQBase LocalTime = PGtimestamp
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGtimestamp{..}) = return $ LocalTime day tod
     where
@@ -153,12 +153,12 @@ instance FromSQL PGtimestamp LocalTime where
 
 -- TIMESTAMPTZ
 
-instance FromSQL PGtimestamp UTCTime where
-  pqFormatGet _ = BS.pack "%timestamptz"
+instance FromSQL UTCTime where
+  type PQBase UTCTime = PGtimestamp
   fromSQL = localToZoned localTimeToUTC
 
-instance FromSQL PGtimestamp ZonedTime where
-  pqFormatGet _ = BS.pack "%timestamptz"
+instance FromSQL ZonedTime where
+  type PQBase ZonedTime = PGtimestamp
   fromSQL = localToZoned (flip ZonedTime)
 
 ----------------------------------------

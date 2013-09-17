@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, ScopedTypeVariables
-  , UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, OverlappingInstances, ScopedTypeVariables
+  , TypeFamilies, UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.Row (
     Row(..)
   , parseRow'
@@ -19,12 +19,13 @@ import Database.PostgreSQL.PQTypes.Internal.C.Get
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
 u :: a
 u = undefined
 
-convert :: FromSQL base dest => Ptr PGresult -> CInt -> CInt -> base -> IO dest
+convert :: FromSQL t => Ptr PGresult -> CInt -> CInt -> PQBase t -> IO t
 convert res tuple column base = do
   isNull <- c_PQgetisnull res tuple column
   fromSQL (if isNull == 1 then Nothing else Just base) `E.catch` nestError
@@ -44,26 +45,25 @@ verify = verifyPQTRes "parseRow"
 
 ----------------------------------------
 
-parseRow' :: forall base dest. Row base dest => Ptr PGresult -> CInt -> IO dest
-parseRow' res i = BS.useAsCString (rowFormat (u::dest)) (parseRow res i)
+parseRow' :: forall row. Row row => Ptr PGresult -> CInt -> IO row
+parseRow' res i = BS.useAsCString (rowFormat (u::row)) (parseRow res i)
 
-class Row base dest | dest -> base where
-  parseRow  :: Ptr PGresult -> CInt -> CString -> IO dest
-  rowFormat :: dest -> BS.ByteString
-  rowLength :: dest -> Int
+class Row row where
+  parseRow  :: Ptr PGresult -> CInt -> CString -> IO row
+  rowFormat :: row -> BS.ByteString
+  rowLength :: row -> Int
 
-instance FromSQL base dest => Row base dest where
+instance FromSQL t => Row t where
   parseRow res i fmt = alloca $ \p1 -> do
     verify =<< c_PQgetf1 res i fmt 0 p1
     peek p1 >>= convert res i 0
 
-  rowFormat = pqFormatGet
+  rowFormat = pqFormat
   rowLength _ = 1
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2
-  ) => Row (b1, b2)
-           (d1, d2) where
+    FromSQL t1, FromSQL t2
+  ) => Row (t1, t2) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> do
         verify =<< c_PQgetf2 res i fmt 0 p0 1 p1
@@ -71,13 +71,12 @@ instance (
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
 
-    rowFormat _ = BS.concat [pqFormatGet (u::d1), pqFormatGet (u::d2)]
+    rowFormat _ = BS.concat [pqFormat (u::t1), pqFormat (u::t2)]
     rowLength _ = 2
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3
-  ) => Row (b1, b2, b3)
-           (d1, d2, d3) where
+    FromSQL t1, FromSQL t2, FromSQL t3
+  ) => Row (t1, t2, t3) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> do
         verify =<< c_PQgetf3 res i fmt 0 p0 1 p1 2 p2
@@ -87,14 +86,13 @@ instance (
           <*> (peek p2 >>= convert res i 2)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
       ]
     rowLength _ = 3
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4
-  ) => Row (b1, b2, b3, b4)
-           (d1, d2, d3, d4) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4
+  ) => Row (t1, t2, t3, t4) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> do
         verify =<< c_PQgetf4 res i fmt 0 p0 1 p1 2 p2 3 p3
@@ -105,15 +103,14 @@ instance (
           <*> (peek p3 >>= convert res i 3)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
+      , pqFormat (u::t4)
       ]
     rowLength _ = 4
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  ) => Row (b1, b2, b3, b4, b5)
-           (d1, d2, d3, d4, d5) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5
+  ) => Row (t1, t2, t3, t4, t5) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 -> do
         verify =<< c_PQgetf5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
@@ -125,16 +122,14 @@ instance (
           <*> (peek p4 >>= convert res i 4)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
+      , pqFormat (u::t4), pqFormat (u::t5)
       ]
     rowLength _ = 5
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6
-  ) => Row (b1, b2, b3, b4, b5, b6)
-           (d1, d2, d3, d4, d5, d6) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  ) => Row (t1, t2, t3, t4, t5, t6) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> do
@@ -148,16 +143,15 @@ instance (
           <*> (peek p5 >>= convert res i 5)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6)
       ]
     rowLength _ = 6
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7
-  ) => Row (b1, b2, b3, b4, b5, b6, b7)
-           (d1, d2, d3, d4, d5, d6, d7) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7
+  ) => Row (t1, t2, t3, t4, t5, t6, t7) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> do
@@ -172,17 +166,15 @@ instance (
           <*> (peek p6 >>= convert res i 6)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7)
       ]
     rowLength _ = 7
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8)
-           (d1, d2, d3, d4, d5, d6, d7, d8) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> do
@@ -198,17 +190,15 @@ instance (
           <*> (peek p7 >>= convert res i 7)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
       ]
     rowLength _ = 8
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> do
@@ -225,17 +215,16 @@ instance (
           <*> (peek p8 >>= convert res i 8)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9)
       ]
     rowLength _ = 9
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 -> do
@@ -253,19 +242,16 @@ instance (
           <*> (peek p9 >>= convert res i 9)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10)
       ]
     rowLength _ = 10
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -285,19 +271,16 @@ instance (
           <*> (peek p10 >>= convert res i 10)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11)
       ]
     rowLength _ = 11
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -318,19 +301,17 @@ instance (
           <*> (peek p11 >>= convert res i 11)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
       ]
     rowLength _ = 12
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -352,20 +333,18 @@ instance (
           <*> (peek p12 >>= convert res i 12)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13)
       ]
     rowLength _ = 13
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -388,20 +367,18 @@ instance (
           <*> (peek p13 >>= convert res i 13)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14)
       ]
     rowLength _ = 14
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -425,21 +402,18 @@ instance (
           <*> (peek p14 >>= convert res i 14)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15)
       ]
     rowLength _ = 15
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  , FromSQL b16 d16
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -465,22 +439,18 @@ instance (
           <*> (peek p15 >>= convert res i 15)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
-      , pqFormatGet (u::d16)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
       ]
     rowLength _ = 16
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  , FromSQL b16 d16, FromSQL b17 d17
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -507,22 +477,19 @@ instance (
           <*> (peek p16 >>= convert res i 16)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
-      , pqFormatGet (u::d16), pqFormatGet (u::d17)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
+      , pqFormat (u::t17)
       ]
     rowLength _ = 17
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  , FromSQL b16 d16, FromSQL b17 d17, FromSQL b18 d18
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -550,22 +517,20 @@ instance (
           <*> (peek p17 >>= convert res i 17)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
-      , pqFormatGet (u::d16), pqFormatGet (u::d17), pqFormatGet (u::d18)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
+      , pqFormat (u::t17), pqFormat (u::t18)
       ]
     rowLength _ = 18
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  , FromSQL b16 d16, FromSQL b17 d17, FromSQL b18 d18, FromSQL b19 d19
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
+  , FromSQL t19
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -594,23 +559,20 @@ instance (
           <*> (peek p18 >>= convert res i 18)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
-      , pqFormatGet (u::d16), pqFormatGet (u::d17), pqFormatGet (u::d18)
-      , pqFormatGet (u::d19)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
+      , pqFormat (u::t17), pqFormat (u::t18), pqFormat (u::t19)
       ]
     rowLength _ = 19
 
 instance (
-    FromSQL b1 d1, FromSQL b2 d2, FromSQL b3 d3, FromSQL b4 d4, FromSQL b5 d5
-  , FromSQL b6 d6, FromSQL b7 d7, FromSQL b8 d8, FromSQL b9 d9, FromSQL b10 d10
-  , FromSQL b11 d11, FromSQL b12 d12, FromSQL b13 d13, FromSQL b14 d14, FromSQL b15 d15
-  , FromSQL b16 d16, FromSQL b17 d17, FromSQL b18 d18, FromSQL b19 d19, FromSQL b20 d20
-  ) => Row (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20)
-           (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20) where
+    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+  , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
+  , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
+  , FromSQL t19, FromSQL t20
+  ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20) where
     parseRow res i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
@@ -640,12 +602,10 @@ instance (
           <*> (peek p19 >>= convert res i 19)
 
     rowFormat _ = BS.concat [
-        pqFormatGet (u::d1), pqFormatGet (u::d2), pqFormatGet (u::d3)
-      , pqFormatGet (u::d4), pqFormatGet (u::d5), pqFormatGet (u::d6)
-      , pqFormatGet (u::d7), pqFormatGet (u::d8), pqFormatGet (u::d9)
-      , pqFormatGet (u::d10), pqFormatGet (u::d11), pqFormatGet (u::d12)
-      , pqFormatGet (u::d13), pqFormatGet (u::d14), pqFormatGet (u::d15)
-      , pqFormatGet (u::d16), pqFormatGet (u::d17), pqFormatGet (u::d18)
-      , pqFormatGet (u::d19), pqFormatGet (u::d20)
+        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
+      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
+      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
+      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
+      , pqFormat (u::t17), pqFormat (u::t18), pqFormat (u::t19), pqFormat (u::t20)
       ]
     rowLength _ = 20

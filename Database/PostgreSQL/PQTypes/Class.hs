@@ -15,4 +15,4 @@ class Monad m => MonadDB m where
   getTransactionMode :: m TransactionMode
   setTransactionMode :: TransactionMode -> m ()
 
-  fold :: Row base dest => (acc -> dest -> m acc) -> acc -> m acc
+  fold :: Row row => (acc -> row -> m acc) -> acc -> m acc

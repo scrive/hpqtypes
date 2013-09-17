@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses
-  , RecordWildCards, ScopedTypeVariables, UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, RecordWildCards
+  , ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL {-(ToSQL(..))-} where
 
 import Control.Monad
@@ -22,49 +22,50 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
-class Storable base => ToSQL dest base | dest -> base where
-  pqFormatPut :: dest -> BS.ByteString
-  toSQL       :: Ptr PGconn -> dest -> (Maybe base -> IO r) -> IO r
+class (PQFormat t, PQPut (PQDest t)) => ToSQL t where
+  type PQDest t
+  toSQL :: Ptr PGconn -> t -> (Maybe (PQDest t) -> IO r) -> IO r
 
 -- NULLables
 
-instance ToSQL dest base => ToSQL (Maybe dest) base where
-  pqFormatPut _ = pqFormatPut (undefined::dest)
-  toSQL conn mdest conv = case mdest of
-    Nothing   -> conv Nothing
-    Just dest -> toSQL conn dest conv
+instance ToSQL t => ToSQL (Maybe t) where
+  type PQDest (Maybe t) = PQDest t
+  toSQL conn mt conv = case mt of
+    Nothing -> conv Nothing
+    Just t  -> toSQL conn t conv
 
 -- NUMERICS
 
-instance ToSQL Int16 CShort where
-  pqFormatPut _ = BS.pack "%int2"
+instance ToSQL Int16 where
+  type PQDest Int16 = CShort
   toSQL _ n conv = conv . Just . fromIntegral $ n
 
-instance ToSQL Int32 CInt where
-  pqFormatPut _ = BS.pack "%int4"
+instance ToSQL Int32 where
+  type PQDest Int32 = CInt
   toSQL _ n conv = conv . Just . fromIntegral $ n
 
-instance ToSQL Int64 CLLong where
-  pqFormatPut _ = BS.pack "%int8"
+instance ToSQL Int64 where
+  type PQDest Int64 = CLLong
   toSQL _ n conv = conv . Just . fromIntegral $ n
 
-instance ToSQL Float CFloat where
-  pqFormatPut _ = BS.pack "%float4"
+instance ToSQL Float where
+  type PQDest Float = CFloat
   toSQL _ n conv = conv . Just . realToFrac $ n
 
-instance ToSQL Double CDouble where
-  pqFormatPut _ = BS.pack "%float8"
+instance ToSQL Double where
+  type PQDest Double = CDouble
   toSQL _ n conv = conv . Just . realToFrac $ n
 
 -- ARRAYS
 
-instance (ToSQL dest base, PQPut base) => ToSQL (Array dest) (Ptr PGarray) where
-  pqFormatPut _ = pqFormatPut (undefined::dest) `BS.append` BS.pack "[]"
+instance ToSQL t => ToSQL (Array t) where
+  type PQDest (Array t) = Ptr PGarray
   toSQL conn (Array arr) conv = alloca $ \ptr -> withPGparam conn $ \param -> do
-    BS.useAsCString (pqFormatPut (undefined::dest)) $ \fmt -> forM_ arr $ \item ->
+    BS.useAsCString (pqFormat (undefined::t)) $ \fmt -> forM_ arr $ \item ->
       verifyPQTRes "toSQL (Array)" =<< toSQL conn item (c_PQPutfMaybe param fmt)
     poke ptr PGarray {
       pgArrayNDims = 0
@@ -77,34 +78,34 @@ instance (ToSQL dest base, PQPut base) => ToSQL (Array dest) (Ptr PGarray) where
 
 -- CHAR
 
-instance ToSQL Char CChar where
-  pqFormatPut _ = BS.pack "%char"
+instance ToSQL Char where
+  type PQDest Char = CChar
   toSQL _ c conv
     | c > '\255' = E.throwIO . InternalError $ "toSQL (Char): character " ++ show c ++ " cannot be losslessly converted to CChar"
     | otherwise = conv . Just . castCharToCChar $ c
 
-instance ToSQL Word8 CChar where
-  pqFormatPut _ = BS.pack "%char"
+instance ToSQL Word8 where
+  type PQDest Word8 = CChar
   toSQL _ c conv = conv . Just . fromIntegral $ c
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
-instance ToSQL BS.ByteString CString where
-  pqFormatPut _ = BS.pack "%text"
+instance ToSQL BS.ByteString where
+  type PQDest BS.ByteString = CString
   toSQL _ bs conv = BS.useAsCString bs $ \cs -> conv . Just $ cs
 
-instance ToSQL Text CString where
-  pqFormatPut _ = BS.pack "%text"
+instance ToSQL Text where
+  type PQDest Text = CString
   toSQL conn = toSQL conn . encodeUtf8
 
-instance ToSQL String CString where
-  pqFormatPut _ = BS.pack "%text"
+instance ToSQL String where
+  type PQDest String = CString
   toSQL _ s conv = withCString s $ \cs -> conv . Just $ cs
 
 -- BYTEA
 
-instance ToSQL (Binary BS.ByteString) (Ptr PGbytea) where
-  pqFormatPut _ = BS.pack "%bytea"
+instance ToSQL (Binary BS.ByteString) where
+  type PQDest (Binary BS.ByteString) = Ptr PGbytea
   toSQL _ (Binary bs) conv = alloca $ \ptr ->
     unsafeUseAsCStringLen bs $ \(cs, len) -> do
       poke ptr PGbytea {
@@ -115,24 +116,24 @@ instance ToSQL (Binary BS.ByteString) (Ptr PGbytea) where
 
 -- DATE
 
-instance ToSQL Day (Ptr PGdate) where
-  pqFormatPut _ = BS.pack "%date"
+instance ToSQL Day where
+  type PQDest Day = Ptr PGdate
   toSQL _ day conv = alloca $ \ptr -> do
     poke ptr $ dayToPGdate day
     conv . Just $ ptr
 
 -- TIME
 
-instance ToSQL TimeOfDay (Ptr PGtime) where
-  pqFormatPut _ = BS.pack "%time"
+instance ToSQL TimeOfDay where
+  type PQDest TimeOfDay = Ptr PGtime
   toSQL _ tod conv = alloca $ \ptr -> do
     poke ptr $ timeOfDayToPGtime tod
     conv . Just $ ptr
 
 -- TIMESTAMP
 
-instance ToSQL LocalTime (Ptr PGtimestamp) where
-  pqFormatPut _ = BS.pack "%timestamp"
+instance ToSQL LocalTime where
+  type PQDest LocalTime = Ptr PGtimestamp
   toSQL _ LocalTime{..} conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
@@ -143,8 +144,8 @@ instance ToSQL LocalTime (Ptr PGtimestamp) where
 
 -- TIMESTAMPTZ
 
-instance ToSQL UTCTime (Ptr PGtimestamp) where
-  pqFormatPut _ = BS.pack "%timestamptz"
+instance ToSQL UTCTime where
+  type PQDest UTCTime = Ptr PGtimestamp
   toSQL _ UTCTime{..} conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
@@ -153,8 +154,8 @@ instance ToSQL UTCTime (Ptr PGtimestamp) where
     }
     conv . Just $ ptr
 
-instance ToSQL ZonedTime (Ptr PGtimestamp) where
-  pqFormatPut _ = BS.pack "%timestamptz"
+instance ToSQL ZonedTime where
+  type PQDest ZonedTime = Ptr PGtimestamp
   toSQL _ ZonedTime{..} conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
