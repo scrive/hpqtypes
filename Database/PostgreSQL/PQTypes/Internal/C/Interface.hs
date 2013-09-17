@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Database.PostgreSQL.Internal.C.Interface where
+module Database.PostgreSQL.PQTypes.Internal.C.Interface where
 
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 -- it may block in case of network problem, make it safe
 foreign import ccall safe "PQconnectdb"

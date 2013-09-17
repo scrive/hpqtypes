@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
   , FunctionalDependencies, RecordWildCards, ScopedTypeVariables
   , UndecidableInstances #-}
-module Database.PostgreSQL.FromSQL (FromSQL(..)) where
+module Database.PostgreSQL.PQTypes.FromSQL (FromSQL(..)) where
 
 import Control.Applicative
 import Data.Int
@@ -17,12 +17,12 @@ import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.Internal.C.Get
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Error
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Get
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Types
 
 class Storable base => FromSQL base dest | dest -> base where
   pqFormatGet :: dest -> BS.ByteString
@@ -121,7 +121,7 @@ instance FromSQL CString Text where
 
 -- BYTEA
 
-instance FromSQL PGbytea Binary where
+instance FromSQL PGbytea (Binary BS.ByteString) where
   pqFormatGet _ = BS.pack "%bytea"
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just PGbytea{..}) = Binary

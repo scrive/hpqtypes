@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE EmptyDataDecls, RecordWildCards, ScopedTypeVariables #-}
-module Database.PostgreSQL.Internal.C.Types where
+module Database.PostgreSQL.PQTypes.Internal.C.Types where
 
 import Control.Applicative
 import Data.ByteString.Unsafe

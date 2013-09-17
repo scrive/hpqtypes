@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Database.PostgreSQL.Internal.Utils where
+module Database.PostgreSQL.PQTypes.Internal.Utils where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Unsafe
@@ -11,7 +11,7 @@ import Foreign.Marshal.Utils
 import Foreign.Storable
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Error
 
 mintercalate :: Monoid m => m -> [m] -> m
 mintercalate s = mconcat . intersperse s

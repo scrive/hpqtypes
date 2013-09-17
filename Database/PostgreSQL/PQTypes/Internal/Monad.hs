@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
   , MultiParamTypeClasses, TupleSections, TypeFamilies, UndecidableInstances #-}
-module Database.PostgreSQL.Internal.Monad where
+module Database.PostgreSQL.PQTypes.Internal.Monad where
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -18,19 +18,19 @@ import qualified Control.Exception as E
 import qualified Control.Exception.Lifted as LE
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.Class
-import Database.PostgreSQL.Fold
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Put
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Composite
-import Database.PostgreSQL.Internal.Exception
-import Database.PostgreSQL.Internal.Error
-import Database.PostgreSQL.Internal.State
-import Database.PostgreSQL.Internal.SQL
-import Database.PostgreSQL.Internal.Transaction
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.ToSQL
+import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Fold
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Put
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Composite
+import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.Internal.Transaction
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.ToSQL
 
 type InnerDBT = StateT DBState
 

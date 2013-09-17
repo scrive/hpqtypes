@@ -1,19 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
-module Database.PostgreSQL.Fold where
+module Database.PostgreSQL.PQTypes.Fold where
 
 import Control.Monad
 import Control.Monad.Trans
 import Foreign.ForeignPtr.Safe
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Class
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.Exception
-import Database.PostgreSQL.Internal.Error
-import Database.PostgreSQL.Internal.State
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.Row
+import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Row
 
 foldDB :: forall m base dest acc. (MonadDB m, MonadIO m, Row base dest)
        => (acc -> dest -> m acc) -> acc -> m acc

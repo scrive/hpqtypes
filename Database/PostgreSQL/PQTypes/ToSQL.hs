@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, MultiParamTypeClasses
   , RecordWildCards, ScopedTypeVariables, UndecidableInstances #-}
-module Database.PostgreSQL.ToSQL {-(ToSQL(..))-} where
+module Database.PostgreSQL.PQTypes.ToSQL {-(ToSQL(..))-} where
 
 import Control.Monad
 import Data.ByteString.Unsafe
@@ -18,12 +18,12 @@ import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector.Unboxed as V
 
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Put
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Error
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Put
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Types
 
 class Storable base => ToSQL dest base | dest -> base where
   pqFormatPut :: dest -> BS.ByteString
@@ -103,7 +103,7 @@ instance ToSQL String CString where
 
 -- BYTEA
 
-instance ToSQL Binary (Ptr PGbytea) where
+instance ToSQL (Binary BS.ByteString) (Ptr PGbytea) where
   pqFormatPut _ = BS.pack "%bytea"
   toSQL _ (Binary bs) conv = alloca $ \ptr ->
     unsafeUseAsCStringLen bs $ \(cs, len) -> do

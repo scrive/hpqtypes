@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Database.PostgreSQL.Internal.C.Put where
+module Database.PostgreSQL.PQTypes.Internal.C.Put where
 
 import Foreign.C
 import Foreign.Ptr
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 foreign import ccall unsafe "PQputf"
   c_PQputf0 :: Ptr PGparam -> CString -> IO CInt

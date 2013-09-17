@@ -1,14 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
-module Database.PostgreSQL.Internal.Error where
+module Database.PostgreSQL.PQTypes.Internal.Error where
 
 import Data.Typeable
 import Foreign.C.String
 import Foreign.Ptr
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 data InternalError = InternalError String
   deriving (Show, Typeable)

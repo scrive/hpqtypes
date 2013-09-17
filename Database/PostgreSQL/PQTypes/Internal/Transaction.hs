@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
-module Database.PostgreSQL.Internal.Transaction where
+module Database.PostgreSQL.PQTypes.Internal.Transaction where
 
 import Control.Monad
 
-import Database.PostgreSQL.Class
-import Database.PostgreSQL.Internal.State
-import Database.PostgreSQL.Internal.Utils
+import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.Utils
 
 defaultTransactionMode :: TransactionMode
 defaultTransactionMode = TransactionMode {

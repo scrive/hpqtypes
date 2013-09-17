@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveFunctor, ExistentialQuantification, FlexibleInstances
   , FunctionalDependencies, ScopedTypeVariables, UndecidableInstances #-}
-module Database.PostgreSQL.Composite where
+module Database.PostgreSQL.PQTypes.Composite where
 
 import Control.Applicative
 import Control.Monad
@@ -10,13 +10,13 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Put
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.FromSQL
-import Database.PostgreSQL.Row
-import Database.PostgreSQL.ToSQL
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Put
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Row
+import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Composite a = Composite a
   deriving (Eq, Functor, Ord, Show)

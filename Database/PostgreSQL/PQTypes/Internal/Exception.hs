@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
-module Database.PostgreSQL.Internal.Exception where
+module Database.PostgreSQL.PQTypes.Internal.Exception where
 
 import Data.Typeable
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Internal.SQL
+import Database.PostgreSQL.PQTypes.Internal.SQL
 
 data DBException = forall e. E.Exception e => DBException {
   dbeQueryContext :: SQL

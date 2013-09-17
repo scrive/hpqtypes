@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ExistentialQuantification #-}
-module Database.PostgreSQL.Internal.SQL where
+module Database.PostgreSQL.PQTypes.Internal.SQL where
 
 import Data.Monoid
 import Data.String
 import qualified Data.DList as D
 
-import Database.PostgreSQL.Internal.C.Put
-import Database.PostgreSQL.ToSQL
+import Database.PostgreSQL.PQTypes.Internal.C.Put
+import Database.PostgreSQL.PQTypes.ToSQL
 
 data SqlChunk
   = SCString String

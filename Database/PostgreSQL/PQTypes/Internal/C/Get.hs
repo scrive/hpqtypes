@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Database.PostgreSQL.Internal.C.Get where
+module Database.PostgreSQL.PQTypes.Internal.C.Get where
 
 import Foreign.C
 import Foreign.Ptr
 
-import Database.PostgreSQL.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 foreign import ccall unsafe "PQgetf"
   c_PQgetf1 :: Ptr PGresult -> CInt -> CString

@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
-module Database.PostgreSQL.Internal.State where
+module Database.PostgreSQL.PQTypes.Internal.State where
 
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Control.Concurrent.MVar
 
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.SQL
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.SQL
 
 data TransactionMode = TransactionMode {
   tmAutoTransaction :: Bool

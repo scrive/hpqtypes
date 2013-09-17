@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE TupleSections #-}
-module Database.PostgreSQL.Internal.Query where
+module Database.PostgreSQL.PQTypes.Internal.Query where
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -13,16 +13,16 @@ import Foreign.ForeignPtr.Safe
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
-import Database.PostgreSQL.Class
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Put
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Fold
-import Database.PostgreSQL.Internal.Monad
-import Database.PostgreSQL.Internal.State
-import Database.PostgreSQL.Internal.SQL
-import Database.PostgreSQL.Internal.Utils
-import Database.PostgreSQL.ToSQL
+import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Put
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Fold
+import Database.PostgreSQL.PQTypes.Internal.Monad
+import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.ToSQL
 
 runDBQuery sql = DBT $ do
   mvconn <- gets dbConn

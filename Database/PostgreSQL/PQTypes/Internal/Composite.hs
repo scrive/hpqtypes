@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
-module Database.PostgreSQL.Internal.Composite where
+module Database.PostgreSQL.PQTypes.Internal.Composite where
 
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -8,9 +8,9 @@ import Foreign.Marshal.Array
 import Foreign.Ptr
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Utils
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Utils
 
 registerComposites :: Ptr PGconn -> [String] -> IO ()
 registerComposites _ [] = return ()

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, FunctionalDependencies, ScopedTypeVariables
   , UndecidableInstances #-}
-module Database.PostgreSQL.Row (
+module Database.PostgreSQL.PQTypes.Row (
     Row(..)
   , parseRow'
   ) where
@@ -14,12 +14,12 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
-import Database.PostgreSQL.FromSQL
-import Database.PostgreSQL.Internal.C.Get
-import Database.PostgreSQL.Internal.C.Interface
-import Database.PostgreSQL.Internal.C.Types
-import Database.PostgreSQL.Internal.Error
-import Database.PostgreSQL.Internal.Utils
+import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Internal.C.Get
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Utils
 
 u :: a
 u = undefined
