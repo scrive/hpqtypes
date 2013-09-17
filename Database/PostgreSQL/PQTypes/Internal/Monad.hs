@@ -149,4 +149,5 @@ instance MonadIO m => MonadDB (DBT m) where
   getQueryResult = DBT $ gets dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
 
-  fold = foldDB
+  foldlDB = foldLeft
+  foldrDB = foldRight

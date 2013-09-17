@@ -15,4 +15,5 @@ class Monad m => MonadDB m where
   getTransactionMode :: m TransactionMode
   setTransactionMode :: TransactionMode -> m ()
 
-  fold :: Row row => (acc -> row -> m acc) -> acc -> m acc
+  foldlDB :: Row row => (acc -> row -> m acc) -> acc -> m acc
+  foldrDB :: Row row => (row -> acc -> m acc) -> acc -> m acc
