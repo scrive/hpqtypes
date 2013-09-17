@@ -10,6 +10,7 @@ import Data.Ratio
 import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
+import Data.Word
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Storable
@@ -89,44 +90,17 @@ instance FromSQL base dest => FromSQL PGarray (Array dest) where
         , arrItemError = e
         }
 
--- TIMESTAMP
+-- CHAR
 
-instance FromSQL PGtimestamp LocalTime where
-  pqFormatGet _ = BS.pack "%timestamp"
+instance FromSQL CChar Char where
+  pqFormatGet _ = BS.pack "%char"
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGtimestamp{..}) = return $ LocalTime day tod
-    where
-      day = fromGregorian year mon mday
-      tod = TimeOfDay hour mins $ sec + fromRational (usec % 1000000)
+  fromSQL (Just c) = return . castCCharToChar $ c
 
-      year = fromIntegral $ pgDateYear pgTimestampDate
-      mon  = fromIntegral $ pgDateMon pgTimestampDate + 1
-      mday = fromIntegral $ pgDateMDay pgTimestampDate
-      hour = fromIntegral $ pgTimeHour pgTimestampTime
-      mins = fromIntegral $ pgTimeMin pgTimestampTime
-      sec  = fromIntegral $ pgTimeSec pgTimestampTime
-      usec = fromIntegral $ pgTimeUSec pgTimestampTime
-
--- TIMESTAMPTZ
-
-localToZoned :: (TimeZone -> LocalTime -> a) -> Maybe PGtimestamp -> IO a
-localToZoned _ Nothing = unexpectedNULL
-localToZoned construct jts@(Just PGtimestamp{..}) = do
-  localTime <- fromSQL jts
-  case rest of
-    0 -> return . construct (minutesToTimeZone mins) $ localTime
-    _ -> E.throwIO . InternalError $ "Invalid gmtoff: " ++ show gmtoff
-  where
-    gmtoff = pgTimeGMTOff pgTimestampTime
-    (mins, rest) = fromIntegral gmtoff `divMod` 60
-
-instance FromSQL PGtimestamp UTCTime where
-  pqFormatGet _ = BS.pack "%timestamptz"
-  fromSQL = localToZoned localTimeToUTC
-
-instance FromSQL PGtimestamp ZonedTime where
-  pqFormatGet _ = BS.pack "%timestamptz"
-  fromSQL = localToZoned (flip ZonedTime)
+instance FromSQL CChar Word8 where
+  pqFormatGet _ = BS.pack "%char"
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just c) = return . fromIntegral $ c
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
@@ -144,3 +118,75 @@ instance FromSQL CString Text where
   pqFormatGet _ = BS.pack "%text"
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = either E.throwIO return . decodeUtf8' =<< BS.packCString cs
+
+-- BYTEA
+
+instance FromSQL PGbytea Binary where
+  pqFormatGet _ = BS.pack "%bytea"
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just PGbytea{..}) = Binary
+    <$> BS.packCStringLen (pgByteaData, fromIntegral pgByteaLen)
+
+-- DATE
+
+instance FromSQL PGdate Day where
+  pqFormatGet _ = BS.pack "%date"
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just date) = return . pgDateToDay $ date
+
+-- TIME
+
+instance FromSQL PGtime TimeOfDay where
+  pqFormatGet _ = BS.pack "%time"
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just time) = return . pgTimeToTimeOfDay $ time
+
+-- TIMESTAMP
+
+instance FromSQL PGtimestamp LocalTime where
+  pqFormatGet _ = BS.pack "%timestamp"
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just PGtimestamp{..}) = return $ LocalTime day tod
+    where
+      day = pgDateToDay pgTimestampDate
+      tod = pgTimeToTimeOfDay pgTimestampTime
+
+-- TIMESTAMPTZ
+
+instance FromSQL PGtimestamp UTCTime where
+  pqFormatGet _ = BS.pack "%timestamptz"
+  fromSQL = localToZoned localTimeToUTC
+
+instance FromSQL PGtimestamp ZonedTime where
+  pqFormatGet _ = BS.pack "%timestamptz"
+  fromSQL = localToZoned (flip ZonedTime)
+
+----------------------------------------
+
+pgDateToDay :: PGdate -> Day
+pgDateToDay PGdate{..} = fromGregorian year mon mday
+  where
+    year = adjustBC $ fromIntegral pgDateYear
+    mon  = fromIntegral $ pgDateMon + 1
+    mday = fromIntegral pgDateMDay
+
+    adjustBC = if pgDateIsBC == 1 then negate . pred else id
+
+pgTimeToTimeOfDay :: PGtime -> TimeOfDay
+pgTimeToTimeOfDay PGtime{..} = TimeOfDay hour mins $ sec + fromRational (usec % 1000000)
+  where
+    hour = fromIntegral pgTimeHour
+    mins = fromIntegral pgTimeMin
+    sec  = fromIntegral pgTimeSec
+    usec = fromIntegral pgTimeUSec
+
+localToZoned :: (TimeZone -> LocalTime -> a) -> Maybe PGtimestamp -> IO a
+localToZoned _ Nothing = unexpectedNULL
+localToZoned construct jts@(Just PGtimestamp{..}) = do
+  localTime <- fromSQL jts
+  case rest of
+    0 -> return . construct (minutesToTimeZone mins) $ localTime
+    _ -> E.throwIO . InternalError $ "Invalid gmtoff: " ++ show gmtoff
+  where
+    gmtoff = pgTimeGMTOff pgTimestampTime
+    (mins, rest) = fromIntegral gmtoff `divMod` 60

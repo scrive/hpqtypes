@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE ExistentialQuantification, OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module Database.PostgreSQL.Internal.SQL where
 
 import Data.Monoid

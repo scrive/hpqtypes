@@ -62,9 +62,9 @@ newtype TypeClass = TypeClass CInt
 }
 
 data PGregisterType = PGregisterType {
-  pgRegisterTypeTypName :: CString
-, pgRegisterTypeTypPut  :: FunPtr (Ptr PGtypeArgs -> IO CInt)
-, pgRegisterTypeTypGet  :: FunPtr (Ptr PGtypeArgs -> IO CInt)
+  pgRegisterTypeTypName :: !CString
+, pgRegisterTypeTypPut  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
+, pgRegisterTypeTypGet  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
 } deriving Show
 
 instance Storable PGregisterType where
@@ -83,11 +83,11 @@ c_MAXDIM :: Int
 c_MAXDIM = #{const MAXDIM}
 
 data PGarray = PGarray {
-  pgArrayNDims  :: {-# UNPACK #-} !CInt
-, pgArrayLBound ::                !(V.Vector Int32)
-, pgArrayDims   ::                !(V.Vector Int32)
-, pgArrayParam  :: {-# UNPACK #-} !(Ptr PGparam)
-, pgArrayRes    :: {-# UNPACK #-} !(Ptr PGresult)
+  pgArrayNDims  :: !CInt
+, pgArrayLBound :: !(V.Vector Int32)
+, pgArrayDims   :: !(V.Vector Int32)
+, pgArrayParam  :: !(Ptr PGparam)
+, pgArrayRes    :: !(Ptr PGresult)
 } deriving Show
 
 instance Storable PGarray where
@@ -121,14 +121,30 @@ instance Storable PGarray where
        len | len >= c_MAXDIM -> V.take c_MAXDIM v
            | otherwise -> v V.++ V.replicate (c_MAXDIM - len) 0
 
+
+data PGbytea = PGbytea {
+  pgByteaLen  :: !CInt
+, pgByteaData :: !CString
+} deriving Show
+
+instance Storable PGbytea where
+  sizeOf _ = #{size PGbytea}
+  alignment _ = #{alignment PGbytea}
+  peek ptr = PGbytea
+    <$> #{peek PGbytea, len} ptr
+    <*> #{peek PGbytea, data} ptr
+  poke ptr PGbytea{..} = do
+    #{poke PGbytea, len} ptr pgByteaLen
+    #{poke PGbytea, data} ptr pgByteaData
+
 data PGdate = PGdate {
-  pgDateIsBC :: {-# UNPACK #-} !CInt
-, pgDateYear :: {-# UNPACK #-} !CInt
-, pgDateMon  :: {-# UNPACK #-} !CInt
-, pgDateMDay :: {-# UNPACK #-} !CInt
-, pgDateJDay :: {-# UNPACK #-} !CInt
-, pgDateYDay :: {-# UNPACK #-} !CInt
-, pgDateWDay :: {-# UNPACK #-} !CInt
+  pgDateIsBC :: !CInt
+, pgDateYear :: !CInt
+, pgDateMon  :: !CInt
+, pgDateMDay :: !CInt
+, pgDateJDay :: !CInt
+, pgDateYDay :: !CInt
+, pgDateWDay :: !CInt
 } deriving Show
 
 instance Storable PGdate where
@@ -152,14 +168,14 @@ instance Storable PGdate where
     #{poke PGdate, wday} ptr pgDateWDay
 
 data PGtime = PGtime {
-  pgTimeHour   :: {-# UNPACK #-} !CInt
-, pgTimeMin    :: {-# UNPACK #-} !CInt
-, pgTimeSec    :: {-# UNPACK #-} !CInt
-, pgTimeUSec   :: {-# UNPACK #-} !CInt
-, pgTimeWithTZ :: {-# UNPACK #-} !CInt
-, pgTimeIsDST  :: {-# UNPACK #-} !CInt
-, pgTimeGMTOff :: {-# UNPACK #-} !CInt
-, pgTimeTZAbbr :: {-# UNPACK #-} !BS.ByteString
+  pgTimeHour   :: !CInt
+, pgTimeMin    :: !CInt
+, pgTimeSec    :: !CInt
+, pgTimeUSec   :: !CInt
+, pgTimeWithTZ :: !CInt
+, pgTimeIsDST  :: !CInt
+, pgTimeGMTOff :: !CInt
+, pgTimeTZAbbr :: !BS.ByteString
 } deriving Show
 
 instance Storable PGtime where
@@ -188,9 +204,9 @@ instance Storable PGtime where
       pokeElemOff tzabbr (min len 15) (0::CChar)
 
 data PGtimestamp = PGtimestamp {
-  pgTimestampEpoch :: {-# UNPACK #-} !CLLong
-, pgTimestampDate  :: {-# UNPACK #-} !PGdate
-, pgTimestampTime  :: {-# UNPACK #-} !PGtime
+  pgTimestampEpoch :: !CLLong
+, pgTimestampDate  :: !PGdate
+, pgTimestampTime  :: !PGtime
 } deriving Show
 
 instance Storable PGtimestamp where

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, OverlappingInstances
-  , ScopedTypeVariables, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies, ScopedTypeVariables
+  , UndecidableInstances #-}
 module Database.PostgreSQL.Row (
     Row(..)
   , parseRow'

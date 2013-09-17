@@ -12,6 +12,9 @@ foreign import ccall unsafe "PQputf"
   c_PQputf0 :: Ptr PGparam -> CString -> IO CInt
 
 foreign import ccall unsafe "PQputf"
+  c_PQputfCChar :: Ptr PGparam -> CString -> CChar -> IO CInt
+
+foreign import ccall unsafe "PQputf"
   c_PQputfCShort :: Ptr PGparam -> CString -> CShort -> IO CInt
 
 foreign import ccall unsafe "PQputf"
@@ -39,6 +42,9 @@ c_PQPutfMaybe param fmt (Just base) = c_PQPutf param fmt base
 
 class PQPut base where
   c_PQPutf :: Ptr PGparam -> CString -> base -> IO CInt
+
+instance PQPut CChar where
+  c_PQPutf = c_PQputfCChar
 
 instance PQPut CShort where
   c_PQPutf = c_PQputfCShort
