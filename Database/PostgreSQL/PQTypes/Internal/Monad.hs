@@ -5,7 +5,6 @@ module Database.PostgreSQL.PQTypes.Internal.Monad where
 
 import Control.Applicative
 import Control.Concurrent.MVar
-import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Monad.Trans
@@ -23,7 +22,7 @@ import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Composite
+import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Format
@@ -38,8 +37,8 @@ type InnerDBT = StateT DBState
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
 
-runDBT :: (MonadBaseControl IO m, MonadIO m) => String -> TransactionSettings -> DBT m a -> m a
-runDBT conf ts m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
+runDBT :: (MonadBaseControl IO m, MonadIO m) => ConnectionSource -> TransactionSettings -> DBT m a -> m a
+runDBT cs ts m = withConnection cs $ \mvconn -> do
   evalStateT action $ DBState {
     dbConnection = mvconn
   , dbTransactionSettings = ts
@@ -47,30 +46,14 @@ runDBT conf ts m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
   , dbQueryResult = Nothing
   }
   where
-    connect = do
-      conn <- withCString conf c_PQconnectdb
-      status <- c_PQstatus conn
-      when (status /= c_CONNECTION_OK) $
-        throwLibPQError conn "runDBT.connect"
-      c_PQinitTypes conn
-      registerComposites conn ["simple", "nested"]
-      newMVar $ Just conn
-
-    disconnect mvconn = modifyMVar_ mvconn $ \mconn -> do
-      case mconn of
-        Just conn -> c_PQfinish conn
-        Nothing   -> E.throwIO $ InternalError "runDBT.disconnect: no connection (shouldn't happen)"
-      return Nothing
-
-    action = unDBT $
-      if tsAutoTransaction ts
-        then do
-          let tsNoAuto = ts { tsAutoTransaction = False }
-          begin' tsNoAuto
-          res <- m `LE.onException` rollback' tsNoAuto
-          commit' tsNoAuto
-          return res
-        else m
+    action = unDBT $ if tsAutoTransaction ts
+      then do
+        let tsNoAuto = ts { tsAutoTransaction = False }
+        begin' tsNoAuto
+        res <- m `LE.onException` rollback' tsNoAuto
+        commit' tsNoAuto
+        return res
+      else m
 
 instance MonadTransControl DBT where
   newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
@@ -88,7 +71,7 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
 
 instance MonadIO m => MonadDB (DBT m) where
   runQuery sql = DBT $ do
-    mvconn <- gets dbConnection
+    mvconn <- gets (unConnection . dbConnection)
     (affected, res) <- liftIO . modifyMVar mvconn $ \mconn -> case mconn of
       Nothing -> E.throwIO DBException {
         dbeQueryContext = sql

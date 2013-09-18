@@ -59,7 +59,7 @@ withQueryResult f = do
   case mres of
     Nothing  -> liftIO . E.throwIO $ DBException {
       dbeQueryContext = ctx
-    , dbeError = InternalError "foldlDB: no query result"
+    , dbeError = InternalError "withQueryResult: no query result"
     }
     Just res -> do
       liftIO $ do
