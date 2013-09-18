@@ -5,10 +5,11 @@ module Database.PostgreSQL.PQTypes.Internal.Monad where
 
 import Control.Applicative
 import Control.Concurrent.MVar
+import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Monad.Trans
-import Control.Monad.Trans.State
+import Control.Monad.Trans.RWS
 import Data.Monoid
 import Foreign.C.String
 import Foreign.ForeignPtr
@@ -32,19 +33,18 @@ import Database.PostgreSQL.PQTypes.Internal.Transaction
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
-type InnerDBT = StateT DBState
+type InnerDBT = RWST Connection () DBState
 
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
 
 runDBT :: (MonadBaseControl IO m, MonadIO m) => ConnectionSource -> TransactionSettings -> DBT m a -> m a
 runDBT cs ts m = withConnection cs $ \mvconn -> do
-  evalStateT action $ DBState {
-    dbConnection = mvconn
-  , dbTransactionSettings = ts
+  fst `liftM` evalRWST action mvconn (DBState {
+    dbTransactionSettings = ts
   , dbLastQuery = mempty
   , dbQueryResult = Nothing
-  }
+  })
   where
     action = unDBT $ if tsAutoTransaction ts
       then do
@@ -71,7 +71,7 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
 
 instance MonadIO m => MonadDB (DBT m) where
   runQuery sql = DBT $ do
-    mvconn <- gets (unConnection . dbConnection)
+    mvconn <- asks unConnection
     (affected, res) <- liftIO . modifyMVar mvconn $ \mconn -> case mconn of
       Nothing -> E.throwIO DBException {
         dbeQueryContext = sql
