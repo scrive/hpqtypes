@@ -1,8 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Transaction where
 
 import Control.Monad
+import Control.Monad.Trans.Control
+import qualified Control.Exception.Lifted as LE
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.State
@@ -17,6 +19,9 @@ defaultTransactionSettings = TransactionSettings {
 
 ----------------------------------------
 
+withTransaction :: (MonadBaseControl IO m, MonadDB m) => m a -> m a
+withTransaction m = getTransactionSettings >>= flip withTransaction' m
+
 begin :: MonadDB m => m ()
 begin = getTransactionSettings >>= begin'
 
@@ -27,6 +32,14 @@ rollback :: MonadDB m => m ()
 rollback = getTransactionSettings >>= rollback'
 
 ----------------------------------------
+
+withTransaction' :: (MonadBaseControl IO m, MonadDB m)
+                 => TransactionSettings -> m a -> m a
+withTransaction' ts m = LE.mask $ \restore -> do
+  begin' ts
+  res <- restore m `LE.onException` rollback' ts
+  commit' ts
+  return res
 
 begin' :: MonadDB m => TransactionSettings -> m ()
 begin' ts = do

@@ -15,7 +15,6 @@ import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
-import qualified Control.Exception.Lifted as LE
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Class
@@ -39,20 +38,16 @@ newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
 
 runDBT :: (MonadBaseControl IO m, MonadIO m) => ConnectionSource -> TransactionSettings -> DBT m a -> m a
-runDBT cs ts m = withConnection cs $ \mvconn -> do
-  fst `liftM` evalRWST action mvconn (DBState {
-    dbTransactionSettings = ts
+runDBT cs ts m = withConnection cs $ \conn -> do
+  fst `liftM` evalRWST action conn (DBState {
+    dbConnectionSource = cs
+  , dbTransactionSettings = ts
   , dbLastQuery = mempty
   , dbQueryResult = Nothing
   })
   where
     action = unDBT $ if tsAutoTransaction ts
-      then do
-        let tsNoAuto = ts { tsAutoTransaction = False }
-        begin' tsNoAuto
-        res <- m `LE.onException` rollback' tsNoAuto
-        commit' tsNoAuto
-        return res
+      then withTransaction' (ts { tsAutoTransaction = False }) m
       else m
 
 instance MonadTransControl DBT where
@@ -125,6 +120,7 @@ instance MonadIO m => MonadDB (DBT m) where
               }
 
   getLastQuery = DBT . gets $ dbLastQuery
+  clearLastQuery = DBT . modify $ \st -> st { dbLastQuery = mempty }
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
@@ -134,3 +130,6 @@ instance MonadIO m => MonadDB (DBT m) where
 
   foldlDB = foldLeft
   foldrDB = foldRight
+
+  getConnectionSource = DBT . gets $ dbConnectionSource
+  localConnection f = DBT . local f . unDBT
