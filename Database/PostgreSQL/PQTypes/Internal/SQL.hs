@@ -34,9 +34,9 @@ value :: (Show t, ToSQL t) => t -> SQL
 value = SQL . D.singleton . SCValue
 
 (<+>) :: SQL -> SQL -> SQL
-a <+> b = a `mappend` fromString " " `mappend` b
+a <+> b = a `mappend` (fromString " " `mappend` b)
 infixr 6 <+>
 
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
 s <?> v = s <+> value v
-infixl 7 <?>
+infixr 7 <?>

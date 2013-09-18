@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, RecordWildCards
   , ScopedTypeVariables, TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.ToSQL {-(ToSQL(..))-} where
+module Database.PostgreSQL.PQTypes.ToSQL (ToSQL(..)) where
 
 import Control.Monad
 import Data.ByteString.Unsafe
@@ -27,46 +27,46 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
 class (PQFormat t, PQPut (PQDest t)) => ToSQL t where
-  type PQDest t
-  toSQL :: Ptr PGconn -> t -> (Maybe (PQDest t) -> IO r) -> IO r
+  type PQDest t :: *
+  toSQL :: t -> Ptr PGconn -> (Maybe (PQDest t) -> IO r) -> IO r
 
 -- NULLables
 
 instance ToSQL t => ToSQL (Maybe t) where
   type PQDest (Maybe t) = PQDest t
-  toSQL conn mt conv = case mt of
+  toSQL mt conn conv = case mt of
     Nothing -> conv Nothing
-    Just t  -> toSQL conn t conv
+    Just t  -> toSQL t conn conv
 
 -- NUMERICS
 
 instance ToSQL Int16 where
   type PQDest Int16 = CShort
-  toSQL _ n conv = conv . Just . fromIntegral $ n
+  toSQL n _ conv = conv . Just . fromIntegral $ n
 
 instance ToSQL Int32 where
   type PQDest Int32 = CInt
-  toSQL _ n conv = conv . Just . fromIntegral $ n
+  toSQL n _ conv = conv . Just . fromIntegral $ n
 
 instance ToSQL Int64 where
   type PQDest Int64 = CLLong
-  toSQL _ n conv = conv . Just . fromIntegral $ n
+  toSQL n _ conv = conv . Just . fromIntegral $ n
 
 instance ToSQL Float where
   type PQDest Float = CFloat
-  toSQL _ n conv = conv . Just . realToFrac $ n
+  toSQL n _ conv = conv . Just . realToFrac $ n
 
 instance ToSQL Double where
   type PQDest Double = CDouble
-  toSQL _ n conv = conv . Just . realToFrac $ n
+  toSQL n _ conv = conv . Just . realToFrac $ n
 
 -- ARRAYS
 
 instance ToSQL t => ToSQL (Array t) where
   type PQDest (Array t) = Ptr PGarray
-  toSQL conn (Array arr) conv = alloca $ \ptr -> withPGparam conn $ \param -> do
+  toSQL (Array arr) conn conv = alloca $ \ptr -> withPGparam conn $ \param -> do
     BS.useAsCString (pqFormat (undefined::t)) $ \fmt -> forM_ arr $ \item ->
-      verifyPQTRes "toSQL (Array)" =<< toSQL conn item (c_PQPutfMaybe param fmt)
+      verifyPQTRes "toSQL (Array)" =<< toSQL item conn (c_PQPutfMaybe param fmt)
     poke ptr PGarray {
       pgArrayNDims = 0
     , pgArrayLBound = V.empty
@@ -80,33 +80,33 @@ instance ToSQL t => ToSQL (Array t) where
 
 instance ToSQL Char where
   type PQDest Char = CChar
-  toSQL _ c conv
+  toSQL c _ conv
     | c > '\255' = E.throwIO . InternalError $ "toSQL (Char): character " ++ show c ++ " cannot be losslessly converted to CChar"
     | otherwise = conv . Just . castCharToCChar $ c
 
 instance ToSQL Word8 where
   type PQDest Word8 = CChar
-  toSQL _ c conv = conv . Just . fromIntegral $ c
+  toSQL c _ conv = conv . Just . fromIntegral $ c
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance ToSQL BS.ByteString where
   type PQDest BS.ByteString = CString
-  toSQL _ bs conv = BS.useAsCString bs $ \cs -> conv . Just $ cs
+  toSQL bs _ conv = BS.useAsCString bs $ \cs -> conv . Just $ cs
 
 instance ToSQL Text where
   type PQDest Text = CString
-  toSQL conn = toSQL conn . encodeUtf8
+  toSQL = toSQL . encodeUtf8
 
 instance ToSQL String where
   type PQDest String = CString
-  toSQL _ s conv = withCString s $ \cs -> conv . Just $ cs
+  toSQL s _ conv = withCString s $ \cs -> conv . Just $ cs
 
 -- BYTEA
 
 instance ToSQL (Binary BS.ByteString) where
   type PQDest (Binary BS.ByteString) = Ptr PGbytea
-  toSQL _ (Binary bs) conv = alloca $ \ptr ->
+  toSQL (Binary bs) _ conv = alloca $ \ptr ->
     unsafeUseAsCStringLen bs $ \(cs, len) -> do
       poke ptr PGbytea {
         pgByteaLen = fromIntegral len
@@ -118,7 +118,7 @@ instance ToSQL (Binary BS.ByteString) where
 
 instance ToSQL Day where
   type PQDest Day = Ptr PGdate
-  toSQL _ day conv = alloca $ \ptr -> do
+  toSQL day _ conv = alloca $ \ptr -> do
     poke ptr $ dayToPGdate day
     conv . Just $ ptr
 
@@ -126,7 +126,7 @@ instance ToSQL Day where
 
 instance ToSQL TimeOfDay where
   type PQDest TimeOfDay = Ptr PGtime
-  toSQL _ tod conv = alloca $ \ptr -> do
+  toSQL tod _ conv = alloca $ \ptr -> do
     poke ptr $ timeOfDayToPGtime tod
     conv . Just $ ptr
 
@@ -134,7 +134,7 @@ instance ToSQL TimeOfDay where
 
 instance ToSQL LocalTime where
   type PQDest LocalTime = Ptr PGtimestamp
-  toSQL _ LocalTime{..} conv = alloca $ \ptr -> do
+  toSQL LocalTime{..} _ conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
     , pgTimestampDate = dayToPGdate localDay
@@ -146,7 +146,7 @@ instance ToSQL LocalTime where
 
 instance ToSQL UTCTime where
   type PQDest UTCTime = Ptr PGtimestamp
-  toSQL _ UTCTime{..} conv = alloca $ \ptr -> do
+  toSQL UTCTime{..} _ conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
     , pgTimestampDate = dayToPGdate utctDay
@@ -156,7 +156,7 @@ instance ToSQL UTCTime where
 
 instance ToSQL ZonedTime where
   type PQDest ZonedTime = Ptr PGtimestamp
-  toSQL _ ZonedTime{..} conv = alloca $ \ptr -> do
+  toSQL ZonedTime{..} _ conv = alloca $ \ptr -> do
     poke ptr $ PGtimestamp {
       pgTimestampEpoch = 0
     , pgTimestampDate = dayToPGdate $ localDay zonedTimeToLocalTime
@@ -170,12 +170,12 @@ instance ToSQL ZonedTime where
 
 timeOfDayToPGtime :: TimeOfDay -> PGtime
 timeOfDayToPGtime TimeOfDay{..} = PGtime {
-    pgTimeHour = fromIntegral todHour
-  , pgTimeMin = fromIntegral todMin
-  , pgTimeSec = sec
-  , pgTimeUSec = usec
+    pgTimeHour   = fromIntegral todHour
+  , pgTimeMin    = fromIntegral todMin
+  , pgTimeSec    = sec
+  , pgTimeUSec   = usec
   , pgTimeWithTZ = 0
-  , pgTimeIsDST = 0
+  , pgTimeIsDST  = 0
   , pgTimeGMTOff = 0
   , pgTimeTZAbbr = BS.empty
   }
@@ -184,13 +184,13 @@ timeOfDayToPGtime TimeOfDay{..} = PGtime {
 
 dayToPGdate :: Day -> PGdate
 dayToPGdate day = PGdate {
-    pgDateIsBC = isBC
-  , pgDateYear = fromIntegral $ adjustBC year
-  , pgDateMon = fromIntegral $ mon - 1
-  , pgDateMDay = fromIntegral mday
-  , pgDateJDay = 0
-  , pgDateYDay = 0
-  , pgDateWDay = 0
+    pgDateIsBC  = isBC
+  , pgDateYear  = fromIntegral $ adjustBC year
+  , pgDateMon   = fromIntegral $ mon - 1
+  , pgDateMDay  = fromIntegral mday
+  , pgDateJDay  = 0
+  , pgDateYDay  = 0
+  , pgDateWDay  = 0
   }
   where
     (year, mon, mday) = toGregorian day

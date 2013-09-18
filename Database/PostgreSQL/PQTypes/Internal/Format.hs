@@ -13,8 +13,12 @@ import Database.PostgreSQL.PQTypes.Types
 class PQFormat t where
   pqFormat :: t -> BS.ByteString
 
+-- NULLables
+
 instance PQFormat t => PQFormat (Maybe t) where
   pqFormat _ = pqFormat (undefined::t)
+
+-- NUMERICS
 
 instance PQFormat Int16 where
   pqFormat _ = BS.pack "%int2"
@@ -31,14 +35,20 @@ instance PQFormat Float where
 instance PQFormat Double where
   pqFormat _ = BS.pack "%float8"
 
+-- ARRAYS
+
 instance PQFormat t => PQFormat (Array t) where
   pqFormat _ = pqFormat (undefined::t) `BS.append` BS.pack "[]"
+
+-- CHAR
 
 instance PQFormat Char where
   pqFormat _ = BS.pack "%char"
 
 instance PQFormat Word8 where
   pqFormat _ = BS.pack "%char"
+
+-- VARIABLE-LENGTH CHARACTER TYPES
 
 instance PQFormat String where
   pqFormat _ = BS.pack "%text"
@@ -49,17 +59,27 @@ instance PQFormat BS.ByteString where
 instance PQFormat Text where
   pqFormat _ = BS.pack "%text"
 
+-- BYTEA
+
 instance PQFormat (Binary BS.ByteString) where
   pqFormat _ = BS.pack "%bytea"
+
+-- DATE
 
 instance PQFormat Day where
   pqFormat _ = BS.pack "%date"
 
+-- TIME
+
 instance PQFormat TimeOfDay where
   pqFormat _ = BS.pack "%time"
 
+-- TIMESTAMP
+
 instance PQFormat LocalTime where
   pqFormat _ = BS.pack "%timestamp"
+
+-- TIMESTAMPTZ
 
 instance PQFormat UTCTime where
   pqFormat _ = BS.pack "%timestamptz"

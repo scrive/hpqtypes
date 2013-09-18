@@ -38,11 +38,11 @@ type InnerDBT = StateT DBState
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
 
-runDBT :: (MonadBaseControl IO m, MonadIO m) => String -> TransactionMode -> DBT m a -> m a
-runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
+runDBT :: (MonadBaseControl IO m, MonadIO m) => String -> TransactionSettings -> DBT m a -> m a
+runDBT conf ts m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
   evalStateT action $ DBState {
     dbConnection = mvconn
-  , dbTransactionMode = tm
+  , dbTransactionSettings = ts
   , dbLastQuery = mempty
   , dbQueryResult = Nothing
   }
@@ -63,12 +63,12 @@ runDBT conf tm m = liftBaseOp (E.bracket connect disconnect) $ \mvconn -> do
       return Nothing
 
     action = unDBT $
-      if tmAutoTransaction tm
+      if tsAutoTransaction ts
         then do
-          let tmNoAuto = tm { tmAutoTransaction = False }
-          begin' tmNoAuto
-          res <- m `LE.onException` rollback' tmNoAuto
-          commit' tmNoAuto
+          let tsNoAuto = ts { tsAutoTransaction = False }
+          begin' tsNoAuto
+          res <- m `LE.onException` rollback' tsNoAuto
+          commit' tsNoAuto
           return res
         else m
 
@@ -94,7 +94,7 @@ instance MonadIO m => MonadDB (DBT m) where
         dbeQueryContext = sql
       , dbeError = InternalError "runQuery: no connection"
       }
-      Just conn -> E.handle (addContext sql) $ do
+      Just conn -> E.handle (rethrowWithContext sql) $ do
         res <- withPGparam conn $ \param -> do
           query <- loadSQL conn param
           withCString query $ \q -> c_safePQparamExec conn param q 1
@@ -111,7 +111,7 @@ instance MonadIO m => MonadDB (DBT m) where
         concat <$> mapM (f nums) (unSQL sql)
         where
           f _ (SCString s) = return s
-          f nums (SCValue v) = toSQL conn v $ \mbase -> do
+          f nums (SCValue v) = toSQL v conn $ \mbase -> do
             BS.useAsCString (pqFormat v) $ \fmt -> do
               verifyPQTRes "runQuery.loadSQL" =<< c_PQPutfMaybe param fmt mbase
               modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
@@ -143,8 +143,8 @@ instance MonadIO m => MonadDB (DBT m) where
 
   getLastQuery = DBT . gets $ dbLastQuery
 
-  getTransactionMode = DBT . gets $ dbTransactionMode
-  setTransactionMode tm = DBT . modify $ \st -> st { dbTransactionMode = tm }
+  getTransactionSettings = DBT . gets $ dbTransactionSettings
+  setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
 
   getQueryResult = DBT $ gets dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }

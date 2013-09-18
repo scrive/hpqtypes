@@ -30,7 +30,7 @@ unComposite (Composite a) = a
 data CompositeField = forall t. ToSQL t => CF t
 
 class (PQFormat t, Row (CompositeRow t)) => CompositeFromSQL t where
-  type CompositeRow t
+  type CompositeRow t :: *
   fromRow :: CompositeRow t -> IO t
 
 class CompositeToSQL t where
@@ -44,10 +44,10 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
 
 instance (CompositeToSQL t, PQFormat t) => ToSQL (Composite t) where
   type PQDest (Composite t) = Ptr PGparam
-  toSQL conn (Composite comp) conv = withPGparam conn $ \param -> do
+  toSQL (Composite comp) conn conv = withPGparam conn $ \param -> do
     fields <- compositeFields comp
     forM_ fields $ \(CF field) -> do
-      success <- toSQL conn field $ \mbase ->
+      success <- toSQL field conn $ \mbase ->
         BS.useAsCString (pqFormat field) $ \fmt ->
           c_PQPutfMaybe param fmt mbase
       verifyPQTRes "toSQL (Composite)" success

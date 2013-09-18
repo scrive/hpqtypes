@@ -16,8 +16,8 @@ deriving instance Show DBException
 
 instance E.Exception DBException
 
-addContext :: SQL -> E.SomeException -> IO a
-addContext ctx (E.SomeException e) = E.throwIO DBException {
+rethrowWithContext :: SQL -> E.SomeException -> IO a
+rethrowWithContext ctx (E.SomeException e) = E.throwIO DBException {
     dbeQueryContext = ctx
   , dbeError = e
   }

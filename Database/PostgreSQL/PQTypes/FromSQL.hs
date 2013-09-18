@@ -25,7 +25,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
 class (PQFormat t, Storable (PQBase t)) => FromSQL t where
-  type PQBase t
+  type PQBase t :: *
   fromSQL :: Maybe (PQBase t) -> IO t
 
 -- NULLables

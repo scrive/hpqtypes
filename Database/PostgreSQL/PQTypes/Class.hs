@@ -12,8 +12,8 @@ class Monad m => MonadDB m where
   getQueryResult   :: m (Maybe QueryResult)
   clearQueryResult :: m ()
 
-  getTransactionMode :: m TransactionMode
-  setTransactionMode :: TransactionMode -> m ()
+  getTransactionSettings :: m TransactionSettings
+  setTransactionSettings :: TransactionSettings -> m ()
 
   foldlDB :: Row row => (acc -> row -> m acc) -> acc -> m acc
   foldrDB :: Row row => (row -> acc -> m acc) -> acc -> m acc

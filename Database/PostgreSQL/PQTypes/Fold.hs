@@ -31,7 +31,7 @@ foldLeft f initAcc = withQueryResult $ \(_::row) ctx res fmt ->
       | otherwise = do
         obj <- liftIO $ withForeignPtr res $ \pres ->
                         withForeignPtr fmt $ \pfmt ->
-                          E.handle (addContext ctx) (parseRow pres i pfmt)
+                          E.handle (rethrowWithContext ctx) (parseRow pres i pfmt)
         acc' <- f acc obj
         worker ctx res fmt acc' (i+1) n
 
@@ -45,7 +45,7 @@ foldRight f initAcc = withQueryResult $ \(_::row) ctx res fmt ->
       | otherwise = do
         obj <- liftIO $ withForeignPtr res $ \pres ->
                         withForeignPtr fmt $ \pfmt ->
-                          E.handle (addContext ctx) (parseRow pres i pfmt)
+                          E.handle (rethrowWithContext ctx) (parseRow pres i pfmt)
         acc' <- f obj acc
         worker ctx res fmt acc' n (i-1)
 

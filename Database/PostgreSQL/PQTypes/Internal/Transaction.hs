@@ -8,49 +8,49 @@ import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
-defaultTransactionMode :: TransactionMode
-defaultTransactionMode = TransactionMode {
-  tmAutoTransaction = True
-, tmIsolationLevel = DefaultLevel
-, tmPermissions = DefaultPermissions
+defaultTransactionSettings :: TransactionSettings
+defaultTransactionSettings = TransactionSettings {
+  tsAutoTransaction    = True
+, tsIsolationLevel     = DefaultLevel
+, tsPermissions        = DefaultPermissions
 }
 
 ----------------------------------------
 
 begin :: MonadDB m => m ()
-begin = getTransactionMode >>= begin'
+begin = getTransactionSettings >>= begin'
 
 commit :: MonadDB m => m ()
-commit = getTransactionMode >>= commit'
+commit = getTransactionSettings >>= commit'
 
 rollback :: MonadDB m => m ()
-rollback = getTransactionMode >>= rollback'
+rollback = getTransactionSettings >>= rollback'
 
 ----------------------------------------
 
-begin' :: MonadDB m => TransactionMode -> m ()
-begin' tm = do
+begin' :: MonadDB m => TransactionSettings -> m ()
+begin' ts = do
   _ <- runQuery . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
   return ()
   where
-    isolationLevel = case tmIsolationLevel tm of
+    isolationLevel = case tsIsolationLevel ts of
       DefaultLevel   -> ""
       ReadCommitted  -> "ISOLATION LEVEL READ COMMITTED"
       RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
       Serializable   -> "ISOLATION LEVEL SERIALIZABLE"
-    permissions = case tmPermissions tm of
+    permissions = case tsPermissions ts of
       DefaultPermissions -> ""
       ReadOnly           -> "READ ONLY"
       ReadWrite          -> "READ WRITE"
 
-commit' :: MonadDB m => TransactionMode -> m ()
-commit' tm = do
+commit' :: MonadDB m => TransactionSettings -> m ()
+commit' ts = do
   _ <- runQuery "COMMIT"
-  when (tmAutoTransaction tm) $
-    begin' tm
+  when (tsAutoTransaction ts) $
+    begin' ts
 
-rollback' :: MonadDB m => TransactionMode -> m ()
-rollback' tm = do
+rollback' :: MonadDB m => TransactionSettings -> m ()
+rollback' ts = do
   _ <- runQuery "ROLLBACK"
-  when (tmAutoTransaction tm) $
-    begin' tm
+  when (tsAutoTransaction ts) $
+    begin' ts
