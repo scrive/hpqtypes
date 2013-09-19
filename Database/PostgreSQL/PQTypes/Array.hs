@@ -50,15 +50,15 @@ instance FromSQL t => FromSQL (Array1D t) where
       else do
         let fmt = pqFormat (undefined::t)
         size <- c_PQntuples pgArrayRes
-        BS.useAsCString fmt (loop [] $ size - 1)
+        alloca $ BS.useAsCString fmt . loop [] (size - 1)
     where
-      loop acc (-1) _ = return . Array1D $ acc
-      loop acc !i fmt = alloca $ \ptr -> do
+      loop acc (-1) _ _ = return . Array1D $ acc
+      loop acc !i ptr fmt = do
         verifyPQTRes "fromSQL (Array1D)" =<< c_PQgetf1 pgArrayRes i fmt 0 ptr
         isNull <- c_PQgetisnull pgArrayRes i 0
         mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
         item <- fromSQL mbase `E.catch` rethrowWithArrayError i
-        loop (item : acc) (i-1) fmt
+        loop (item : acc) (i-1) ptr fmt
 
 instance ToSQL t => ToSQL (Array1D t) where
   type PQDest (Array1D t) = Ptr PGarray
