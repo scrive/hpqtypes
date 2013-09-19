@@ -1,7 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, DeriveFunctor, FlexibleInstances
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.Array where
+module Database.PostgreSQL.PQTypes.Array (
+    Array1D(..)
+  , unArray1D
+  , CompositeArray1D(..)
+  , unCompositeArray1D
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -52,7 +57,7 @@ instance FromSQL t => FromSQL (Array1D t) where
         verifyPQTRes "fromSQL (Array1D)" =<< c_PQgetf1 pgArrayRes i fmt 0 ptr
         isNull <- c_PQgetisnull pgArrayRes i 0
         mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
-        item <- fromSQL mbase `E.catch` rethrowWithArrayInfo i
+        item <- fromSQL mbase `E.catch` rethrowWithArrayError i
         loop (item : acc) (i-1) fmt
 
 instance ToSQL t => ToSQL (Array1D t) where
@@ -98,7 +103,7 @@ instance CompositeFromSQL t => FromSQL (CompositeArray1D t) where
       loop acc (-1) _ = return . CompositeArray1D $ acc
       loop acc !i fmt = do
         item <- (parseRow pgArrayRes i fmt >>= fromRow)
-          `E.catch` rethrowWithArrayInfo i
+          `E.catch` rethrowWithArrayError i
         loop (item : acc) (i-1) fmt
 
 instance CompositeToSQL t => ToSQL (CompositeArray1D t) where

@@ -1,6 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
-module Database.PostgreSQL.PQTypes.Internal.Error where
+module Database.PostgreSQL.PQTypes.Internal.Error (
+    InternalError(..)
+  , ConversionError(..)
+  , ArrayItemError(..)
+  , ArrayDimensionMismatch(..)
+  , RowLengthMismatch(..)
+  , AffectedRowsMismatch(..)
+  , throwLibPQError
+  , throwLibPQTypesError
+  , rethrowWithArrayError
+  ) where
 
 import Data.Typeable
 import Foreign.C
@@ -62,3 +72,10 @@ throwLibPQTypesError ctx = do
   msg <- peekCString =<< c_PQgeterror
   E.throwIO . InternalError
     $ if null ctx then msg else ctx ++ ": " ++ msg
+
+rethrowWithArrayError :: CInt -> E.SomeException -> IO a
+rethrowWithArrayError i (E.SomeException e) =
+  E.throwIO ArrayItemError {
+    arrItemIndex = fromIntegral i + 1
+  , arrItemError = e
+  }

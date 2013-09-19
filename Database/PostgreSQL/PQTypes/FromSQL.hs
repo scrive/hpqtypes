@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.FromSQL (FromSQL(..)) where
+module Database.PostgreSQL.PQTypes.FromSQL (
+    FromSQL(..)
+  ) where
 
 import Control.Applicative
 import Data.Int

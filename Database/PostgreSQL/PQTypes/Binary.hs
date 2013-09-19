@@ -1,7 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveFunctor, FlexibleInstances, RecordWildCards
   , TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.Binary where
+module Database.PostgreSQL.PQTypes.Binary (
+    Binary(..)
+  , unBinary
+  ) where
 
 import Control.Applicative
 import Data.ByteString.Unsafe

@@ -1,7 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveFunctor, ExistentialQuantification, FlexibleContexts
   , FlexibleInstances, ScopedTypeVariables, TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.Composite where
+module Database.PostgreSQL.PQTypes.Composite (
+    Composite(..)
+  , unComposite
+  , CompositeField(..)
+  , CompositeFromSQL(..)
+  , CompositeToSQL(..)
+  ) where
 
 import Control.Applicative
 import Control.Monad

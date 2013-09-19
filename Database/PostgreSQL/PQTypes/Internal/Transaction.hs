@@ -1,6 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, RecordWildCards #-}
-module Database.PostgreSQL.PQTypes.Internal.Transaction where
+module Database.PostgreSQL.PQTypes.Internal.Transaction (
+    defaultTransactionSettings
+  , withTransaction
+  , begin
+  , commit
+  , rollback
+  , withTransaction'
+  , begin'
+  , commit'
+  , rollback'
+  ) where
 
 import Control.Monad
 import Control.Monad.Trans.Control

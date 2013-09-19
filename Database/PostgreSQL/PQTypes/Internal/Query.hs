@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, TupleSections #-}
-module Database.PostgreSQL.PQTypes.Internal.Query where
+module Database.PostgreSQL.PQTypes.Internal.Query (
+    runQuery
+  ) where
 
 import Control.Applicative
 import Control.Concurrent.MVar

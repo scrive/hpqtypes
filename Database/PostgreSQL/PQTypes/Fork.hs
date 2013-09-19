@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Database.PostgreSQL.PQTypes.Fork where
+module Database.PostgreSQL.PQTypes.Fork (
+    forkWithNewConnection
+  ) where
 
 import Control.Concurrent.Lifted
 import Control.Monad.Trans.Control

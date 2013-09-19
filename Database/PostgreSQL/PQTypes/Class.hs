@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
-module Database.PostgreSQL.PQTypes.Class where
+module Database.PostgreSQL.PQTypes.Class (
+    MonadDB(..)
+  ) where
 
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.State

@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, Rank2Types
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
-module Database.PostgreSQL.PQTypes.ToSQL (ToSQL(..)) where
+module Database.PostgreSQL.PQTypes.ToSQL (
+    ToSQL(..)
+  ) where
 
 import Data.Int
 import Data.Text (Text)

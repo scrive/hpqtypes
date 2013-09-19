@@ -1,5 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
-module Database.PostgreSQL.PQTypes.Internal.State where
+module Database.PostgreSQL.PQTypes.Internal.State (
+    TransactionSettings(..)
+  , IsolationLevel(..)
+  , Permissions(..)
+  , QueryResult(..)
+  , DBState(..)
+  ) where
 
 import Foreign.ForeignPtr
 

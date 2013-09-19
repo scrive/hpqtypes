@@ -1,5 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
-module Database.PostgreSQL.PQTypes.Internal.Utils where
+module Database.PostgreSQL.PQTypes.Internal.Utils (
+    mintercalate
+  , bsToCString
+  , unexpectedNULL
+  , verifyPQTRes
+  , withPGparam
+  ) where
 
 import Control.Monad
 import Data.ByteString (ByteString)
@@ -43,10 +49,3 @@ withPGparam conn = E.bracket create c_PQparamClear
       when (param == nullPtr) $
         throwLibPQTypesError "withPGparam.create"
       return param
-
-rethrowWithArrayInfo :: CInt -> E.SomeException -> IO a
-rethrowWithArrayInfo i (E.SomeException e) =
-  E.throwIO ArrayItemError {
-    arrItemIndex = fromIntegral i + 1
-  , arrItemError = e
-  }

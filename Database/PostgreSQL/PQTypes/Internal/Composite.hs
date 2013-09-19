@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
-module Database.PostgreSQL.PQTypes.Internal.Composite where
+module Database.PostgreSQL.PQTypes.Internal.Composite (
+    registerComposites
+  ) where
 
 import Foreign.C.String
 import Foreign.Marshal.Alloc

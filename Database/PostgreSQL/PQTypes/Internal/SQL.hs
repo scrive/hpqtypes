@@ -1,6 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ExistentialQuantification #-}
-module Database.PostgreSQL.PQTypes.Internal.SQL where
+module Database.PostgreSQL.PQTypes.Internal.SQL (
+    SQL(..)
+  , SqlChunk(..)
+  , unSQL
+  , value
+  , (<+>)
+  , (<?>)
+  ) where
 
 import Data.Monoid
 import Data.String
