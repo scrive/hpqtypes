@@ -12,9 +12,9 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 
 defaultTransactionSettings :: TransactionSettings
 defaultTransactionSettings = TransactionSettings {
-  tsAutoTransaction    = True
-, tsIsolationLevel     = DefaultLevel
-, tsPermissions        = DefaultPermissions
+  tsAutoTransaction = True
+, tsIsolationLevel  = DefaultLevel
+, tsPermissions     = DefaultPermissions
 }
 
 ----------------------------------------

@@ -8,9 +8,9 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.SQL
 
 data TransactionSettings = TransactionSettings {
-  tsAutoTransaction    :: !Bool
-, tsIsolationLevel     :: !IsolationLevel
-, tsPermissions        :: !Permissions
+  tsAutoTransaction :: !Bool
+, tsIsolationLevel  :: !IsolationLevel
+, tsPermissions     :: !Permissions
 }
 
 data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializable
