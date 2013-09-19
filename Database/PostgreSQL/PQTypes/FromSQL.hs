@@ -19,7 +19,6 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Types
 
 class (PQFormat t, Storable (PQBase t)) => FromSQL t where
   type PQBase t :: *
@@ -88,14 +87,6 @@ instance FromSQL Text where
   type PQBase Text = CString
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just cs) = either E.throwIO return . decodeUtf8' =<< BS.packCString cs
-
--- BYTEA
-
-instance FromSQL (Binary BS.ByteString) where
-  type PQBase (Binary BS.ByteString) = PGbytea
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGbytea{..}) = Binary
-    <$> BS.packCStringLen (pgByteaData, fromIntegral pgByteaLen)
 
 -- DATE
 

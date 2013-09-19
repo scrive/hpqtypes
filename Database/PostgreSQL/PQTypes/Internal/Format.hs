@@ -8,8 +8,6 @@ import Data.Text (Text)
 import Data.Word
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.PQTypes.Types
-
 class PQFormat t where
   pqFormat :: t -> BS.ByteString
 
@@ -53,11 +51,6 @@ instance PQFormat BS.ByteString where
 
 instance PQFormat Text where
   pqFormat _ = BS.pack "%text"
-
--- BYTEA
-
-instance PQFormat (Binary BS.ByteString) where
-  pqFormat _ = BS.pack "%bytea"
 
 -- DATE
 

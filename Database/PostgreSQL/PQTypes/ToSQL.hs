@@ -3,7 +3,6 @@
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL (ToSQL(..)) where
 
-import Data.ByteString.Unsafe
 import Data.Int
 import Data.Text (Text)
 import Data.Text.Encoding
@@ -20,7 +19,6 @@ import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Format
-import Database.PostgreSQL.PQTypes.Types
 
 type AllocParam = forall r. (Ptr PGparam -> IO r) -> IO r
 
@@ -83,18 +81,6 @@ instance ToSQL Text where
 instance ToSQL String where
   type PQDest String = CString
   toSQL s _ conv = withCString s $ \cs -> conv . Just $ cs
-
--- BYTEA
-
-instance ToSQL (Binary BS.ByteString) where
-  type PQDest (Binary BS.ByteString) = Ptr PGbytea
-  toSQL (Binary bs) _ conv = alloca $ \ptr ->
-    unsafeUseAsCStringLen bs $ \(cs, len) -> do
-      poke ptr PGbytea {
-        pgByteaLen = fromIntegral len
-      , pgByteaData = cs
-      }
-      conv . Just $ ptr
 
 -- DATE
 
