@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Database.PostgreSQL.PQTypes.Internal.Utils where
 
+import Control.Monad
 import Data.ByteString (ByteString)
 import Data.ByteString.Unsafe
 import Data.List
@@ -8,9 +9,12 @@ import Data.Monoid
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Utils
+import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
+import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 
 mintercalate :: Monoid m => m -> [m] -> m
@@ -30,3 +34,12 @@ unexpectedNULL = E.throwIO . InternalError $ "unexpected NULL"
 verifyPQTRes :: String -> CInt -> IO ()
 verifyPQTRes ctx 0 = throwLibPQTypesError ctx
 verifyPQTRes _ _ = return ()
+
+withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
+withPGparam conn = E.bracket create c_PQparamClear
+  where
+    create = do
+      param <- c_PQparamCreate conn
+      when (param == nullPtr) $
+        throwLibPQTypesError "withPGparam.create"
+      return param

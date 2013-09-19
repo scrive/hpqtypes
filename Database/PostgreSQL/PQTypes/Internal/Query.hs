@@ -35,7 +35,7 @@ runQuery dbT sql = dbT $ do
     Just conn -> E.handle (rethrowWithContext sql) $ do
       res <- withPGparam conn $ \param -> do
         query <- loadSQL conn param
-        withCString query $ \q -> c_safePQparamExec conn param q 1
+        withCString query $ \q -> c_PQparamExec conn param q 1
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {
@@ -49,7 +49,7 @@ runQuery dbT sql = dbT $ do
       concat <$> mapM (f nums) (unSQL sql)
       where
         f _ (SCString s) = return s
-        f nums (SCValue v) = toSQL v conn $ \mbase -> do
+        f nums (SCValue v) = toSQL v (withPGparam conn) $ \mbase -> do
           BS.useAsCString (pqFormat v) $ \fmt -> do
             verifyPQTRes "runQuery.loadSQL" =<< c_PQPutfMaybe param fmt mbase
             modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1

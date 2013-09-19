@@ -28,10 +28,6 @@ foreign import ccall unsafe "PQregisterTypes"
 foreign import ccall unsafe "PQparamCreate"
   c_PQparamCreate :: Ptr PGconn -> IO (Ptr PGparam)
 
--- it may run for a long time, make it safe
-foreign import ccall safe "PQparamExec"
-  c_PQparamExec :: Ptr PGconn -> Ptr PGparam -> CString -> CInt -> IO (Ptr PGresult)
-
 foreign import ccall unsafe "PQresultStatus"
   c_PQresultStatus :: Ptr PGresult -> IO ExecStatusType
 
@@ -67,9 +63,10 @@ foreign import ccall unsafe "&PQclear"
 
 ----------------------------------------
 
-withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
-withPGparam conn = E.bracket (c_PQparamCreate conn) c_PQparamClear
+-- it may run for a long time, make it safe
+foreign import ccall safe "PQparamExec"
+  c_rawPQparamExec :: Ptr PGconn -> Ptr PGparam -> CString -> CInt -> IO (Ptr PGresult)
 
-c_safePQparamExec :: Ptr PGconn -> Ptr PGparam -> CString -> CInt -> IO (ForeignPtr PGresult)
-c_safePQparamExec conn param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear
-  =<< c_PQparamExec conn param fmt mode
+c_PQparamExec :: Ptr PGconn -> Ptr PGparam -> CString -> CInt -> IO (ForeignPtr PGresult)
+c_PQparamExec conn param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear
+  =<< c_rawPQparamExec conn param fmt mode

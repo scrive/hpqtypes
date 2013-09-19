@@ -44,10 +44,10 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
 
 instance (CompositeToSQL t, PQFormat t) => ToSQL (Composite t) where
   type PQDest (Composite t) = Ptr PGparam
-  toSQL (Composite comp) conn conv = withPGparam conn $ \param -> do
+  toSQL (Composite comp) allocParam conv = allocParam $ \param -> do
     fields <- compositeFields comp
     forM_ fields $ \(CF field) -> do
-      success <- toSQL field conn $ \mbase ->
+      success <- toSQL field allocParam $ \mbase ->
         BS.useAsCString (pqFormat field) $ \fmt ->
           c_PQPutfMaybe param fmt mbase
       verifyPQTRes "toSQL (Composite)" success

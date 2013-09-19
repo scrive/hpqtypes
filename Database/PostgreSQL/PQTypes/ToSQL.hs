@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, RecordWildCards
-  , ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, Rank2Types
+  , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL (ToSQL(..)) where
 
 import Control.Monad
@@ -18,7 +18,6 @@ import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector.Unboxed as V
 
-import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
@@ -26,17 +25,19 @@ import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
+type AllocParam = forall r. (Ptr PGparam -> IO r) -> IO r
+
 class (PQFormat t, PQPut (PQDest t)) => ToSQL t where
   type PQDest t :: *
-  toSQL :: t -> Ptr PGconn -> (Maybe (PQDest t) -> IO r) -> IO r
+  toSQL :: t -> AllocParam -> (Maybe (PQDest t) -> IO r) -> IO r
 
 -- NULLables
 
 instance ToSQL t => ToSQL (Maybe t) where
   type PQDest (Maybe t) = PQDest t
-  toSQL mt conn conv = case mt of
+  toSQL mt allocParam conv = case mt of
     Nothing -> conv Nothing
-    Just t  -> toSQL t conn conv
+    Just t  -> toSQL t allocParam conv
 
 -- NUMERICS
 
@@ -64,9 +65,9 @@ instance ToSQL Double where
 
 instance ToSQL t => ToSQL (Array t) where
   type PQDest (Array t) = Ptr PGarray
-  toSQL (Array arr) conn conv = alloca $ \ptr -> withPGparam conn $ \param -> do
+  toSQL (Array arr) allocParam conv = alloca $ \ptr -> allocParam $ \param -> do
     BS.useAsCString (pqFormat (undefined::t)) $ \fmt -> forM_ arr $ \item ->
-      verifyPQTRes "toSQL (Array)" =<< toSQL item conn (c_PQPutfMaybe param fmt)
+      verifyPQTRes "toSQL (Array)" =<< toSQL item allocParam (c_PQPutfMaybe param fmt)
     poke ptr PGarray {
       pgArrayNDims = 0
     , pgArrayLBound = V.empty
