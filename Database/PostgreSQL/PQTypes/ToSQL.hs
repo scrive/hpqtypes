@@ -3,7 +3,6 @@
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL (ToSQL(..)) where
 
-import Control.Monad
 import Data.ByteString.Unsafe
 import Data.Int
 import Data.Text (Text)
@@ -16,13 +15,11 @@ import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Vector.Unboxed as V
 
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Format
-import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Types
 
 type AllocParam = forall r. (Ptr PGparam -> IO r) -> IO r
@@ -60,22 +57,6 @@ instance ToSQL Float where
 instance ToSQL Double where
   type PQDest Double = CDouble
   toSQL n _ conv = conv . Just . realToFrac $ n
-
--- ARRAYS
-
-instance ToSQL t => ToSQL (Array t) where
-  type PQDest (Array t) = Ptr PGarray
-  toSQL (Array arr) allocParam conv = alloca $ \ptr -> allocParam $ \param -> do
-    BS.useAsCString (pqFormat (undefined::t)) $ \fmt -> forM_ arr $ \item ->
-      verifyPQTRes "toSQL (Array)" =<< toSQL item allocParam (c_PQPutfMaybe param fmt)
-    poke ptr PGarray {
-      pgArrayNDims = 0
-    , pgArrayLBound = V.empty
-    , pgArrayDims = V.empty
-    , pgArrayParam = param
-    , pgArrayRes = nullPtr
-    }
-    conv . Just $ ptr
 
 -- CHAR
 

@@ -11,13 +11,10 @@ import Data.Text.Encoding
 import Data.Time
 import Data.Word
 import Foreign.C
-import Foreign.Marshal.Alloc
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.PQTypes.Internal.C.Get
-import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Format
@@ -62,33 +59,6 @@ instance FromSQL Double where
   type PQBase Double = CDouble
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = return . realToFrac $ n
-
--- ARRAYS
-
-instance FromSQL t => FromSQL (Array t) where
-  type PQBase (Array t) = PGarray
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGarray{..}) = flip E.finally (c_PQclear pgArrayRes) $ if pgArrayNDims > 1
-    then E.throwIO . InternalError $ "Array type supports 1-dimensional arrays only, given array is " ++ show pgArrayNDims ++ "-dimensional"
-    else do
-      let fmt = pqFormat (undefined::t)
-      size <- c_PQntuples pgArrayRes
-      BS.useAsCString fmt (loop [] $ size - 1)
-    where
-      loop acc (-1) _ = return . Array $ acc
-      loop acc !i fmt = alloca $ \ptr -> do
-        verifyPQTRes "fromSQL (Array)" =<< c_PQgetf1 pgArrayRes i fmt 0 ptr
-        isNull <- c_PQgetisnull pgArrayRes i 0
-        mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
-        item <- fromSQL mbase `E.catch` addArrayInfo i
-        loop (item : acc) (i-1) fmt
-
-      addArrayInfo :: CInt -> E.SomeException -> IO a
-      addArrayInfo i (E.SomeException e) =
-        E.throwIO ArrayItemError {
-          arrItemIndex = fromIntegral i + 1
-        , arrItemError = e
-        }
 
 -- CHAR
 

@@ -35,11 +35,6 @@ instance PQFormat Float where
 instance PQFormat Double where
   pqFormat _ = BS.pack "%float8"
 
--- ARRAYS
-
-instance PQFormat t => PQFormat (Array t) where
-  pqFormat _ = pqFormat (undefined::t) `BS.append` BS.pack "[]"
-
 -- CHAR
 
 instance PQFormat Char where

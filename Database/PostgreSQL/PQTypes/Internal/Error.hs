@@ -3,7 +3,7 @@
 module Database.PostgreSQL.PQTypes.Internal.Error where
 
 import Data.Typeable
-import Foreign.C.String
+import Foreign.C
 import Foreign.Ptr
 import qualified Control.Exception as E
 
@@ -29,6 +29,11 @@ data ArrayItemError = forall e. E.Exception e => ArrayItemError {
 
 deriving instance Show ArrayItemError
 
+data ArrayDimensionMismatch = ArrayDimensionMismatch {
+  arrDimExpected  :: Int
+, arrDimDelivered :: Int
+} deriving (Show, Typeable)
+
 data RowLengthMismatch = RowLengthMismatch {
   lengthExpected  :: Int
 , lengthDelivered :: Int
@@ -42,6 +47,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
 instance E.Exception InternalError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError
+instance E.Exception ArrayDimensionMismatch
 instance E.Exception RowLengthMismatch
 instance E.Exception AffectedRowsMismatch
 

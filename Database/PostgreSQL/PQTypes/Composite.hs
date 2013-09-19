@@ -21,9 +21,6 @@ import Database.PostgreSQL.PQTypes.ToSQL
 newtype Composite a = Composite a
   deriving (Eq, Functor, Ord, Show)
 
-instance PQFormat t => PQFormat (Composite t) where
-  pqFormat _ = pqFormat (undefined::t)
-
 unComposite :: Composite a -> a
 unComposite (Composite a) = a
 
@@ -33,8 +30,11 @@ class (PQFormat t, Row (CompositeRow t)) => CompositeFromSQL t where
   type CompositeRow t :: *
   fromRow :: CompositeRow t -> IO t
 
-class CompositeToSQL t where
+class PQFormat t => CompositeToSQL t where
   compositeFields :: t -> IO [CompositeField]
+
+instance PQFormat t => PQFormat (Composite t) where
+  pqFormat _ = pqFormat (undefined::t)
 
 instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
@@ -42,7 +42,7 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
   fromSQL (Just res) = Composite
     <$> E.finally (parseRow' res 0 >>= fromRow) (c_PQclear res)
 
-instance (CompositeToSQL t, PQFormat t) => ToSQL (Composite t) where
+instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = Ptr PGparam
   toSQL (Composite comp) allocParam conv = allocParam $ \param -> do
     fields <- compositeFields comp

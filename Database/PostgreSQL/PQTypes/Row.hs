@@ -28,10 +28,10 @@ u = undefined
 convert :: FromSQL t => Ptr PGresult -> CInt -> CInt -> PQBase t -> IO t
 convert res tuple column base = do
   isNull <- c_PQgetisnull res tuple column
-  fromSQL (if isNull == 1 then Nothing else Just base) `E.catch` nestError
+  fromSQL (if isNull == 1 then Nothing else Just base) `E.catch` rethrowWithConvError
   where
-    nestError :: E.SomeException -> IO a
-    nestError (E.SomeException e) = do
+    rethrowWithConvError :: E.SomeException -> IO a
+    rethrowWithConvError (E.SomeException e) = do
       colname <- peekCString =<< c_PQfname res column
       E.throwIO ConversionError {
         convColumn = fromIntegral column + 1
