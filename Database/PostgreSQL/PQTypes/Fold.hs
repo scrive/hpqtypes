@@ -23,31 +23,35 @@ import Database.PostgreSQL.PQTypes.Row
 
 foldLeft :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
          => (acc -> row -> m acc) -> acc -> m acc
-foldLeft f initAcc = withQueryResult $ \(_::row) ctx res fmt ->
-  worker ctx res fmt initAcc 0 =<< liftBase (withForeignPtr res c_PQntuples)
+foldLeft f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+  liftBase (withForeignPtr fres c_PQntuples)
+    >>= worker ctx fres ffmt initAcc 0
   where
-    worker ctx res fmt acc !i !n
+    worker ctx fres ffmt acc !i !n
       | i == n    = return acc
       | otherwise = do
-        obj <- liftBase $ withForeignPtr res $ \pres ->
-                        withForeignPtr fmt $ \pfmt ->
-                          E.handle (rethrowWithContext ctx) (parseRow pres i pfmt)
+        obj <- liftBase $
+          withForeignPtr fres $ \res ->
+          withForeignPtr ffmt $ \fmt ->
+            E.handle (rethrowWithContext ctx) (parseRow res i fmt)
         acc' <- f acc obj
-        worker ctx res fmt acc' (i+1) n
+        worker ctx fres ffmt acc' (i+1) n
 
 foldRight :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
           => (row -> acc -> m acc) -> acc -> m acc
-foldRight f initAcc = withQueryResult $ \(_::row) ctx res fmt ->
-  worker ctx res fmt initAcc (-1) . pred =<< liftBase (withForeignPtr res c_PQntuples)
+foldRight f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+  liftBase (withForeignPtr fres c_PQntuples)
+    >>= worker ctx fres ffmt initAcc (-1) . pred
   where
-    worker ctx res fmt acc !n !i
+    worker ctx fres ffmt acc !n !i
       | i == n    = return acc
       | otherwise = do
-        obj <- liftBase $ withForeignPtr res $ \pres ->
-                        withForeignPtr fmt $ \pfmt ->
-                          E.handle (rethrowWithContext ctx) (parseRow pres i pfmt)
+        obj <- liftBase $
+          withForeignPtr fres $ \res ->
+          withForeignPtr ffmt $ \fmt ->
+            E.handle (rethrowWithContext ctx) (parseRow res i fmt)
         acc' <- f obj acc
-        worker ctx res fmt acc' n (i-1)
+        worker ctx fres ffmt acc' n (i-1)
 
 ----------------------------------------
 
