@@ -20,38 +20,38 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
-data InternalError = InternalError String
+data InternalError = InternalError !String
   deriving (Show, Typeable)
 
 data ConversionError = forall e. E.Exception e => ConversionError {
-  convColumn     :: Int
-, convColumnName :: String
-, convRow        :: Int
-, convError      :: e
+  convColumn     :: !Int
+, convColumnName :: !String
+, convRow        :: !Int
+, convError      :: !e
 } deriving Typeable
 
 deriving instance Show ConversionError
 
 data ArrayItemError = forall e. E.Exception e => ArrayItemError {
-  arrItemIndex :: Int
-, arrItemError :: e
+  arrItemIndex :: !Int
+, arrItemError :: !e
 } deriving Typeable
 
 deriving instance Show ArrayItemError
 
 data ArrayDimensionMismatch = ArrayDimensionMismatch {
-  arrDimExpected  :: Int
-, arrDimDelivered :: Int
+  arrDimExpected  :: !Int
+, arrDimDelivered :: !Int
 } deriving (Show, Typeable)
 
 data RowLengthMismatch = RowLengthMismatch {
-  lengthExpected  :: Int
-, lengthDelivered :: Int
+  lengthExpected  :: !Int
+, lengthDelivered :: !Int
 } deriving (Show, Typeable)
 
 data AffectedRowsMismatch = AffectedRowsMismatch {
-  rowsExpected :: Int
-, rowsAffected :: Int
+  rowsExpected :: !Int
+, rowsAffected :: !Int
 } deriving (Show, Typeable)
 
 instance E.Exception InternalError

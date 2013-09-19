@@ -11,8 +11,8 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.SQL
 
 data DBException = forall e. E.Exception e => DBException {
-  dbeQueryContext :: SQL
-, dbeError        :: e
+  dbeQueryContext :: !SQL
+, dbeError        :: !e
 } deriving Typeable
 
 deriving instance Show DBException

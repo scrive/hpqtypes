@@ -24,8 +24,8 @@ import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 
 data ConnectionSettings = ConnectionSettings {
-  csConnInfo   :: String
-, csComposites :: [String]
+  csConnInfo   :: !String
+, csComposites :: ![String]
 }
 
 ----------------------------------------

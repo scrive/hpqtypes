@@ -30,7 +30,7 @@ newtype Composite a = Composite a
 unComposite :: Composite a -> a
 unComposite (Composite a) = a
 
-data CompositeField = forall t. ToSQL t => CF t
+data CompositeField = forall t. ToSQL t => CF !t
 
 class (PQFormat t, Row (CompositeRow t)) => CompositeFromSQL t where
   type CompositeRow t :: *

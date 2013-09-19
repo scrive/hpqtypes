@@ -16,8 +16,8 @@ import qualified Data.DList as D
 import Database.PostgreSQL.PQTypes.ToSQL
 
 data SqlChunk
-  = SCString String
-  | forall t. (Show t, ToSQL t) => SCValue t
+  = SCString !String
+  | forall t. (Show t, ToSQL t) => SCValue !t
 
 newtype SQL = SQL (D.DList SqlChunk)
 
