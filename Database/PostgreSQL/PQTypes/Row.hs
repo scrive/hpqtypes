@@ -14,12 +14,12 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.C.Get
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
 u :: a

@@ -9,12 +9,12 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
+import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Format
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Row
 import Database.PostgreSQL.PQTypes.ToSQL
 

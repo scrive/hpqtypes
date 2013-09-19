@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
-module Database.PostgreSQL.PQTypes.Internal.Format where
+module Database.PostgreSQL.PQTypes.Format (PQFormat(..)) where
 
 import Data.Int
 import Data.Time

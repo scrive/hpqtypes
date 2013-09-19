@@ -15,10 +15,10 @@ import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Format
 
 type AllocParam = forall r. (Ptr PGparam -> IO r) -> IO r
 

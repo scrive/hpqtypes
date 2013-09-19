@@ -10,10 +10,10 @@ import Foreign.Ptr
 import Foreign.Storable
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Format
-import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Binary b = Binary b
