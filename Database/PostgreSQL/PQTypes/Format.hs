@@ -76,3 +76,8 @@ instance PQFormat UTCTime where
 
 instance PQFormat ZonedTime where
   pqFormat _ = BS.pack "%timestamptz"
+
+-- BOOL
+
+instance PQFormat Bool where
+  pqFormat _ = BS.pack "%bool"

@@ -124,6 +124,15 @@ instance FromSQL ZonedTime where
   type PQBase ZonedTime = PGtimestamp
   fromSQL = localToZoned (flip ZonedTime)
 
+-- BOOL
+
+instance FromSQL Bool where
+  type PQBase Bool = CInt
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just n) = case n of
+    0 -> return False
+    _ -> return True
+
 ----------------------------------------
 
 pgDateToDay :: PGdate -> Day

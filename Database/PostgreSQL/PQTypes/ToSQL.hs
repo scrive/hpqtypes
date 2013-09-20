@@ -136,6 +136,13 @@ instance ToSQL ZonedTime where
     }
     conv . Just $ ptr
 
+-- BOOL
+
+instance ToSQL Bool where
+  type PQDest Bool = CInt
+  toSQL True  _ conv = conv . Just $ 1
+  toSQL False _ conv = conv . Just $ 0
+
 ----------------------------------------
 
 timeOfDayToPGtime :: TimeOfDay -> PGtime
