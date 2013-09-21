@@ -4,6 +4,7 @@
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
   , runDBT
+  , mapDBT
   ) where
 
 import Control.Applicative
@@ -40,6 +41,11 @@ runDBT cs ts m = withConnection cs $ \conn -> do
       then withTransaction' (ts { tsAutoTransaction = False }) m
       else m
 
+mapDBT :: (Monad m, Monad n) => (m a -> n b) -> DBT m a -> DBT n b
+mapDBT f m = DBT . StateT $ \st -> do
+  res <- f $ evalStateT (unDBT m) st
+  return (res, st)
+
 instance MonadTransControl DBT where
   newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
   liftWith = defaultLiftWith DBT unDBT StDBT
@@ -56,9 +62,7 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
 
 instance MonadBaseControl IO m => MonadDB (DBT m) where
   runQuery = Q.runQuery DBT
-
   getLastQuery = DBT . gets $ dbLastQuery
-  clearLastQuery = DBT . modify $ \st -> st { dbLastQuery = mempty }
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }

@@ -8,10 +8,8 @@ import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Row
 
 class Monad m => MonadDB m where
-  runQuery :: SQL -> m Int
-
-  getLastQuery   :: m SQL
-  clearLastQuery :: m ()
+  runQuery     :: SQL -> m Int
+  getLastQuery :: m SQL
 
   getQueryResult   :: m (Maybe QueryResult)
   clearQueryResult :: m ()
