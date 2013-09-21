@@ -27,7 +27,8 @@ newtype QueryResult = QueryResult { unQueryResult :: ForeignPtr PGresult }
 ----------------------------------------
 
 data DBState = DBState {
-  dbConnectionSource    :: !ConnectionSource
+  dbConnection          :: !Connection
+, dbConnectionSource    :: !ConnectionSource
 , dbTransactionSettings :: !TransactionSettings
 , dbLastQuery           :: !SQL
 , dbQueryResult         :: !(Maybe QueryResult)

@@ -7,11 +7,10 @@ module Database.PostgreSQL.PQTypes.Internal.Monad (
   ) where
 
 import Control.Applicative
-import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Monad.Trans
-import Control.Monad.Trans.RWS
+import Control.Monad.Trans.State
 import Data.Monoid
 
 import Database.PostgreSQL.PQTypes.Class
@@ -21,7 +20,7 @@ import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Transaction
 import qualified Database.PostgreSQL.PQTypes.Internal.Query as Q
 
-type InnerDBT = RWST Connection () DBState
+type InnerDBT = StateT DBState
 
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
@@ -29,12 +28,13 @@ newtype DBT m a = DBT { unDBT :: InnerDBT m a }
 runDBT :: MonadBaseControl IO m
        => ConnectionSource -> TransactionSettings -> DBT m a -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
-  fst `liftM` evalRWST action conn (DBState {
-    dbConnectionSource = cs
+  evalStateT action $ DBState {
+    dbConnection = conn
+  , dbConnectionSource = cs
   , dbTransactionSettings = ts
   , dbLastQuery = mempty
   , dbQueryResult = Nothing
-  })
+  }
   where
     action = unDBT $ if tsAutoTransaction ts
       then withTransaction' (ts { tsAutoTransaction = False }) m
@@ -54,7 +54,7 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
 
-instance MonadBase IO m => MonadDB (DBT m) where
+instance MonadBaseControl IO m => MonadDB (DBT m) where
   runQuery = Q.runQuery DBT
 
   getLastQuery = DBT . gets $ dbLastQuery
@@ -69,5 +69,8 @@ instance MonadBase IO m => MonadDB (DBT m) where
   foldlDB = foldLeft
   foldrDB = foldRight
 
-  getConnectionSource = DBT . gets $ dbConnectionSource
-  localConnection f = DBT . local f . unDBT
+  localConnection m = DBT . StateT $ \st -> do
+    let cs = dbConnectionSource st
+        ts = dbTransactionSettings st
+    res <- runDBT cs ts m
+    return (res, st)

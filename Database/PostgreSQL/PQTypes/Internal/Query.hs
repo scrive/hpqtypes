@@ -7,7 +7,7 @@ module Database.PostgreSQL.PQTypes.Internal.Query (
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad.Base
-import Control.Monad.Trans.RWS
+import Control.Monad.Trans.State
 import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
@@ -26,9 +26,9 @@ import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
-runQuery :: MonadBase IO m => (RWST Connection () DBState m Int -> r) -> SQL -> r
+runQuery :: MonadBase IO m => (StateT DBState m Int -> r) -> SQL -> r
 runQuery dbT sql = dbT $ do
-  mvconn <- asks unConnection
+  mvconn <- gets (unConnection . dbConnection)
   (affected, res) <- liftBase . modifyMVar mvconn $ \mconn -> case mconn of
     Nothing -> E.throwIO DBException {
       dbeQueryContext = sql

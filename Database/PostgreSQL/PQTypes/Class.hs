@@ -3,7 +3,6 @@ module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
-import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Row
@@ -23,5 +22,4 @@ class Monad m => MonadDB m where
   foldlDB :: Row row => (acc -> row -> m acc) -> acc -> m acc
   foldrDB :: Row row => (row -> acc -> m acc) -> acc -> m acc
 
-  getConnectionSource :: m ConnectionSource
-  localConnection     :: (Connection -> Connection) -> m a -> m a
+  localConnection :: m a -> m a
