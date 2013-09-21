@@ -1,12 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
 module Database.PostgreSQL.PQTypes.Internal.Error (
-    InternalError(..)
+    QueryError(..)
+  , InternalError(..)
   , ConversionError(..)
   , ArrayItemError(..)
   , ArrayDimensionMismatch(..)
   , RowLengthMismatch(..)
   , AffectedRowsMismatch(..)
+  , throwQueryError
   , throwLibPQError
   , throwLibPQTypesError
   , rethrowWithArrayError
@@ -19,6 +21,9 @@ import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
+
+data QueryError = QueryError !String
+  deriving (Show, Typeable)
 
 data InternalError = InternalError !String
   deriving (Show, Typeable)
@@ -54,12 +59,18 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
 , rowsAffected :: !Int
 } deriving (Show, Typeable)
 
+instance E.Exception QueryError
 instance E.Exception InternalError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError
 instance E.Exception ArrayDimensionMismatch
 instance E.Exception RowLengthMismatch
 instance E.Exception AffectedRowsMismatch
+
+throwQueryError :: Ptr PGconn -> IO a
+throwQueryError conn = do
+  msg <- peekCString =<< c_PQerrorMessage conn
+  E.throwIO . QueryError $ msg
 
 throwLibPQError :: Ptr PGconn -> String -> IO a
 throwLibPQError conn ctx = do

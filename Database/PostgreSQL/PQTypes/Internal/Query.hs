@@ -57,7 +57,7 @@ runQuery dbT sql = dbT $ do
             modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
     verifyResult conn res
-      | res == nullPtr = throwPQError
+      | res == nullPtr = throwSQLError
       | otherwise = do
         st <- c_PQresultStatus res
         case st of
@@ -71,11 +71,11 @@ runQuery dbT sql = dbT $ do
                 | rest /= BS.empty -> throwParseError
                 | otherwise        -> return n
           _ | st == c_PGRES_TUPLES_OK    -> fromIntegral <$> c_PQntuples res
-          _ | st == c_PGRES_FATAL_ERROR  -> throwPQError
-          _ | st == c_PGRES_BAD_RESPONSE -> throwPQError
+          _ | st == c_PGRES_FATAL_ERROR  -> throwSQLError
+          _ | st == c_PGRES_BAD_RESPONSE -> throwSQLError
           _ | otherwise                  -> return 0
           where
-            throwPQError = throwLibPQError conn "runQuery.verifyResult"
+            throwSQLError = throwQueryError conn
             throwParseError = E.throwIO DBException {
               dbeQueryContext = sql
             , dbeError = InternalError "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
