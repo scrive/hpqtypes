@@ -12,14 +12,13 @@ module Database.PostgreSQL.PQTypes.Array (
 
 import Control.Applicative
 import Control.Monad
-import Data.Int
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Storable as V
 
 import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Format
@@ -182,7 +181,7 @@ instance ToSQL t => ToSQL (Array2 t) where
     }
     conv . Just $ ptr
     where
-      loop :: [[t]] -> Ptr PGparam -> Int32 -> Int32 -> CString -> IO (V.Vector Int32)
+      loop :: [[t]] -> Ptr PGparam -> CInt -> CInt -> CString -> IO (V.Vector CInt)
       loop [] _ !size !innerSize _ = return . V.fromList $ [size, innerSize]
       loop (row : rest) param !size !innerSize fmt = do
         nextInnerSize <- innLoop row param 0 fmt
@@ -190,7 +189,7 @@ instance ToSQL t => ToSQL (Array2 t) where
           E.throwIO . InternalError $ "toSQL (Array2): inner rows have different sizes"
         loop rest param (size+1) nextInnerSize fmt
 
-      innLoop :: [t] -> Ptr PGparam -> Int32 -> CString -> IO Int32
+      innLoop :: [t] -> Ptr PGparam -> CInt -> CString -> IO CInt
       innLoop [] _ !size _ = return size
       innLoop (item : rest) param !size fmt = do
         toSQL item allocParam (c_PQPutfMaybe param fmt)

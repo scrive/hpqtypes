@@ -4,12 +4,12 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types where
 
 import Control.Applicative
 import Data.ByteString.Unsafe
-import Data.Int
 import Foreign.C
+import Foreign.ForeignPtr
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Storable as V
 import qualified Data.ByteString as BS
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
@@ -84,8 +84,8 @@ c_MAXDIM = #{const MAXDIM}
 
 data PGarray = PGarray {
   pgArrayNDims  :: !CInt
-, pgArrayLBound :: !(V.Vector Int32)
-, pgArrayDims   :: !(V.Vector Int32)
+, pgArrayLBound :: !(V.Vector CInt)
+, pgArrayDims   :: !(V.Vector CInt)
 , pgArrayParam  :: !(Ptr PGparam)
 , pgArrayRes    :: !(Ptr PGresult)
 } deriving Show
@@ -95,32 +95,31 @@ instance Storable PGarray where
   alignment _ = #{alignment PGarray}
   peek ptr = PGarray
     <$> #{peek PGarray, ndims} ptr
-    <*> V.mapM (readElem $ #{ptr PGarray, lbound} ptr) indexVec
-    <*> V.mapM (readElem $ #{ptr PGarray, dims} ptr) indexVec
+    <*> readVector (#{ptr PGarray, lbound} ptr)
+    <*> readVector (#{ptr PGarray, dims} ptr)
     <*> #{peek PGarray, param} ptr
     <*> #{peek PGarray, res} ptr
     where
-      indexVec :: V.Vector Int
-      indexVec = V.enumFromN (0::Int) c_MAXDIM
-
-      readElem :: Ptr CInt -> Int -> IO Int32
-      readElem p i = fromIntegral <$> peekElemOff p i
+      readVector :: Ptr CInt -> IO (V.Vector CInt)
+      readVector src = do
+        let len = c_MAXDIM
+        fptr <- mallocForeignPtrArray len
+        withForeignPtr fptr $ \dest -> copyArray dest src len
+        return (V.unsafeFromForeignPtr0 fptr len)
 
   poke ptr PGarray{..} = do
     #{poke PGarray, ndims} ptr pgArrayNDims
-    V.mapM_ (writeElem $ #{ptr PGarray, lbound} ptr) $ adapt pgArrayLBound
-    V.mapM_ (writeElem $ #{ptr PGarray, dims} ptr) $ adapt pgArrayDims
+    writeVector pgArrayLBound $ #{ptr PGarray, lbound} ptr
+    writeVector pgArrayDims $ #{ptr PGarray, dims} ptr
     #{poke PGarray, param} ptr pgArrayParam
     #{poke PGarray, res} ptr pgArrayRes
     where
-      writeElem :: Ptr CInt -> (Int, Int32) -> IO ()
-      writeElem p (i, n) = pokeElemOff p i (fromIntegral n)
-
-      adapt :: V.Vector Int32 -> V.Vector (Int, Int32)
-      adapt v = V.indexed $ case V.length v of
-       len | len >= c_MAXDIM -> V.take c_MAXDIM v
-           | otherwise -> v V.++ V.replicate (c_MAXDIM - len) 0
-
+      writeVector :: V.Vector CInt -> Ptr CInt -> IO ()
+      writeVector v dest = do
+        let (fptr, baseLen) = V.unsafeToForeignPtr0 v
+        withForeignPtr fptr $ \src -> do
+          let len = min baseLen c_MAXDIM
+          copyArray dest src len
 
 data PGbytea = PGbytea {
   pgByteaLen  :: !CInt
