@@ -22,6 +22,9 @@ foreign import ccall unsafe "PQerrorMessage"
 foreign import ccall unsafe "PQinitTypes"
   c_PQinitTypes :: Ptr PGconn -> IO ()
 
+foreign import ccall unsafe "PQsetClientEncoding"
+  c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
+
 foreign import ccall unsafe "PQregisterTypes"
   c_PQregisterTypes :: Ptr PGconn -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
 

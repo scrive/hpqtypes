@@ -17,6 +17,7 @@ import Data.Time.Clock
 import Foreign.Ptr
 import Foreign.C.String
 import qualified Control.Exception as E
+import qualified Data.Foldable as F
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -24,8 +25,9 @@ import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 
 data ConnectionSettings = ConnectionSettings {
-  csConnInfo   :: !String
-, csComposites :: ![String]
+  csConnInfo       :: !String
+, csClientEncoding :: !(Maybe String)
+, csComposites     :: ![String]
 }
 
 ----------------------------------------
@@ -58,6 +60,10 @@ connect ConnectionSettings{..} = do
   status <- c_PQstatus conn
   when (status /= c_CONNECTION_OK) $
     throwLibPQError conn "connect"
+  F.forM_ csClientEncoding $ \enc -> do
+    res <- withCString enc (c_PQsetClientEncoding conn)
+    when (res == -1) $
+      throwLibPQError conn "connect"
   c_PQinitTypes conn
   registerComposites conn csComposites
   Connection <$> newMVar (Just conn)
