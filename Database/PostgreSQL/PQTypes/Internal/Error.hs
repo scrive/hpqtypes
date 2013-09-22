@@ -3,6 +3,7 @@
 module Database.PostgreSQL.PQTypes.Internal.Error (
     QueryError(..)
   , InternalError(..)
+  , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)
   , ArrayDimensionMismatch(..)
@@ -26,6 +27,9 @@ data QueryError = QueryError !String
   deriving (Show, Typeable)
 
 data InternalError = InternalError !String
+  deriving (Show, Typeable)
+
+data LibPQError = LibPQError !String
   deriving (Show, Typeable)
 
 data ConversionError = forall e. E.Exception e => ConversionError {
@@ -61,6 +65,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
 
 instance E.Exception QueryError
 instance E.Exception InternalError
+instance E.Exception LibPQError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError
 instance E.Exception ArrayDimensionMismatch
@@ -75,13 +80,13 @@ throwQueryError conn = do
 throwLibPQError :: Ptr PGconn -> String -> IO a
 throwLibPQError conn ctx = do
   msg <- peekCString =<< c_PQerrorMessage conn
-  E.throwIO . InternalError
+  E.throwIO . LibPQError
     $ if null ctx then msg else ctx ++ ": " ++ msg
 
 throwLibPQTypesError :: String -> IO a
 throwLibPQTypesError ctx = do
   msg <- peekCString =<< c_PQgeterror
-  E.throwIO . InternalError
+  E.throwIO . LibPQError
     $ if null ctx then msg else ctx ++ ": " ++ msg
 
 rethrowWithArrayError :: CInt -> E.SomeException -> IO a

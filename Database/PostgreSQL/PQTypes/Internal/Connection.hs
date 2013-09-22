@@ -12,6 +12,7 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Trans.Control
+import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
 import Foreign.Ptr
@@ -23,6 +24,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Exception
 
 data ConnectionSettings = ConnectionSettings {
   csConnInfo       :: !String
@@ -55,7 +57,7 @@ poolSource cs numStripes idleTime maxResources = do
 ----------------------------------------
 
 connect :: ConnectionSettings -> IO Connection
-connect ConnectionSettings{..} = do
+connect ConnectionSettings{..} = wrapException $ do
   conn <- withCString csConnInfo c_PQconnectdb
   status <- c_PQstatus conn
   when (status /= c_CONNECTION_OK) $
@@ -69,8 +71,11 @@ connect ConnectionSettings{..} = do
   Connection <$> newMVar (Just conn)
 
 disconnect :: Connection -> IO ()
-disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
+disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
     Just conn -> c_PQfinish conn
-    Nothing   -> E.throwIO $ InternalError "disconnect: no connection (shouldn't happen)"
+    Nothing   -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
   return Nothing
+
+wrapException :: IO a -> IO a
+wrapException = E.handle (rethrowWithContext mempty)
