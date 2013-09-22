@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, Rank2Types
   , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL (
-    ToSQL(..)
+    ParamAllocator
+  , ToSQL(..)
   ) where
 
 import Data.Int
@@ -22,11 +23,11 @@ import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 
-type AllocParam = forall r. (Ptr PGparam -> IO r) -> IO r
+type ParamAllocator = forall r. (Ptr PGparam -> IO r) -> IO r
 
 class (PQFormat t, PQPut (PQDest t)) => ToSQL t where
   type PQDest t :: *
-  toSQL :: t -> AllocParam -> (Maybe (PQDest t) -> IO r) -> IO r
+  toSQL :: t -> ParamAllocator -> (Maybe (PQDest t) -> IO r) -> IO r
 
 -- NULLables
 
