@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Fold (
-    foldLeft
-  , foldRight
+    foldLeftM
+  , foldRightM
   ) where
 
 import Control.Monad
@@ -21,9 +21,9 @@ import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Row
 
-foldLeft :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
-         => (acc -> row -> m acc) -> acc -> m acc
-foldLeft f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
+          => (acc -> row -> m acc) -> acc -> m acc
+foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
   liftBase (withForeignPtr fres c_PQntuples)
     >>= worker ctx fres ffmt initAcc 0
   where
@@ -37,9 +37,9 @@ foldLeft f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
         acc' <- f acc obj
         worker ctx fres ffmt acc' (i+1) n
 
-foldRight :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
-          => (row -> acc -> m acc) -> acc -> m acc
-foldRight f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
+           => (row -> acc -> m acc) -> acc -> m acc
+foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
   liftBase (withForeignPtr fres c_PQntuples)
     >>= worker ctx fres ffmt initAcc (-1) . pred
   where

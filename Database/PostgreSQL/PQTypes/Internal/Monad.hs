@@ -70,8 +70,8 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
   getQueryResult = DBT $ gets dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
 
-  foldlDB = foldLeft
-  foldrDB = foldRight
+  foldlM = foldLeftM
+  foldrM = foldRightM
 
   localConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st

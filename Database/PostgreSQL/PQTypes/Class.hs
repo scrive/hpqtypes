@@ -17,7 +17,7 @@ class Monad m => MonadDB m where
   getTransactionSettings :: m TransactionSettings
   setTransactionSettings :: TransactionSettings -> m ()
 
-  foldlDB :: Row row => (acc -> row -> m acc) -> acc -> m acc
-  foldrDB :: Row row => (row -> acc -> m acc) -> acc -> m acc
+  foldlM :: Row row => (acc -> row -> m acc) -> acc -> m acc
+  foldrM :: Row row => (row -> acc -> m acc) -> acc -> m acc
 
   localConnection :: m a -> m a
