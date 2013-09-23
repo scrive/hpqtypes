@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, TupleSections #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
-    runQuery
+    runSQLQuery
   ) where
 
 import Control.Applicative
@@ -26,8 +26,8 @@ import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
-runQuery :: MonadBase IO m => (StateT DBState m Int -> r) -> SQL -> r
-runQuery dbT sql = dbT $ do
+runSQLQuery :: MonadBase IO m => (StateT DBState m Int -> r) -> SQL -> r
+runSQLQuery dbT sql = dbT $ do
   mvconn <- gets (unConnection . dbConnection)
   (affected, res) <- liftBase . modifyMVar mvconn $ \mconn -> case mconn of
     Nothing -> E.throwIO DBException {

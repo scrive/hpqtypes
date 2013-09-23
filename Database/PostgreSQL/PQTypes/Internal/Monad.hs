@@ -17,9 +17,9 @@ import Data.Monoid
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Transaction
-import qualified Database.PostgreSQL.PQTypes.Internal.Query as Q
 
 type InnerDBT = StateT DBState
 
@@ -61,7 +61,7 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE restoreM #-}
 
 instance MonadBaseControl IO m => MonadDB (DBT m) where
-  runQuery = Q.runQuery DBT
+  runQuery = runSQLQuery DBT
   getLastQuery = DBT . gets $ dbLastQuery
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
