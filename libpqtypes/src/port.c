@@ -45,8 +45,7 @@ pqt_vsnprintf(char *buf, size_t size, const char *format, va_list ap)
 	/* All other platforms, including MinGW and Cygwin. */
 	n = vsnprintf(buf, size, format, ap);
 #else
-	/* Some platforms don't have the buffer-safe version */
-	n = vsprintf(buf, format, ap);
+#	error "vsnprintf is not available"
 #endif
 
 	if (n > -1 && (size_t) n < size)
