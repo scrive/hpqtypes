@@ -346,7 +346,7 @@ void pqt_cleartypes(PGtypeData *typeData);
 
 /* === in param.c === */
 
-int pqt_putparam(PGparam *param, const void *data, int datal,
+int pqt_putparam(PGparam *param, PGerror *err, const void *data, int datal,
 	int flags, int format, Oid typoid);
 
 /* === in spec.c === */
@@ -356,11 +356,11 @@ PGtypeSpec *pqt_dupspecs(PGtypeSpec *specs, int count);
 void pqt_clearspec(PGtypeSpec *cache);
 void pqt_freespecs(PGtypeSpec *specs, int count);
 
-char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
+char *pqt_parse(PGerror *err, const char *format, PGtypeHandler *h, int hcnt,
 	char *stmtBuf, size_t stmtBufLen, PGtypeHandler **out, size_t *stmtPos,
 	int *typpos, int *flags);
 
-char *pqt_parsetype(const char *spec, char *schema, char *typname,
+char *pqt_parsetype(PGerror *err, const char *spec, char *schema, char *typname,
 	int *flags, int typpos);
 
 /* === in handler.c === */
@@ -371,7 +371,6 @@ PGtypeHandler *pqt_duphandlers(PGtypeHandler *handlers, int hcnt);
 void pqt_freehandlers(PGtypeHandler *handlers, int hcnt);
 int pqt_argssuper(PGtypeArgs *args, ...);
 int pqt_argserrorf(PGtypeArgs *args, const char *format, ...);
-void pqt_setresultfields(const PGresult *res);
 
 PGtypeHandler *pqt_gethandler(PGtypeHandler *handlers, int hcnt,
 	const char *schema, const char *typname);

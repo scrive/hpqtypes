@@ -115,32 +115,32 @@ static PGtypeHandler pg_handlers[] = {
 };
 
 static int
-expandHandlers(PGtypeData *typeData);
+expandHandlers(PGtypeData *typeData, PGerror *err);
 
 static PGrecordAttDesc *
-initAttDescs(PGtypeHandler *h, char *attrs);
+initAttDescs(PGerror *err, PGtypeHandler *h, char *attrs);
 
 static char *
-parseType(const char *spec, char *schema, char *typname, int typpos);
+parseType(PGerror *err, const char *spec, char *schema, char *typname, int typpos);
 
 static int
-getTypeParams(PGconn *conn, PGregisterType *types, int count,
+getTypeParams(PGconn *conn, PGerror *err, PGregisterType *types, int count,
 	PGarray *names, PGarray *schemas);
 
 static int
-checkTypeLookups(PGresult *res, PGregisterType *types, int count);
+checkTypeLookups(PGresult *res, PGerror *err, PGregisterType *types, int count);
 
 /* If res is NULL, non-blocking send is used, otherwise a blocking
  * exec is issued and *res contains the result.  Returns zero on
  * error and non-zero on success.
  */
 static int
-performRegisterQuery(PGconn *conn, int which, PGregisterType *types,
+performRegisterQuery(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, PGresult **res);
 
 /* Called by PQregisterTypes() for each type provided. */
 static int
-registerSubClass(PGtypeData *connData, const char *type_name,
+registerSubClass(PGtypeData *connData, PGerror *err, const char *type_name,
 	PGtypeProc typput, PGtypeProc typget);
 
 int
@@ -151,48 +151,46 @@ PQinitTypes(PGconn *conn)
 
 /* Deprecated */
 int
-PQregisterSubClasses(PGconn *conn, PGregisterType *types, int count)
+PQregisterSubClasses(PGconn *conn, PGerror *err, PGregisterType *types, int count)
 {
-	return PQregisterTypes(conn, PQT_SUBCLASS, types, count, 0);
+	return PQregisterTypes(conn, err, PQT_SUBCLASS, types, count, 0);
 }
 
 /* Deprecated */
 int
-PQregisterUserDefinedTypes(PGconn *conn, PGregisterType *types, int count)
+PQregisterUserDefinedTypes(PGconn *conn, PGerror *err, PGregisterType *types, int count)
 {
-	return PQregisterTypes(conn, PQT_USERDEFINED, types, count, 0);
+	return PQregisterTypes(conn, err, PQT_USERDEFINED, types, count, 0);
 }
 
 /* Deprecated */
 int
-PQregisterComposites(PGconn *conn, PGregisterType *types, int count)
+PQregisterComposites(PGconn *conn, PGerror *err, PGregisterType *types, int count)
 {
-	return PQregisterTypes(conn, PQT_COMPOSITE, types, count, 0);
+	return PQregisterTypes(conn, err, PQT_COMPOSITE, types, count, 0);
 }
 
 int
-PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
+PQregisterTypes(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, int async)
 {
 	int n = FALSE;
 
-	PQseterror(NULL);
-
 	if (!conn)
 	{
-		PQseterror("PGconn cannot be NULL");
+		PQseterror(err, "PGconn cannot be NULL");
 		return FALSE;
 	}
 
 	if (!types)
 	{
-		PQseterror("PGregisterType[] cannot be NULL");
+		PQseterror(err, "PGregisterType[] cannot be NULL");
 		return FALSE;
 	}
 
 	if (count < 0)
 	{
-		PQseterror("PGregisterType[] count cannot be less than zero");
+		PQseterror(err, "PGregisterType[] count cannot be less than zero");
 		return FALSE;
 	}
 
@@ -207,13 +205,13 @@ PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
 
 		if (!(connData = (PGtypeData *) PQinstanceData(conn, pqt_eventproc)))
 		{
-			PQseterror("PGconn is missing event data");
+			PQseterror(err, "PGconn is missing event data");
 			return FALSE;
 		}
 
 		for (i=0; i < count; i++)
 		{
-			n = registerSubClass(connData, types[i].typname,
+			n = registerSubClass(connData, err, types[i].typname,
 				types[i].typput, types[i].typget);
 
 			if (!n)
@@ -224,12 +222,12 @@ PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
 	{
 		PGresult *res = NULL;
 
-		n = performRegisterQuery(conn, which, types, count, async ? NULL : &res);
+		n = performRegisterQuery(conn, err, which, types, count, async ? NULL : &res);
 
 		/* If not async, register the result and clear it. */
 		if (n && !async)
 		{
-			n = PQregisterResult(conn, which, types, count, res);
+			n = PQregisterResult(conn, err, which, types, count, res);
 			PQclear(res);
 		}
 	}
@@ -238,7 +236,7 @@ PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
 }
 
 int
-PQregisterResult(PGconn *conn, int which, PGregisterType *types,
+PQregisterResult(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, PGresult *res)
 {
 	int i;
@@ -248,45 +246,43 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
 	/* inherit typput and typget from record type */
 	PGtypeHandler *h_rec = pqt_gethandler(NULL, 0, "pg_catalog", "record");
 
-	PQseterror(NULL);
-
 	if (!conn)
 	{
-		PQseterror("PGconn cannot be NULL");
+		PQseterror(err, "PGconn cannot be NULL");
 		return FALSE;
 	}
 
 	if (!res)
 	{
-		PQseterror("PGresult cannot be NULL");
+		PQseterror(err, "PGresult cannot be NULL");
 		return FALSE;
 	}
 
 	if (which == PQT_SUBCLASS)
 	{
-		PQseterror("Cannot call PQregisterResult for a subclass registration.");
+		PQseterror(err, "Cannot call PQregisterResult for a subclass registration.");
 		return FALSE;
 	}
 
 	if (!(connData = (PGtypeData *) PQinstanceData(conn, pqt_eventproc)))
 	{
-		PQseterror("PGconn is missing event data");
+		PQseterror(err, "PGconn is missing event data");
 		return FALSE;
 	}
 
 	if (!types)
 	{
-		PQseterror("PGregisterType[] cannot be NULL");
+		PQseterror(err, "PGregisterType[] cannot be NULL");
 		return FALSE;
 	}
 
 	if (count < 0)
 	{
-		PQseterror("PGregisterType[] count cannot be less than zero");
+		PQseterror(err, "PGregisterType[] count cannot be less than zero");
 		return FALSE;
 	}
 
-	if(!checkTypeLookups(res, types, count))
+	if(!checkTypeLookups(res, err, types, count))
 		return FALSE;
 
 	for (i=0; i < PQntuples(res); i++)
@@ -297,20 +293,20 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
 
 		if (which == PQT_USERDEFINED && !types[i].typput && !types[i].typget)
 		{
-			PQseterror("Must provide a put and/or a get routine: '%s'",
+			PQseterror(err, "Must provide a put and/or a get routine: '%s'",
 				types[i].typname);
 			return FALSE;
 		}
 
 		/* make sure conn's type handlers array is large enough */
-		if (!expandHandlers(connData))
+		if (!expandHandlers(connData, err))
 			return FALSE;
 
 		/* create the handler */
 		h = &connData->typhandlers[connData->typhcnt];
 		memset(h, 0, sizeof(PGtypeHandler));
 
-		if (!PQgetf(res, i, "%oid %oid %int2", 1, &h->typoid,
+		if (!PQgetf(res, err, i, "%oid %oid %int2", 1, &h->typoid,
 			2, &h->typoid_array, 3, &typlen))
 		{
 			return FALSE;
@@ -332,7 +328,7 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
 		}
 
 		/* parse out type and schema names again */
-		(void ) pqt_parsetype(types[i].typname, typschema, typname, &flags, 1);
+		(void ) pqt_parsetype(err, types[i].typname, typschema, typname, &flags, 1);
 		pqt_strcpy(h->typschema, sizeof(h->typschema), typschema);
 		pqt_strcpy(h->typname, sizeof(h->typname), typname);
 
@@ -343,12 +339,12 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
 			int nattrs;
 			PGrecordAttDesc *attDescs;
 
-			if (!PQgetf(res, i, "%text", 4, &attrs))
+			if (!PQgetf(res, err, i, "%text", 4, &attrs))
 			{
 				return FALSE;
 			}
 
-			if (!(attDescs = initAttDescs(h, attrs)))
+			if (!(attDescs = initAttDescs(err, h, attrs)))
 				return FALSE;
 
 			for (nattrs=0; *attrs; nattrs++)
@@ -395,19 +391,19 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
 }
 
 int
-PQclearTypes(PGconn *conn)
+PQclearTypes(PGconn *conn, PGerror *err)
 {
 	PGtypeData *connData;
 
 	if (!conn)
 	{
-		PQseterror("PGconn cannot be NULL");
+		PQseterror(err, "PGconn cannot be NULL");
 		return FALSE;
 	}
 
 	if (!(connData = (PGtypeData *) PQinstanceData(conn, pqt_eventproc)))
 	{
-		PQseterror("PGconn is missing event data");
+		PQseterror(err, "PGconn is missing event data");
 		return FALSE;
 	}
 
@@ -662,7 +658,7 @@ pqt_getfmtinfo(const PGconn *conn, PGtypeFormatInfo *info)
 	info->pversion = PQprotocolVersion(conn);
 }
 
-static int registerSubClass(PGtypeData *connData, const char *type_name,
+static int registerSubClass(PGtypeData *connData, PGerror *err, const char *type_name,
 	PGtypeProc typput, PGtypeProc typget)
 {
 	char *s;
@@ -675,16 +671,16 @@ static int registerSubClass(PGtypeData *connData, const char *type_name,
 	char sub_fqtn[200];
 	char base_fqtn[200];
 
-	if (!(s = parseType(type_name, sub_typschema, sub_typname, 1)))
+	if (!(s = parseType(err, type_name, sub_typschema, sub_typname, 1)))
 		return FALSE;
 
 	if (*s != '=')
 	{
-		PQseterror("Missing inheritence operator '=': %s", type_name);
+		PQseterror(err, "Missing inheritence operator '=': %s", type_name);
 		return FALSE;
 	}
 
-	if (!parseType(s + 1, base_typschema, base_typname, 1))
+	if (!parseType(err, s + 1, base_typschema, base_typname, 1))
 		return FALSE;
 
 	/* lookup the base handler */
@@ -693,7 +689,7 @@ static int registerSubClass(PGtypeData *connData, const char *type_name,
 
 	if (!h_base)
 	{
-		PQseterror("typname '%s' does not exist, '%s' cannot sub-class it",
+		PQseterror(err, "typname '%s' does not exist, '%s' cannot sub-class it",
 			pqt_fqtn(base_fqtn, sizeof(base_fqtn), base_typschema, base_typname),
 			pqt_fqtn(sub_fqtn, sizeof(sub_fqtn), sub_typschema, sub_typname));
 		return FALSE;
@@ -702,12 +698,12 @@ static int registerSubClass(PGtypeData *connData, const char *type_name,
 	/* cannot sub-class a record type */
 	if (h_base->typoid == RECORDOID)
 	{
-		PQseterror("Cannot sub-class pg_catalog.record '%s'",
+		PQseterror(err, "Cannot sub-class pg_catalog.record '%s'",
 			pqt_fqtn(sub_fqtn, sizeof(sub_fqtn), sub_typschema, sub_typname));
 		return FALSE;
 	}
 
-	if (!expandHandlers(connData))
+	if (!expandHandlers(connData, err))
 		return FALSE;
 
 	h_sub = &connData->typhandlers[connData->typhcnt];
@@ -732,7 +728,7 @@ static int registerSubClass(PGtypeData *connData, const char *type_name,
 }
 
 static int
-expandHandlers(PGtypeData *typeData)
+expandHandlers(PGtypeData *typeData, PGerror *err)
 {
 	int hmax;
 	PGtypeHandler *h;
@@ -746,7 +742,7 @@ expandHandlers(PGtypeData *typeData)
 
 	if (!h)
 	{
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(err, PQT_OUTOFMEMORY);
 		return FALSE;
 	}
 
@@ -756,7 +752,7 @@ expandHandlers(PGtypeData *typeData)
 }
 
 static int
-checkTypeLookups(PGresult *res, PGregisterType *types, int count)
+checkTypeLookups(PGresult *res, PGerror *err, PGregisterType *types, int count)
 {
 	int i;
 	int ntups = PQntuples(res);
@@ -773,7 +769,7 @@ checkTypeLookups(PGresult *res, PGregisterType *types, int count)
 	{
 		int idx;
 
-		if (!PQgetf(res, i, "%int4", 0, &idx))
+		if (!PQgetf(res, err, i, "%int4", 0, &idx))
 			return FALSE;
 
 		/* 'i' should always match idx-1, postgresql arrays are 1-based.
@@ -783,7 +779,7 @@ checkTypeLookups(PGresult *res, PGregisterType *types, int count)
 			break;
 	}
 
-	PQseterror("server type lookup failed: could not find '%s'",
+	PQseterror(err, "server type lookup failed: could not find '%s'",
 		types[i].typname);
 
 	return FALSE;
@@ -797,7 +793,7 @@ checkTypeLookups(PGresult *res, PGregisterType *types, int count)
  * there are a large number of attributes, the slower path is used.
  * Again this is small, maybe 10% of the overall 63% win.
  */
-static PGrecordAttDesc *initAttDescs(PGtypeHandler *h, char *attrs)
+static PGrecordAttDesc *initAttDescs(PGerror *err, PGtypeHandler *h, char *attrs)
 {
 	char *p;
 	int nattrs = 1;
@@ -817,7 +813,7 @@ static PGrecordAttDesc *initAttDescs(PGtypeHandler *h, char *attrs)
 		attDescs = (PGrecordAttDesc *) malloc(nattrs * sizeof(PGrecordAttDesc));
 		if (!attDescs)
 		{
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return NULL;
 		}
 
@@ -828,13 +824,13 @@ static PGrecordAttDesc *initAttDescs(PGtypeHandler *h, char *attrs)
 }
 
 /* wraps pqt_parsetype to toggle out illegal flags during a register */
-static char *parseType(const char *spec, char *typschema, char *typname,
+static char *parseType(PGerror *err, const char *spec, char *typschema, char *typname,
 	int typpos)
 {
 	char *s;
 	int flags;
 
-	if (!(s = pqt_parsetype(spec, typschema, typname, &flags, typpos)))
+	if (!(s = pqt_parsetype(err, spec, typschema, typname, &flags, typpos)))
 		return NULL;
 
 	if (flags & TYPFLAG_INVALID)
@@ -842,20 +838,20 @@ static char *parseType(const char *spec, char *typschema, char *typname,
 
 	if (flags & TYPFLAG_ARRAY)
 	{
-		PQseterror("Cannot use an array[] during a type handler registration.");
+		PQseterror(err, "Cannot use an array[] during a type handler registration.");
 		return NULL;
 	}
 
 	if (flags & TYPFLAG_POINTER)
 	{
-		PQseterror("Cannot use a type* during a type handler registration.");
+		PQseterror(err, "Cannot use a type* during a type handler registration.");
 		return NULL;
 	}
 
 	return s;
 }
 
-static int getTypeParams(PGconn *conn, PGregisterType *types, int count,
+static int getTypeParams(PGconn *conn, PGerror *err, PGregisterType *types, int count,
 	PGarray *names, PGarray *schemas)
 {
 	int i;
@@ -863,10 +859,10 @@ static int getTypeParams(PGconn *conn, PGregisterType *types, int count,
 	names->ndims = 0;
 	schemas->ndims = 0;
 
-	if (!(names->param = PQparamCreate(conn)))
+	if (!(names->param = PQparamCreate(conn, err)))
 		return FALSE;
 
-	if (!(schemas->param = PQparamCreate(conn)))
+	if (!(schemas->param = PQparamCreate(conn, err)))
 	{
 		PQparamClear(names->param);
 		return FALSE;
@@ -876,7 +872,7 @@ static int getTypeParams(PGconn *conn, PGregisterType *types, int count,
 	{
 		char typname[PQT_MAXIDLEN + 1];
 		char typschema[PQT_MAXIDLEN + 1];
-		char *s = parseType(types[i].typname, typschema, typname, 1);
+		char *s = parseType(err, types[i].typname, typschema, typname, 1);
 
 		if (!s)
 		{
@@ -886,8 +882,8 @@ static int getTypeParams(PGconn *conn, PGregisterType *types, int count,
 		}
 
 		s = *typschema ? typschema : NULL;
-		if (!PQputf(names->param, "%text", typname) ||
-			!PQputf(schemas->param, "%text", s))
+		if (!PQputf(names->param, err, "%text", typname) ||
+			!PQputf(schemas->param, err, "%text", s))
 		{
 			PQparamClear(names->param);
 			PQparamClear(schemas->param);
@@ -1026,25 +1022,25 @@ static int getTypeParams(PGconn *conn, PGregisterType *types, int count,
 "  ORDER BY idx"
 
 static PGresult *
-execLookupTypes(PGconn *conn, PGtypeData *data, PGarray *schemas,
+execLookupTypes(PGconn *conn, PGerror *err, PGtypeData *data, PGarray *schemas,
 	PGarray *names, int want_attrs)
 {
 	if(data->fmtinfo.sversion >= 80400)
-		return PQexecf(conn, LOOKUP_TYPES, schemas, names, want_attrs);
-	return PQexecf(conn, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
+		return PQexecf(conn, err, LOOKUP_TYPES, schemas, names, want_attrs);
+	return PQexecf(conn, err, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
 }
 
 static int
-sendLookupTypes(PGconn *conn, PGtypeData *data, PGarray *schemas,
+sendLookupTypes(PGconn *conn, PGerror *err, PGtypeData *data, PGarray *schemas,
 	PGarray *names, int want_attrs)
 {
 	if(data->fmtinfo.sversion >= 80400)
-		return PQsendf(conn, LOOKUP_TYPES, schemas, names, want_attrs);
-	return PQsendf(conn, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
+		return PQsendf(conn, err, LOOKUP_TYPES, schemas, names, want_attrs);
+	return PQsendf(conn, err, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
 }
 
 static int
-performRegisterQuery(PGconn *conn, int which, PGregisterType *types,
+performRegisterQuery(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, PGresult **res)
 {
 	int n = FALSE;
@@ -1055,17 +1051,17 @@ performRegisterQuery(PGconn *conn, int which, PGregisterType *types,
 
 	if (!(connData = (PGtypeData *) PQinstanceData(conn, pqt_eventproc)))
 	{
-		PQseterror("PGconn is missing event data");
+		PQseterror(err, "PGconn is missing event data");
 		return FALSE;
 	}
 
-	if (!getTypeParams(conn, types, count, &names, &schemas))
+	if (!getTypeParams(conn, err, types, count, &names, &schemas))
 		return FALSE;
 
 	if (res)
-		*res = execLookupTypes(conn, connData, &schemas, &names, want_attrs);
+		*res = execLookupTypes(conn, err, connData, &schemas, &names, want_attrs);
 	else
-		n = sendLookupTypes(conn, connData, &schemas, &names, want_attrs);
+		n = sendLookupTypes(conn, err, connData, &schemas, &names, want_attrs);
 
 	PQparamClear(names.param);
 	PQparamClear(schemas.param);

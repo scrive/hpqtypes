@@ -14,23 +14,21 @@
 static int argsExpandBuffer(PGtypeArgs *args, int new_len);
 
 PGparam *
-PQparamCreate(const PGconn *conn)
+PQparamCreate(const PGconn *conn, PGerror *err)
 {
 	PGparam *param;
 	PGtypeData *connData;
 
-	PQseterror(NULL);
-
 	if (!conn)
 	{
-		PQseterror("PGconn cannot be NULL");
+		PQseterror(err, "PGconn cannot be NULL");
 		return NULL;
 	}
 
 	param = (PGparam *) malloc(sizeof(PGparam));
 	if (!param)
 	{
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(err, PQT_OUTOFMEMORY);
 		return NULL;
 	}
 
@@ -40,7 +38,7 @@ PQparamCreate(const PGconn *conn)
 	if (!connData)
 	{
 		PQparamClear(param);
-		PQseterror("No type data exists for PGconn at %p", conn);
+		PQseterror(err, "No type data exists for PGconn at %p", conn);
 		return NULL;
 	}
 
@@ -53,7 +51,7 @@ PQparamCreate(const PGconn *conn)
 		if (!param->typhandlers)
 		{
 			PQparamClear(param);
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return NULL;
 		}
 
@@ -69,7 +67,7 @@ PQparamCreate(const PGconn *conn)
 		if (!param->typspecs)
 		{
 			PQparamClear(param);
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return NULL;
 		}
 
@@ -81,22 +79,20 @@ PQparamCreate(const PGconn *conn)
 }
 
 PQT_EXPORT PGparam *
-PQparamDup(PGparam *param)
+PQparamDup(PGparam *param, PGerror *err)
 {
 	PGparam *new_param;
 
-	PQseterror(NULL);
-
 	if (!param)
 	{
-		PQseterror("PGparam to duplicate cannot be NULL");
+		PQseterror(err, "PGparam to duplicate cannot be NULL");
 		return NULL;
 	}
 
 	new_param = (PGparam *) malloc(sizeof(PGparam));
 	if (!new_param)
 	{
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(err, PQT_OUTOFMEMORY);
 		return NULL;
 	}
 
@@ -111,7 +107,7 @@ PQparamDup(PGparam *param)
 		if (!new_param->typhandlers)
 		{
 			PQparamClear(new_param);
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return NULL;
 		}
 
@@ -127,7 +123,7 @@ PQparamDup(PGparam *param)
 		if (!new_param->typspecs)
 		{
 			PQparamClear(new_param);
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return NULL;
 		}
 
@@ -152,7 +148,7 @@ PQparamDup(PGparam *param)
 			if (val->ptr != val->data)
 				flags |= TYPFLAG_POINTER;
 
-			if (!pqt_putparam(new_param, val->data, val->datal, flags,
+			if (!pqt_putparam(new_param, err, val->data, val->datal, flags,
 				val->format, val->oid))
 			{
 				PQparamClear(new_param);
@@ -213,21 +209,21 @@ PQparamClear(PGparam *param)
 }
 
 int
-PQputf(PGparam *param, const char *format, ...)
+PQputf(PGparam *param, PGerror *err, const char *format, ...)
 {
 	int r;
 	va_list ap;
 
 	/* This function is just a wrapper to PQputvf */
 	va_start(ap, format);
-	r = PQputvf(param, NULL, 0, format, ap);
+	r = PQputvf(param, err, NULL, 0, format, ap);
 	va_end(ap);
 
 	return r;
 }
 
 int
-PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
+PQputvf(PGparam *param, PGerror *err, char *stmtBuf, size_t stmtBufLen,
 	const char *format, va_list ap)
 {
 	int n=0;
@@ -240,23 +236,21 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 	char args_outbuf[4096];
 	PGtypeSpec *spec = NULL;
 
-	PQseterror(NULL);
-
 	if (!param)
 	{
-		PQseterror("PGparam cannot be NULL");
+		PQseterror(err, "PGparam cannot be NULL");
 		return FALSE;
 	}
 
 	if (!format || !*format)
 	{
-		PQseterror("param 'format' cannot be NULL or an empty string");
+		PQseterror(err, "param 'format' cannot be NULL or an empty string");
 		return FALSE;
 	}
 
 	if (stmtBuf && stmtBufLen < 1)
 	{
-		PQseterror("Invalid argument: stmtBufLen must be >= 1");
+		PQseterror(err, "Invalid argument: stmtBufLen must be >= 1");
 		return FALSE;
 	}
 
@@ -274,7 +268,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 		 */
 		if (!spec)
 		{
-			PQseterror("No such prepared specifier name: '%s'", format + 1);
+			PQseterror(err, "No such prepared specifier name: '%s'", format + 1);
 			return FALSE;
 		}
 	}
@@ -294,7 +288,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 			if (!h)
 			{
 				va_end(args.ap);
-				PQseterror("Unknown type handler id at position %d", typpos+1);
+				PQseterror(err, "Unknown type handler id at position %d", typpos+1);
 				param->vcnt = save_vcnt;
 				return FALSE;
 			}
@@ -304,7 +298,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 		}
 		else
 		{
-			format = pqt_parse(format, param->typhandlers, param->typhcnt,
+			format = pqt_parse(err, format, param->typhandlers, param->typhcnt,
 				stmtBuf, stmtBufLen, &h, &stmtPos, &typpos, &flags);
 
 			if (!format)
@@ -324,6 +318,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 		args.put.__allocated_out = NULL;
 		args.put.outl         = (int) sizeof(args_outbuf);
 		args.is_ptr           = (flags & TYPFLAG_POINTER) ? 1 : 0;
+		args.err              = err;
 		args.format           = BINARYFMT;
 		args.put.expandBuffer = argsExpandBuffer;
 		args.typpos           = typpos;
@@ -351,7 +346,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
 			n = -1;
 		}
 
-		n = pqt_putparam(param, args.put.out, n, flags, args.format,
+		n = pqt_putparam(param, err, args.put.out, n, flags, args.format,
 			(flags & TYPFLAG_ARRAY) ? h->typoid_array : h->typoid);
 
 		if (args.put.__allocated_out && args.put.__allocated_out != args_outbuf)
@@ -376,7 +371,7 @@ PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
  */
 
 int
-pqt_putparam(PGparam *param, const void *data, int datal,
+pqt_putparam(PGparam *param, PGerror *err, const void *data, int datal,
 	int flags, int format, Oid typoid)
 {
 	PGvalue *v;
@@ -396,7 +391,7 @@ pqt_putparam(PGparam *param, const void *data, int datal,
 		vals = (PGvalue *) pqt_realloc(param->vals, sizeof(PGvalue) * vmax);
 		if (!vals)
 		{
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return FALSE;
 		}
 
@@ -427,7 +422,7 @@ pqt_putparam(PGparam *param, const void *data, int datal,
 
 			if (!ptr)
 			{
-				PQseterror(PQT_OUTOFMEMORY);
+				PQseterror(err, PQT_OUTOFMEMORY);
 				return FALSE;
 			}
 

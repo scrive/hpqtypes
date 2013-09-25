@@ -21,7 +21,7 @@ pqt_copyresult(PGtypeArgs *args, int nattrs)
 
 	if (!ad)
 	{
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(args->err, PQT_OUTOFMEMORY);
 		return NULL;
 	}
 
@@ -59,14 +59,14 @@ pqt_copyresult(PGtypeArgs *args, int nattrs)
 	if (!res)
 	{
 		free(ad);
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(args->err, PQT_OUTOFMEMORY);
 		return NULL;
 	}
 
 	if (!PQsetResultAttrs(res, nattrs, ad))
 	{
 		PQclear(res);
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(args->err, PQT_OUTOFMEMORY);
 		res = NULL;
 	}
 

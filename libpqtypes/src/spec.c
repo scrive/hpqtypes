@@ -15,7 +15,7 @@
 #define CHKSTMTBUF(nbytes_add) do{ \
 	if ((*stmtPos + (nbytes_add)) >= stmtBufLen) \
 	{ \
-		PQseterror("statement buffer is too small"); \
+		PQseterror(err, "statement buffer is too small"); \
 		return FALSE; \
 	} \
 }while (0)
@@ -27,16 +27,16 @@
 }while(0)
 
 static char *
-skipQuotes(char *s);
+skipQuotes(char *s, PGerror *err);
 
 static char *
-parseId(char *id, char **start, int *len, int *flags, int typpos);
+parseId(PGerror *err, char *id, char **start, int *len, int *flags, int typpos);
 
 static int
-expandSpecs(PGtypeData *typeData);
+expandSpecs(PGtypeData *typeData, PGerror *err);
 
 int
-PQspecPrepare(PGconn *conn, const char *name,
+PQspecPrepare(PGconn *conn, PGerror *err, const char *name,
 	const char *format, int is_stmt)
 {
 	int flags;
@@ -52,25 +52,25 @@ PQspecPrepare(PGconn *conn, const char *name,
 
 	if (!conn)
 	{
-		PQseterror("PGConn cannot be NULL");
+		PQseterror(err, "PGConn cannot be NULL");
 		return FALSE;
 	}
 
 	if (!name || !*name)
 	{
-		PQseterror("Prepared specifier name cannot be NULL or an empty string");
+		PQseterror(err, "Prepared specifier name cannot be NULL or an empty string");
 		return FALSE;
 	}
 
 	if (format && !*format)
 	{
-		PQseterror("Specifier format string cannot be empty");
+		PQseterror(err, "Specifier format string cannot be empty");
 		return FALSE;
 	}
 
 	if (!isalnum(*name) && *name != '_')
 	{
-		PQseterror("Prepared specifier name must begin with an alpha, "
+		PQseterror(err, "Prepared specifier name must begin with an alpha, "
 			"number or underscore.");
 		return FALSE;
 	}
@@ -78,7 +78,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 	typeData = PQinstanceData(conn, pqt_eventproc);
 	if (!typeData)
 	{
-		PQseterror("No type data exists for PGconn at %p", conn);
+		PQseterror(err, "No type data exists for PGconn at %p", conn);
 		return FALSE;
 	}
 
@@ -112,12 +112,12 @@ PQspecPrepare(PGconn *conn, const char *name,
 	spec = pqt_getspec(typeData->typspecs, typeData->typspeccnt, name);
 	if (spec)
 	{
-		PQseterror("Prepared spec already exists '%s'", name);
+		PQseterror(err, "Prepared spec already exists '%s'", name);
 		return FALSE;
 	}
 
 	/* Make sure specs array is large enough */
-	if (!expandSpecs(typeData))
+	if (!expandSpecs(typeData, err))
 		return FALSE;
 
 	spec = &typeData->typspecs[typeData->typspeccnt];
@@ -133,7 +133,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 			stmtBuf = (char *) malloc(stmtBufLen);
 			if (!stmtBuf)
 			{
-				PQseterror(PQT_OUTOFMEMORY);
+				PQseterror(err, PQT_OUTOFMEMORY);
 				return FALSE;
 			}
 		}
@@ -146,7 +146,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 
 	while (format && *format)
 	{
-		format = pqt_parse(format, typeData->typhandlers, typeData->typhcnt,
+		format = pqt_parse(err, format, typeData->typhandlers, typeData->typhcnt,
 			stmtBuf, stmtBufLen, &h, &stmtPos, &typpos, &flags);
 
 		if (!format)
@@ -167,7 +167,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 
 			if (!p)
 			{
-				PQseterror(PQT_OUTOFMEMORY);
+				PQseterror(err, PQT_OUTOFMEMORY);
 				pqt_clearspec(spec);
 				FREESTMTBUF;
 				return FALSE;
@@ -178,7 +178,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 			p = pqt_realloc(spec->flags, c * sizeof(char));
 			if (!p)
 			{
-				PQseterror(PQT_OUTOFMEMORY);
+				PQseterror(err, PQT_OUTOFMEMORY);
 				pqt_clearspec(spec);
 				FREESTMTBUF;
 				return FALSE;
@@ -202,7 +202,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 	if (!spec->name)
 	{
 		pqt_clearspec(spec);
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(err, PQT_OUTOFMEMORY);
 		FREESTMTBUF;
 		return FALSE;
 	}
@@ -214,7 +214,7 @@ PQspecPrepare(PGconn *conn, const char *name,
 		if (!spec->stmt)
 		{
 			pqt_clearspec(spec);
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			FREESTMTBUF;
 			return FALSE;
 		}
@@ -228,20 +228,20 @@ PQspecPrepare(PGconn *conn, const char *name,
 }
 
 int
-PQclearSpecs(PGconn *conn)
+PQclearSpecs(PGconn *conn, PGerror *err)
 {
 	PGtypeData *typeData;
 
 	if (!conn)
 	{
-		PQseterror("PGConn cannot be NULL");
+		PQseterror(err, "PGConn cannot be NULL");
 		return FALSE;
 	}
 
 	typeData = PQinstanceData(conn, pqt_eventproc);
 	if (!typeData)
 	{
-		PQseterror("No type data exists for PGconn at %p", conn);
+		PQseterror(err, "No type data exists for PGconn at %p", conn);
 		return FALSE;
 	}
 
@@ -253,12 +253,12 @@ PQclearSpecs(PGconn *conn)
 	return TRUE;
 }
 
-char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
+char *pqt_parse(PGerror *err, const char *format, PGtypeHandler *h, int hcnt,
 	char *stmtBuf, size_t stmtBufLen, PGtypeHandler **out, size_t *stmtPos,
 	int *typpos, int *flags)
 {
 	int specMark;
-	char *s = skipQuotes((char *) format);
+	char *s = skipQuotes((char *) format, err);
 	char typname[PQT_MAXIDLEN + 1];
 	char schema[PQT_MAXIDLEN + 1];
 	char tmp[200];
@@ -297,7 +297,7 @@ char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
 	}
 
 	/* spec skips % or # */
-	if (!(s = pqt_parsetype(format + 1, schema, typname, flags, *typpos + 1)))
+	if (!(s = pqt_parsetype(err, format + 1, schema, typname, flags, *typpos + 1)))
 		return NULL;
 
 	if (*flags & TYPFLAG_INVALID)
@@ -307,7 +307,6 @@ char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
 			CHKSTMTBUF(1);
 			stmtBuf[*stmtPos] = *format++;
 			(*stmtPos)++;
-			PQseterror(NULL); /* set by pqt_parsetype */
 			return (char *) format;
 		}
 
@@ -318,7 +317,7 @@ char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
 
 	if (!(*out = pqt_gethandler(h, hcnt, schema, typname)))
 	{
-		PQseterror("Uknown type '%s' (position %d)",
+		PQseterror(err, "Unknown type '%s' (position %d)",
 			pqt_fqtn(tmp, sizeof(tmp), schema, typname), *typpos);
 		return NULL;
 	}
@@ -336,7 +335,7 @@ char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
 		PGtypeHandler *o = pqt_gethandlerbyid(h, hcnt, h->base_id);
 		if (!o || !o->typput)
 		{
-			PQseterror(
+			PQseterror(err,
 				"Type '%s' doesn't support put operations (position %d)",
 				pqt_fqtn(tmp, sizeof(tmp), (*out)->typschema,
 					(*out)->typname), *typpos);
@@ -350,7 +349,7 @@ char *pqt_parse(const char *format, PGtypeHandler *h, int hcnt,
 
 	if ((*flags & TYPFLAG_POINTER) && !pqt_allowsptr(*out))
 	{
-		PQseterror(
+		PQseterror(err,
 			"Type '%s' doesn't support putting pointers (position %d)",
 			pqt_fqtn(tmp, sizeof(tmp), (*out)->typschema,
 				(*out)->typname), *typpos);
@@ -472,7 +471,7 @@ PGtypeSpec *pqt_getspec(PGtypeSpec *specs, int count, const char *name)
  * typpos - 1-based position of spec in specifier string (0 for unknown)
  */
 char *
-pqt_parsetype(const char *spec, char *schema, char *typname,
+pqt_parsetype(PGerror *err, const char *spec, char *schema, char *typname,
 	int *flags, int typpos)
 {
 	int i;
@@ -480,7 +479,7 @@ pqt_parsetype(const char *spec, char *schema, char *typname,
 	int len=0;
 	char *s = (char *)spec;
 
-	if (!(s = parseId(s, &start, &len, flags, typpos)))
+	if (!(s = parseId(err, s, &start, &len, flags, typpos)))
 		return NULL;
 
 	/* not a valid specifer, false positive like "(x % y) = 0" */
@@ -497,7 +496,7 @@ pqt_parsetype(const char *spec, char *schema, char *typname,
 				schema[i] = pqt_tolower(schema[i]);
 
 		/* now get typname */
-		if (!(s = parseId(++s, &start, &len, flags, typpos)))
+		if (!(s = parseId(err, ++s, &start, &len, flags, typpos)))
 			return NULL;
 
 		if (*flags & TYPFLAG_INVALID)
@@ -514,7 +513,7 @@ pqt_parsetype(const char *spec, char *schema, char *typname,
 }
 
 static char *
-parseId(char *id, char **start, int *len, int *flags, int typpos)
+parseId(PGerror *err, char *id, char **start, int *len, int *flags, int typpos)
 {
 	char *p = id;
 
@@ -529,7 +528,7 @@ parseId(char *id, char **start, int *len, int *flags, int typpos)
 	if (!isalpha(*p) && *p != '_')
 	{
 		*flags |= TYPFLAG_INVALID;
-		PQseterror(
+		PQseterror(err,
 			"Invalid first character for identifier '%c' (pos:%d)", *p, typpos);
 		return p;
 	}
@@ -540,7 +539,7 @@ parseId(char *id, char **start, int *len, int *flags, int typpos)
 		if (!(p = strchr(id, '"')))
 		{
 			*flags |= TYPFLAG_INVALID;
-			PQseterror("Unterminated double quote '%s' (pos:%d)",
+			PQseterror(err, "Unterminated double quote '%s' (pos:%d)",
 				id-1, typpos);
 			return p;
 		}
@@ -562,7 +561,7 @@ parseId(char *id, char **start, int *len, int *flags, int typpos)
 	if (*len == 0 || *len > PQT_MAXIDLEN)
 	{
 		*flags |= TYPFLAG_INVALID;
-		PQseterror("Identifier out of range %d (pos:%d), range is 1 to %d",
+		PQseterror(err, "Identifier out of range %d (pos:%d), range is 1 to %d",
 			*len, typpos, PQT_MAXIDLEN);
 		return p;
 	}
@@ -579,7 +578,7 @@ parseId(char *id, char **start, int *len, int *flags, int typpos)
 	{
 		if (*flags & TYPFLAG_POINTER)
 		{
-			PQseterror(
+			PQseterror(err,
 				"'*' specifer flag cannot be used with arrays[] '%s' (pos:%d)",
 				id, typpos);
 			return NULL;
@@ -593,7 +592,7 @@ parseId(char *id, char **start, int *len, int *flags, int typpos)
 }
 
 static int
-expandSpecs(PGtypeData *typeData)
+expandSpecs(PGtypeData *typeData, PGerror *err)
 {
 	int n;
 	PGtypeSpec *specs;
@@ -608,7 +607,7 @@ expandSpecs(PGtypeData *typeData)
 
 	if (!specs)
 	{
-		PQseterror(PQT_OUTOFMEMORY);
+		PQseterror(err, PQT_OUTOFMEMORY);
 		return FALSE;
 	}
 
@@ -627,7 +626,7 @@ expandSpecs(PGtypeData *typeData)
  * NULL if there was an error.
  */
 static char *
-skipQuotes(char *s)
+skipQuotes(char *s, PGerror *err)
 {
 	char *end;
 
@@ -649,7 +648,7 @@ skipQuotes(char *s)
 	/* unterminated quote */
 	if (!*end)
 	{
-		PQseterror("unterminated single quoted string");
+		PQseterror(err, "unterminated single quoted string");
 		return NULL;
 	}
 

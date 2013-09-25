@@ -39,7 +39,7 @@ pqt_put_record(PGtypeArgs *args)
 	{
 		int nattrs = args->typhandler->nattrs - param->vcnt;
 		for (i=0; i < nattrs; i++)
-			pqt_putparam(param, NULL, 0, 0, BINARYFMT,
+			pqt_putparam(param, args->err, NULL, 0, 0, BINARYFMT,
 				args->typhandler->attDescs[param->vcnt].attoid);
 	}
 

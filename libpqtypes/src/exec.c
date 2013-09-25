@@ -30,17 +30,16 @@
 	int vcnt    = 0; \
 	char stackbuffer[PARAM_STACKSIZE]; \
 \
-	PQseterror(NULL); \
 	if (!conn) \
 	{ \
-		PQseterror("PGconn cannot be NULL"); \
+		PQseterror(err, "PGconn cannot be NULL"); \
 		return (rettype)(0); \
 	} \
 \
 	if (param) \
 	{ \
 		buf = stackbuffer; \
-		if (!buildArrays(param, &buf, &oids, &vals, &lens, &fmts)) \
+		if (!buildArrays(param, err, &buf, &oids, &vals, &lens, &fmts)) \
 			return (rettype) (0); \
 		vcnt = param->vcnt; \
 	}
@@ -54,33 +53,33 @@
 	return r
 
 static int
-buildArrays(PGparam *param, char **buf, Oid **oids,
+buildArrays(PGparam *param, PGerror *err, char **buf, Oid **oids,
 	char ***vals, int **lens, int **fmts);
 
 static PGresult *
-copyExecError(PGconn *conn, PGresult *r);
+copyExecError(PGconn *conn, PGerror *err, PGresult *r);
 
 static const char *
-getCommand(PGconn *conn, PGparam *param, const char *command);
+getCommand(PGconn *conn, PGerror *err, PGparam *param, const char *command);
 
 static int
-_execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp);
+_execvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap, PGresult **resp);
 
 int
-PQgetf(const PGresult *res, int tup_num, const char *format, ...)
+PQgetf(const PGresult *res, PGerror *err, int tup_num, const char *format, ...)
 {
 	int n;
 	va_list ap;
 
 	va_start(ap, format);
-	n = PQgetvf(res, tup_num, format, ap);
+	n = PQgetvf(res, err, tup_num, format, ap);
 	va_end(ap);
 
 	return n;
 }
 
 int
-PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
+PQgetvf(const PGresult *res, PGerror *err, int tup_num, const char *format, va_list ap)
 {
 	int r;
 	PGtypeHandler *h;
@@ -92,17 +91,15 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 	PGtypeSpec *spec = NULL;
 	char tmp[200];
 
-	PQseterror(NULL);
-
 	if (!res)
 	{
-		PQseterror("PGresult cannot be NULL");
+		PQseterror(err, "PGresult cannot be NULL");
 		return FALSE;
 	}
 
 	if (!(resData = (PGtypeData *) PQresultInstanceData(res, pqt_eventproc)))
 	{
-		PQseterror("PGresult at %p has no event data", res);
+		PQseterror(err, "PGresult at %p has no event data", res);
 		return FALSE;
 	}
 
@@ -118,7 +115,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 		 */
 		if (!spec)
 		{
-			PQseterror("No such prepared specifier name: '%s'", format + 1);
+			PQseterror(err, "No such prepared specifier name: '%s'", format + 1);
 			va_end(args.ap);
 			return FALSE;
 		}
@@ -139,7 +136,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 			if (!h)
 			{
 				va_end(args.ap);
-				PQseterror("Unknown type handler id at position %d", typpos+1);
+				PQseterror(err, "Unknown type handler id at position %d", typpos+1);
 				return FALSE;
 			}
 
@@ -148,7 +145,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 		}
 		else
 		{
-			format = pqt_parse(format, resData->typhandlers, resData->typhcnt,
+			format = pqt_parse(err, format, resData->typhandlers, resData->typhcnt,
 				NULL, 0, &h, NULL, &typpos, &flags);
 
 			if (!format)
@@ -170,7 +167,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 		if (args.get.field_num < 0 ||
 			!PQgetvalue(res, tup_num, args.get.field_num))
 		{
-			PQseterror(
+			PQseterror(err,
 				"Invalid tup_num[%d].field_num[%d] (position %d)",
 				tup_num, args.get.field_num, typpos);
 			va_end(args.ap);
@@ -182,7 +179,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 			 (!(flags & TYPFLAG_ARRAY) && ftype != h->typoid))
 		{
 			Oid oid = (flags & TYPFLAG_ARRAY) ? h->typoid_array : h->typoid;
-			PQseterror(
+			PQseterror(err,
 				"Trying to get type %u '%s' but server returned %u (position %d)",
 				oid, pqt_fqtn(tmp, sizeof(tmp), h->typschema, h->typname),
 				ftype, typpos);
@@ -196,6 +193,7 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
 		args.fmtinfo      = &resData->fmtinfo;
 		args.get.tup_num  = tup_num;
 		args.is_ptr       = (flags & TYPFLAG_POINTER) ? 1 : 0;
+		args.err          = err;
 		args.typpos       = typpos;
 		args.typhandler   = h;
 		args.errorf       = pqt_argserrorf;
@@ -223,52 +221,52 @@ PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap)
  */
 
 PGresult *
-PQexecf(PGconn *conn, const char *cmdspec, ...)
+PQexecf(PGconn *conn, PGerror *err, const char *cmdspec, ...)
 {
 	va_list ap;
 	PGresult *res;
 
 	va_start(ap, cmdspec);
-	res = PQexecvf(conn, cmdspec, ap);
+	res = PQexecvf(conn, err, cmdspec, ap);
 	va_end(ap);
 
 	return res;
 }
 
 PGresult *
-PQexecvf(PGconn *conn, const char *cmdspec, va_list ap)
+PQexecvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap)
 {
 	PGresult *res;
-	(void) _execvf(conn, cmdspec, ap, &res);
+	(void) _execvf(conn, err, cmdspec, ap, &res);
 	return res;
 }
 
 int
-PQsendf(PGconn *conn, const char *cmdspec, ...)
+PQsendf(PGconn *conn, PGerror *err, const char *cmdspec, ...)
 {
 	int n;
 	va_list ap;
 
 	va_start(ap, cmdspec);
-	n = PQsendvf(conn, cmdspec, ap);
+	n = PQsendvf(conn, err, cmdspec, ap);
 	va_end(ap);
 
 	return n;
 }
 
 int
-PQsendvf(PGconn *conn, const char *cmdspec, va_list ap)
+PQsendvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap)
 {
-	return _execvf(conn, cmdspec, ap, NULL);
+	return _execvf(conn, err, cmdspec, ap, NULL);
 }
 
 PGresult *
-PQparamExec(PGconn *conn, PGparam *param, const char *command,
+PQparamExec(PGconn *conn, PGerror *err, PGparam *param, const char *command,
 	int resultFormat)
 {
 	BUILD_ARRAYS(PGresult *);
 
-	command = getCommand(conn, param, command);
+	command = getCommand(conn, err, param, command);
 	if (!command)
 	{
 		r = NULL;
@@ -278,20 +276,19 @@ PQparamExec(PGconn *conn, PGparam *param, const char *command,
 		r = PQexecParams(conn, command, vcnt, oids,
 			(const char *const * ) vals, lens, fmts, resultFormat);
 
-		pqt_setresultfields(r);
-		r = copyExecError(conn, r);
+		r = copyExecError(conn, err, r);
 	}
 
 	RETURN_RESULT;
 }
 
 int
-PQparamSendQuery(PGconn *conn, PGparam *param, const char *command,
+PQparamSendQuery(PGconn *conn, PGerror *err, PGparam *param, const char *command,
 	int resultFormat)
 {
 	BUILD_ARRAYS(int);
 
-	command = getCommand(conn, param, command);
+	command = getCommand(conn, err, param, command);
 	if (!command)
 	{
 		r = FALSE;
@@ -302,14 +299,14 @@ PQparamSendQuery(PGconn *conn, PGparam *param, const char *command,
 			(const char *const * ) vals, lens, fmts, resultFormat);
 
 		if (!r)
-			PQseterror("PGconn: %s", PQerrorMessage(conn));
+			PQseterror(err, "PGconn: %s", PQerrorMessage(conn));
 	}
 
 	RETURN_RESULT;
 }
 
 PGresult *
-PQparamExecPrepared(PGconn *conn, PGparam *param, const char *stmtName,
+PQparamExecPrepared(PGconn *conn, PGerror *err, PGparam *param, const char *stmtName,
 	int resultFormat)
 {
 	BUILD_ARRAYS(PGresult *);
@@ -317,14 +314,13 @@ PQparamExecPrepared(PGconn *conn, PGparam *param, const char *stmtName,
 	r = PQexecPrepared(conn, stmtName, vcnt, (const char *const * ) vals,
 		lens, fmts, resultFormat);
 
-	pqt_setresultfields(r);
-	r = copyExecError(conn, r);
+	r = copyExecError(conn, err, r);
 
 	RETURN_RESULT;
 }
 
 int
-PQparamSendQueryPrepared(PGconn *conn, PGparam *param, const char *stmtName,
+PQparamSendQueryPrepared(PGconn *conn, PGerror *err, PGparam *param, const char *stmtName,
 	int resultFormat)
 {
 	BUILD_ARRAYS(int);
@@ -333,7 +329,7 @@ PQparamSendQueryPrepared(PGconn *conn, PGparam *param, const char *stmtName,
 		(const char *const * ) vals, lens, fmts, resultFormat);
 
 	if (!r)
-		PQseterror("PGconn: %s", PQerrorMessage(conn));
+		PQseterror(err, "PGconn: %s", PQerrorMessage(conn));
 
 	RETURN_RESULT;
 }
@@ -345,7 +341,7 @@ PQparamSendQueryPrepared(PGconn *conn, PGparam *param, const char *stmtName,
  * to PQparamSendQuery).
  */
 static int
-_execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp)
+_execvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap, PGresult **resp)
 {
 	int retval = 0;
 	size_t stmt_len=0;
@@ -358,13 +354,13 @@ _execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp)
 
 	if(!conn)
 	{
-		PQseterror("PGconn cannot be NULL");
+		PQseterror(err, "PGconn cannot be NULL");
 		return FALSE;
 	}
 
 	if(!cmdspec || !*cmdspec)
 	{
-		PQseterror("cmdspec cannot be NULL or an empty string");
+		PQseterror(err, "cmdspec cannot be NULL or an empty string");
 		return FALSE;
 	}
 
@@ -381,7 +377,7 @@ _execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp)
 		{
 			if (!(stmt = (char *) malloc(stmt_len)))
 			{
-				PQseterror(PQT_OUTOFMEMORY);
+				PQseterror(err, PQT_OUTOFMEMORY);
 				return FALSE;
 			}
 		}
@@ -392,16 +388,16 @@ _execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp)
 		}
 	}
 
-	if ((param = PQparamCreate(conn)))
+	if ((param = PQparamCreate(conn, err)))
 	{
-		if (PQputvf(param, stmt, stmt_len, cmdspec, ap))
+		if (PQputvf(param, err, stmt, stmt_len, cmdspec, ap))
 		{
 			const char *s = stmt ? stmt : cmdspec;
 
 			if (resp)
-				*resp = PQparamExec(conn, param, s, 1);
+				*resp = PQparamExec(conn, err, param, s, 1);
 			else
-				retval = PQparamSendQuery(conn, param, s, 1);
+				retval = PQparamSendQuery(conn, err, param, s, 1);
 		}
 
 		PQparamClear(param);
@@ -422,7 +418,7 @@ _execvf(PGconn *conn, const char *cmdspec, va_list ap, PGresult **resp)
  * Returns 1 on success and 0 on error.
  */
 static int
-buildArrays(PGparam *param, char **buf, Oid **oids,
+buildArrays(PGparam *param, PGerror *err, char **buf, Oid **oids,
 	char ***vals, int **lens, int **fmts)
 {
 	int n;
@@ -443,7 +439,7 @@ buildArrays(PGparam *param, char **buf, Oid **oids,
 
 		if (!(p = (char *) malloc(n)))
 		{
-			PQseterror(PQT_OUTOFMEMORY);
+			PQseterror(err, PQT_OUTOFMEMORY);
 			return 0;
 		}
 
@@ -471,11 +467,11 @@ buildArrays(PGparam *param, char **buf, Oid **oids,
 }
 
 static PGresult *
-copyExecError(PGconn *conn, PGresult *r)
+copyExecError(PGconn *conn, PGerror *err, PGresult *r)
 {
 	if (!r)
 	{
-		PQseterror("PGconn: %s", PQerrorMessage(conn));
+		PQseterror(err, "PGconn: %s", PQerrorMessage(conn));
 		return NULL;
 	}
 
@@ -488,7 +484,7 @@ copyExecError(PGconn *conn, PGresult *r)
 
 		default:
 		{
-			PQseterror("PGresult: %s", PQresultErrorMessage(r));
+			PQseterror(err, "PGresult: %s", PQresultErrorMessage(r));
 			PQclear(r);
 			r = NULL;
 			break;
@@ -502,7 +498,7 @@ copyExecError(PGconn *conn, PGresult *r)
  * The conn is there in case the exec has no parameters, NULL param.
  */
 static const char *
-getCommand(PGconn *conn, PGparam *param, const char *command)
+getCommand(PGconn *conn, PGerror *err, PGparam *param, const char *command)
 {
 	PGtypeSpec *spec;
 	int typspeccnt = 0;
@@ -510,7 +506,7 @@ getCommand(PGconn *conn, PGparam *param, const char *command)
 
 	if (!command)
 	{
-		PQseterror("command to execute cannot be NULL");
+		PQseterror(err, "command to execute cannot be NULL");
 		return NULL;
 	}
 
@@ -530,7 +526,7 @@ getCommand(PGconn *conn, PGparam *param, const char *command)
 
 		if (!data)
 		{
-			PQseterror("PGconn at %p has no event data", conn);
+			PQseterror(err, "PGconn at %p has no event data", conn);
 			return NULL;
 		}
 
@@ -545,14 +541,14 @@ getCommand(PGconn *conn, PGparam *param, const char *command)
 	 */
 	if (!spec)
 	{
-		PQseterror("No such prepared specifier name: '%s'", command + 1);
+		PQseterror(err, "No such prepared specifier name: '%s'", command + 1);
 		return NULL;
 	}
 
 	/* make sure type spec was prepared with a statement */
 	if (!spec->stmt || !*spec->stmt)
 	{
-		PQseterror("Prepared specifier name '%s' has no statement", command + 1);
+		PQseterror(err, "Prepared specifier name '%s' has no statement", command + 1);
 		return NULL;
 	}
 

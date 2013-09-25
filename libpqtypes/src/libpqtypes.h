@@ -44,6 +44,20 @@ typedef struct pg_param PGparam;
 typedef struct pg_typeargs PGtypeArgs;
 typedef int (*PGtypeProc)(PGtypeArgs *args);
 
+/* ----------------
+ * Error info
+ * ----------------
+ */
+
+#ifndef PGERROR_MSG_MAXLEN
+#	define PGERROR_MSG_MAXLEN 2048
+#endif
+
+typedef struct
+{
+	char msg[PGERROR_MSG_MAXLEN];
+} PGerror;
+
 /* For use with a PQregisterXXX function */
 typedef struct
 {
@@ -100,6 +114,7 @@ struct pg_typeargs
 	int is_put;
 	const PGtypeFormatInfo *fmtinfo;
 	int is_ptr;
+	PGerror *err;
 	int format;
 	va_list ap;
 	int typpos;
@@ -315,28 +330,18 @@ PQtypesRegister(PGconn *conn);
 
 /* === in error.c === */
 
-PQT_EXPORT char *
-PQgeterror(void);
-
 /* PQseterror(NULL) will clear the error message */
 PQT_EXPORT void
-PQseterror(const char *format, ...);
-
-/* Gets the error field for the last executed query.  This only
- * pertains to PQparamExec and PQparamExecPrepared.  When using a
- * standard libpq function like PQexec, PQresultErrorField should be used.
- */
-PQT_EXPORT char *
-PQgetErrorField(int fieldcode);
+PQseterror(PGerror *err, const char *format, ...);
 
 /* === in spec.c === */
 
 /* Set 'format' argument to NULL to clear a single prepared specifier. */
 PQT_EXPORT int
-PQspecPrepare(PGconn *conn, const char *name, const char *format, int is_stmt);
+PQspecPrepare(PGconn *conn, PGerror *err, const char *name, const char *format, int is_stmt);
 
 PQT_EXPORT int
-PQclearSpecs(PGconn *conn);
+PQclearSpecs(PGconn *conn, PGerror *err);
 
 /* === in handler.c === */
 
@@ -346,15 +351,15 @@ PQinitTypes(PGconn *conn);
 
 /* Deprecated, see PQregisterTypes */
 PQT_EXPORT int
-PQregisterSubClasses(PGconn *conn, PGregisterType *types, int count);
+PQregisterSubClasses(PGconn *conn, PGerror *err, PGregisterType *types, int count);
 
 /* Deprecated, see PQregisterTypes */
 PQT_EXPORT int
-PQregisterComposites(PGconn *conn, PGregisterType *types, int count);
+PQregisterComposites(PGconn *conn, PGerror *err, PGregisterType *types, int count);
 
 /* Deprecated, see PQregisterTypes */
 PQT_EXPORT int
-PQregisterUserDefinedTypes(PGconn *conn, PGregisterType *types, int count);
+PQregisterUserDefinedTypes(PGconn *conn, PGerror *err, PGregisterType *types, int count);
 
 /* Registers PQT_SUBCLASS, PQT_COMPOSITE or PQT_USERDEFINED
  * (the 'which' argument) for use with libpqtypes.
@@ -367,7 +372,7 @@ PQregisterUserDefinedTypes(PGconn *conn, PGregisterType *types, int count);
  * to complete the registration.
  */
 PQT_EXPORT int
-PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
+PQregisterTypes(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, int async);
 
 /* Registers a set of 'which' types found in the given PGresult.  Caller
@@ -386,7 +391,7 @@ PQregisterTypes(PGconn *conn, int which, PGregisterType *types,
  * PQT_SUBCLASS is not supported and will result in an error if supplied.
  */
 PQT_EXPORT int
-PQregisterResult(PGconn *conn, int which, PGregisterType *types,
+PQregisterResult(PGconn *conn, PGerror *err, int which, PGregisterType *types,
 	int count, PGresult *res);
 
 /* Clears all type handlers registered on 'conn'.  This is useful after a
@@ -394,15 +399,15 @@ PQregisterResult(PGconn *conn, int which, PGregisterType *types,
  * PQregisterTypes.
  */
 PQT_EXPORT int
-PQclearTypes(PGconn *conn);
+PQclearTypes(PGconn *conn, PGerror *err);
 
 /* === in param.c === */
 
 PQT_EXPORT PGparam *
-PQparamCreate(const PGconn *conn);
+PQparamCreate(const PGconn *conn, PGerror *err);
 
 PQT_EXPORT PGparam *
-PQparamDup(PGparam *param);
+PQparamDup(PGparam *param, PGerror *err);
 
 PQT_EXPORT int
 PQparamCount(PGparam *param);
@@ -414,46 +419,46 @@ PQT_EXPORT void
 PQparamClear(PGparam *param);
 
 PQT_EXPORT int
-PQputf(PGparam *param, const char *format, ...);
+PQputf(PGparam *param, PGerror *err, const char *format, ...);
 
 PQT_EXPORT int
-PQputvf(PGparam *param, char *stmtBuf, size_t stmtBufLen,
+PQputvf(PGparam *param, PGerror *err, char *stmtBuf, size_t stmtBufLen,
 	const char *format, va_list ap);
 
 /* === in exec.c === */
 
 PQT_EXPORT int
-PQgetf(const PGresult *res, int tup_num, const char *format, ...);
+PQgetf(const PGresult *res, PGerror *err, int tup_num, const char *format, ...);
 
 PQT_EXPORT int
-PQgetvf(const PGresult *res, int tup_num, const char *format, va_list ap);
+PQgetvf(const PGresult *res, PGerror *err, int tup_num, const char *format, va_list ap);
 
 PQT_EXPORT PGresult *
-PQexecf(PGconn *conn, const char *cmdspec, ...);
+PQexecf(PGconn *conn, PGerror *err, const char *cmdspec, ...);
 
 PQT_EXPORT PGresult *
-PQexecvf(PGconn *conn, const char *cmdspec, va_list ap);
+PQexecvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap);
 
 PQT_EXPORT int
-PQsendf(PGconn *conn, const char *cmdspec, ...);
+PQsendf(PGconn *conn, PGerror *err, const char *cmdspec, ...);
 
 PQT_EXPORT int
-PQsendvf(PGconn *conn, const char *cmdspec, va_list ap);
+PQsendvf(PGconn *conn, PGerror *err, const char *cmdspec, va_list ap);
 
 PQT_EXPORT PGresult *
-PQparamExec(PGconn *conn, PGparam *param,
+PQparamExec(PGconn *conn, PGerror *err, PGparam *param,
 	const char *command, int resultFormat);
 
 PQT_EXPORT int
-PQparamSendQuery(PGconn *conn, PGparam *param,
+PQparamSendQuery(PGconn *conn, PGerror *err, PGparam *param,
 	const char *command, int resultFormat);
 
 PQT_EXPORT PGresult *
-PQparamExecPrepared(PGconn *conn, PGparam *param,
+PQparamExecPrepared(PGconn *conn, PGerror *err, PGparam *param,
 	const char *stmtName, int resultFormat);
 
 PQT_EXPORT int
-PQparamSendQueryPrepared(PGconn *conn, PGparam *param,
+PQparamSendQueryPrepared(PGconn *conn, PGerror *err, PGparam *param,
 	const char *stmtName, int resultFormat);
 
 /* === in datetime.c === */
