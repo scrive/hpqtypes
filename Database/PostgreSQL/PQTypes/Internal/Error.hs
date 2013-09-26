@@ -15,9 +15,11 @@ module Database.PostgreSQL.PQTypes.Internal.Error (
   , rethrowWithArrayError
   ) where
 
+import Control.Applicative
 import Data.Typeable
 import Foreign.C
 import Foreign.Ptr
+import Foreign.Storable
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -83,9 +85,9 @@ throwLibPQError conn ctx = do
   E.throwIO . LibPQError
     $ if null ctx then msg else ctx ++ ": " ++ msg
 
-throwLibPQTypesError :: String -> IO a
-throwLibPQTypesError ctx = do
-  msg <- peekCString =<< c_PQgeterror
+throwLibPQTypesError :: Ptr PGerror -> String -> IO a
+throwLibPQTypesError err ctx = do
+  msg <- pgErrorMsg <$> peek err
   E.throwIO . LibPQError
     $ if null ctx then msg else ctx ++ ": " ++ msg
 

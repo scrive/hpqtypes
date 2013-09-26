@@ -10,6 +10,7 @@ import Control.Monad.Base
 import Control.Monad.Trans.State
 import Foreign.C.String
 import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
@@ -37,7 +38,7 @@ runSQLQuery dbT sql = dbT $ do
     Just conn -> E.handle (rethrowWithContext sql) $ do
       res <- withPGparam conn $ \param -> do
         query <- loadSQL conn param
-        withCString query $ \q -> c_PQparamExec conn param q 1
+        withCString query $ \q -> c_PQparamExec conn nullPtr param q 1
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {
@@ -46,14 +47,14 @@ runSQLQuery dbT sql = dbT $ do
   }
   return affected
   where
-    loadSQL conn param = do
+    loadSQL conn param = alloca $ \err -> do
       nums <- newMVar (1::Int)
-      concat <$> mapM (f nums) (unSQL sql)
+      concat <$> mapM (f err nums) (unSQL sql)
       where
-        f _ (SCString s) = return s
-        f nums (SCValue v) = toSQL v (withPGparam conn) $ \mbase -> do
+        f   _    _ (SCString s) = return s
+        f err nums (SCValue v) = toSQL v (withPGparam conn) $ \mbase -> do
           BS.useAsCString (pqFormat v) $ \fmt -> do
-            verifyPQTRes "runQuery.loadSQL" =<< c_PQPutfMaybe param fmt mbase
+            verifyPQTRes err "runQuery.loadSQL" =<< c_PQPutfMaybe param err fmt mbase
             modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
     verifyResult conn res

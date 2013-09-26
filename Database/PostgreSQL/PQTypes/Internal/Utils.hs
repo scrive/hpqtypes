@@ -14,6 +14,7 @@ import Data.List
 import Data.Monoid
 import Foreign.C
 import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
@@ -37,15 +38,15 @@ bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do
 unexpectedNULL :: IO a
 unexpectedNULL = E.throwIO . InternalError $ "unexpected NULL"
 
-verifyPQTRes :: String -> CInt -> IO ()
-verifyPQTRes ctx 0 = throwLibPQTypesError ctx
-verifyPQTRes _ _ = return ()
+verifyPQTRes :: Ptr PGerror -> String -> CInt -> IO ()
+verifyPQTRes err ctx 0 = throwLibPQTypesError err ctx
+verifyPQTRes   _   _ _ = return ()
 
 withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
 withPGparam conn = E.bracket create c_PQparamClear
   where
-    create = do
-      param <- c_PQparamCreate conn
+    create = alloca $ \err -> do
+      param <- c_PQparamCreate conn err
       when (param == nullPtr) $
-        throwLibPQTypesError "withPGparam.create"
+        throwLibPQTypesError err "withPGparam.create"
       return param

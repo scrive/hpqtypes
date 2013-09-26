@@ -9,39 +9,39 @@ import qualified Data.ByteString.Char8 as BS
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 foreign import ccall unsafe "PQputf"
-  c_PQputf0 :: Ptr PGparam -> CString -> IO CInt
+  c_PQputf0 :: Ptr PGparam -> Ptr PGerror -> CString -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCChar :: Ptr PGparam -> CString -> CChar -> IO CInt
+  c_PQputfCChar :: Ptr PGparam -> Ptr PGerror -> CString -> CChar -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCShort :: Ptr PGparam -> CString -> CShort -> IO CInt
+  c_PQputfCShort :: Ptr PGparam -> Ptr PGerror -> CString -> CShort -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCInt :: Ptr PGparam -> CString -> CInt -> IO CInt
+  c_PQputfCInt :: Ptr PGparam -> Ptr PGerror -> CString -> CInt -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCLLong :: Ptr PGparam -> CString -> CLLong -> IO CInt
+  c_PQputfCLLong :: Ptr PGparam -> Ptr PGerror -> CString -> CLLong -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCFloat :: Ptr PGparam -> CString -> CFloat -> IO CInt
+  c_PQputfCFloat :: Ptr PGparam -> Ptr PGerror -> CString -> CFloat -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfCDouble :: Ptr PGparam -> CString -> CDouble -> IO CInt
+  c_PQputfCDouble :: Ptr PGparam -> Ptr PGerror -> CString -> CDouble -> IO CInt
 
 foreign import ccall unsafe "PQputf"
-  c_PQputfPtr :: Ptr PGparam -> CString -> Ptr t -> IO CInt
+  c_PQputfPtr :: Ptr PGparam -> Ptr PGerror -> CString -> Ptr t -> IO CInt
 
 ----------------------------------------
 
-c_PQPutfMaybe :: PQPut base => Ptr PGparam -> CString -> Maybe base -> IO CInt
-c_PQPutfMaybe param _ Nothing = BS.useAsCString (BS.pack "%null") (c_PQputf0 param)
-c_PQPutfMaybe param fmt (Just base) = c_PQPutf param fmt base
+c_PQPutfMaybe :: PQPut base => Ptr PGparam -> Ptr PGerror -> CString -> Maybe base -> IO CInt
+c_PQPutfMaybe param err _ Nothing = BS.useAsCString (BS.pack "%null") (c_PQputf0 param err)
+c_PQPutfMaybe param err fmt (Just base) = c_PQPutf param err fmt base
 
 ----------------------------------------
 
 class PQPut base where
-  c_PQPutf :: Ptr PGparam -> CString -> base -> IO CInt
+  c_PQPutf :: Ptr PGparam -> Ptr PGerror -> CString -> base -> IO CInt
 
 instance PQPut CChar where
   c_PQPutf = c_PQputfCChar

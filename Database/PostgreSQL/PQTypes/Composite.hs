@@ -11,6 +11,7 @@ module Database.PostgreSQL.PQTypes.Composite (
 
 import Control.Applicative
 import Control.Monad
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
@@ -50,11 +51,11 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = Ptr PGparam
-  toSQL (Composite comp) allocParam conv = allocParam $ \param -> do
+  toSQL (Composite comp) allocParam conv = alloca $ \err -> allocParam $ \param -> do
     fields <- compositeFields comp
     forM_ fields $ \(CF field) -> do
       success <- toSQL field allocParam $ \mbase ->
         BS.useAsCString (pqFormat field) $ \fmt ->
-          c_PQPutfMaybe param fmt mbase
-      verifyPQTRes "toSQL (Composite)" success
+          c_PQPutfMaybe param err fmt mbase
+      verifyPQTRes err "toSQL (Composite)" success
     conv . Just $ param

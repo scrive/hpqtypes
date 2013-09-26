@@ -23,35 +23,39 @@ import Database.PostgreSQL.PQTypes.Row
 
 foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
           => (acc -> row -> m acc) -> acc -> m acc
-foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
+  ferr <- liftBase mallocForeignPtr
   liftBase (withForeignPtr fres c_PQntuples)
-    >>= worker ctx fres ffmt initAcc 0
+    >>= worker ctx fres ferr ffmt initAcc 0
   where
-    worker ctx fres ffmt acc !i !n
+    worker ctx fres ferr ffmt acc !i !n
       | i == n    = return acc
       | otherwise = do
         obj <- liftBase $
           withForeignPtr fres $ \res ->
+          withForeignPtr ferr $ \err ->
           withForeignPtr ffmt $ \fmt ->
-            E.handle (rethrowWithContext ctx) (parseRow res i fmt)
+            E.handle (rethrowWithContext ctx) (parseRow res err i fmt)
         acc' <- f acc obj
-        worker ctx fres ffmt acc' (i+1) n
+        worker ctx fres ferr ffmt acc' (i+1) n
 
 foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
            => (row -> acc -> m acc) -> acc -> m acc
-foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt ->
+foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
+  ferr <- liftBase mallocForeignPtr
   liftBase (withForeignPtr fres c_PQntuples)
-    >>= worker ctx fres ffmt initAcc (-1) . pred
+    >>= worker ctx fres ferr ffmt initAcc (-1) . pred
   where
-    worker ctx fres ffmt acc !n !i
+    worker ctx fres ferr ffmt acc !n !i
       | i == n    = return acc
       | otherwise = do
         obj <- liftBase $
           withForeignPtr fres $ \res ->
+          withForeignPtr ferr $ \err ->
           withForeignPtr ffmt $ \fmt ->
-            E.handle (rethrowWithContext ctx) (parseRow res i fmt)
+            E.handle (rethrowWithContext ctx) (parseRow res err i fmt)
         acc' <- f obj acc
-        worker ctx fres ffmt acc' n (i-1)
+        worker ctx fres ferr ffmt acc' n (i-1)
 
 ----------------------------------------
 

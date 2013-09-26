@@ -40,22 +40,23 @@ convert res tuple column base = do
       , convError = e
       }
 
-verify :: CInt -> IO ()
-verify = verifyPQTRes "parseRow"
+verify :: Ptr PGerror -> CInt -> IO ()
+verify err = verifyPQTRes err "parseRow"
 
 ----------------------------------------
 
 parseRow' :: forall row. Row row => Ptr PGresult -> CInt -> IO row
-parseRow' res i = BS.useAsCString (rowFormat (u::row)) (parseRow res i)
+parseRow' res i = alloca $ \err ->
+  BS.useAsCString (rowFormat (u::row)) (parseRow res err i)
 
 class Row row where
-  parseRow  :: Ptr PGresult -> CInt -> CString -> IO row
+  parseRow  :: Ptr PGresult -> Ptr PGerror -> CInt -> CString -> IO row
   rowFormat :: row -> BS.ByteString
   rowLength :: row -> Int
 
 instance FromSQL t => Row t where
-  parseRow res i fmt = alloca $ \p1 -> do
-    verify =<< c_PQgetf1 res i fmt 0 p1
+  parseRow res err i fmt = alloca $ \p1 -> do
+    verify err =<< c_PQgetf1 res err i fmt 0 p1
     peek p1 >>= convert res i 0
 
   rowFormat = pqFormat
@@ -64,9 +65,9 @@ instance FromSQL t => Row t where
 instance (
     FromSQL t1, FromSQL t2
   ) => Row (t1, t2) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> do
-        verify =<< c_PQgetf2 res i fmt 0 p0 1 p1
+        verify err =<< c_PQgetf2 res err i fmt 0 p0 1 p1
         (,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -77,9 +78,9 @@ instance (
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3
   ) => Row (t1, t2, t3) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> do
-        verify =<< c_PQgetf3 res i fmt 0 p0 1 p1 2 p2
+        verify err =<< c_PQgetf3 res err i fmt 0 p0 1 p1 2 p2
         (,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -93,9 +94,9 @@ instance (
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4
   ) => Row (t1, t2, t3, t4) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> do
-        verify =<< c_PQgetf4 res i fmt 0 p0 1 p1 2 p2 3 p3
+        verify err =<< c_PQgetf4 res err i fmt 0 p0 1 p1 2 p2 3 p3
         (,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -111,9 +112,9 @@ instance (
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5
   ) => Row (t1, t2, t3, t4, t5) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 -> do
-        verify =<< c_PQgetf5 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
+        verify err =<< c_PQgetf5 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4
         (,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -130,10 +131,10 @@ instance (
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   ) => Row (t1, t2, t3, t4, t5, t6) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> do
-        verify =<< c_PQgetf6 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
+        verify err =<< c_PQgetf6 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5
         (,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -152,10 +153,10 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7
   ) => Row (t1, t2, t3, t4, t5, t6, t7) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> do
-        verify =<< c_PQgetf7 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
+        verify err =<< c_PQgetf7 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6
         (,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -175,10 +176,10 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> do
-        verify =<< c_PQgetf8 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
+        verify err =<< c_PQgetf8 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7
         (,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -199,10 +200,10 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> do
-        verify =<< c_PQgetf9 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
+        verify err =<< c_PQgetf9 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8
         (,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -225,10 +226,10 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 -> do
-        verify =<< c_PQgetf10 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
+        verify err =<< c_PQgetf10 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9
         (,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -252,11 +253,11 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> do
-        verify =<< c_PQgetf11 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
+        verify err =<< c_PQgetf11 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10
         (,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -281,11 +282,11 @@ instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> do
-        verify =<< c_PQgetf12 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
+        verify err =<< c_PQgetf12 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11
         (,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -312,11 +313,11 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> do
-        verify =<< c_PQgetf13 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
+        verify err =<< c_PQgetf13 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12
         (,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -345,11 +346,11 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> do
-        verify =<< c_PQgetf14 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
+        verify err =<< c_PQgetf14 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13
         (,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -379,11 +380,11 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 -> do
-        verify =<< c_PQgetf15 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
+        verify err =<< c_PQgetf15 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14
         (,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -414,12 +415,12 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> do
-        verify =<< c_PQgetf16 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
+        verify err =<< c_PQgetf16 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15
         (,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -451,12 +452,12 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> do
-        verify =<< c_PQgetf17 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
+        verify err =<< c_PQgetf17 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16
         (,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -490,12 +491,12 @@ instance (
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> do
-        verify =<< c_PQgetf18 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
+        verify err =<< c_PQgetf18 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17
         (,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -531,12 +532,12 @@ instance (
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> do
-        verify =<< c_PQgetf19 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
+        verify err =<< c_PQgetf19 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18
         (,,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
@@ -573,12 +574,12 @@ instance (
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20
   ) => Row (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20) where
-    parseRow res i fmt =
+    parseRow res err i fmt =
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
       alloca $ \p5 -> alloca $ \p6 -> alloca $ \p7 -> alloca $ \p8 -> alloca $ \p9 ->
       alloca $ \p10 -> alloca $ \p11 -> alloca $ \p12 -> alloca $ \p13 -> alloca $ \p14 ->
       alloca $ \p15 -> alloca $ \p16 -> alloca $ \p17 -> alloca $ \p18 -> alloca $ \p19 -> do
-        verify =<< c_PQgetf20 res i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
+        verify err =<< c_PQgetf20 res err i fmt 0 p0 1 p1 2 p2 3 p3 4 p4 5 p5 6 p6 7 p7 8 p8 9 p9 10 p10 11 p11 12 p12 13 p13 14 p14 15 p15 16 p16 17 p17 18 p18 19 p19
         (,,,,,,,,,,,,,,,,,,,)
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)

@@ -61,6 +61,16 @@ newtype TypeClass = TypeClass CInt
 , c_PQT_USERDEFINED = PQT_USERDEFINED
 }
 
+newtype PGerror = PGerror {
+  pgErrorMsg :: String
+} deriving Show
+
+instance Storable PGerror where
+  sizeOf _ = #{size PGerror}
+  alignment _ = #{alignment PGerror}
+  peek ptr = PGerror <$> peekCString (#{ptr PGerror, msg} ptr)
+  poke _ _ = error "Storable PGerror: poke is not supposed to be used"
+
 data PGregisterType = PGregisterType {
   pgRegisterTypeTypName :: !CString
 , pgRegisterTypeTypPut  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))

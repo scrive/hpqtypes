@@ -18,10 +18,10 @@ registerComposites :: Ptr PGconn -> [String] -> IO ()
 registerComposites _ [] = return ()
 registerComposites conn names =
   E.bracket (E.mask_ $ mapM newCString names) (mapM_ free) $ \cnames ->
-    withArray (map nameToTypeRep cnames) $ \typereps -> do
+    withArray (map nameToTypeRep cnames) $ \typereps -> alloca $ \err -> do
       let len = fromIntegral $ length cnames
-      c_PQregisterTypes conn c_PQT_COMPOSITE typereps len 0
-        >>= verifyPQTRes "registerComposites"
+      c_PQregisterTypes conn err c_PQT_COMPOSITE typereps len 0
+        >>= verifyPQTRes err "registerComposites"
   where
     nameToTypeRep name = PGregisterType {
       pgRegisterTypeTypName = name
