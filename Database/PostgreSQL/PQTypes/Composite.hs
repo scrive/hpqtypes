@@ -16,13 +16,13 @@ import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 
+import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Row
 import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Composite a = Composite a
@@ -33,9 +33,9 @@ unComposite (Composite a) = a
 
 data CompositeField = forall t. ToSQL t => CF !t
 
-class (PQFormat t, Row (CompositeRow t)) => CompositeFromSQL t where
+class (PQFormat t, FromRow (CompositeRow t)) => CompositeFromSQL t where
   type CompositeRow t :: *
-  fromRow :: CompositeRow t -> IO t
+  toComposite :: CompositeRow t -> IO t
 
 class PQFormat t => CompositeToSQL t where
   compositeFields :: t -> IO [CompositeField]
@@ -47,7 +47,7 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just res) = Composite
-    <$> E.finally (parseRow' res 0 >>= fromRow) (c_PQclear res)
+    <$> E.finally (fromRow' res 0 >>= toComposite) (c_PQclear res)
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = PGparam

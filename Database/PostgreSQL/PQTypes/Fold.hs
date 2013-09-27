@@ -12,6 +12,7 @@ import Foreign.C.Types
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Exception
@@ -19,9 +20,8 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Row
 
-foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
+foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
           => (acc -> row -> m acc) -> acc -> m acc
 foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
   ferr <- liftBase mallocForeignPtr
@@ -35,11 +35,11 @@ foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
           withForeignPtr fres $ \res ->
           withForeignPtr ferr $ \err ->
           withForeignPtr ffmt $ \fmt ->
-            E.handle (rethrowWithContext ctx) (parseRow res err i fmt)
+            E.handle (rethrowWithContext ctx) (fromRow res err i fmt)
         acc' <- f acc obj
         worker ctx fres ferr ffmt acc' (i+1) n
 
-foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, Row row)
+foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
            => (row -> acc -> m acc) -> acc -> m acc
 foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
   ferr <- liftBase mallocForeignPtr
@@ -53,13 +53,13 @@ foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
           withForeignPtr fres $ \res ->
           withForeignPtr ferr $ \err ->
           withForeignPtr ffmt $ \fmt ->
-            E.handle (rethrowWithContext ctx) (parseRow res err i fmt)
+            E.handle (rethrowWithContext ctx) (fromRow res err i fmt)
         acc' <- f obj acc
         worker ctx fres ferr ffmt acc' n (i-1)
 
 ----------------------------------------
 
-withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, Row row)
+withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
                 => (row -> SQL -> ForeignPtr PGresult -> ForeignPtr CChar -> m r) -> m r
 withQueryResult f = do
   mres <- liftM unQueryResult `liftM` getQueryResult

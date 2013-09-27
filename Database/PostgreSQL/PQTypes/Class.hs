@@ -3,9 +3,9 @@ module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
+import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.SQL
-import Database.PostgreSQL.PQTypes.Row
 
 class Monad m => MonadDB m where
   runQuery     :: SQL -> m Int
@@ -17,7 +17,7 @@ class Monad m => MonadDB m where
   getTransactionSettings :: m TransactionSettings
   setTransactionSettings :: TransactionSettings -> m ()
 
-  foldlM :: Row row => (acc -> row -> m acc) -> acc -> m acc
-  foldrM :: Row row => (row -> acc -> m acc) -> acc -> m acc
+  foldlM :: FromRow row => (acc -> row -> m acc) -> acc -> m acc
+  foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
 
   localConnection :: m a -> m a

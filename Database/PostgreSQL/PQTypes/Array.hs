@@ -24,6 +24,7 @@ import qualified Data.Vector.Storable as V
 
 import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Format
+import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.C.Get
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -31,7 +32,6 @@ import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Row
 import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Array1 a = Array1 [a]
@@ -79,7 +79,7 @@ instance CompositeFromSQL t => FromSQL (CompositeArray1 t) where
   fromSQL (Just arr) = getArray1 CompositeArray1 arr ffmt getItem
     where
       ffmt = rowFormat (undefined::CompositeRow t)
-      getItem res err i (_::Ptr CInt) fmt = parseRow res err i fmt >>= fromRow
+      getItem res err i (_::Ptr CInt) fmt = fromRow res err i fmt >>= toComposite
 
 instance CompositeToSQL t => ToSQL (CompositeArray1 t) where
   type PQDest (CompositeArray1 t) = PGarray
@@ -175,7 +175,7 @@ instance CompositeFromSQL t => FromSQL (CompositeArray2 t) where
   fromSQL (Just arr) = getArray2 CompositeArray2 arr ffmt getItem
     where
       ffmt = rowFormat (undefined::CompositeRow t)
-      getItem res err i (_::Ptr CInt) fmt = parseRow res err i fmt >>= fromRow
+      getItem res err i (_::Ptr CInt) fmt = fromRow res err i fmt >>= toComposite
 
 instance CompositeToSQL t => ToSQL (CompositeArray2 t) where
   type PQDest (CompositeArray2 t) = PGarray
