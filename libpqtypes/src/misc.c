@@ -14,7 +14,9 @@
 int
 pqt_put_char(PGtypeArgs *args)
 {
-	*args->put.out = (PGchar) va_arg(args->ap, int);
+	PGchar *chp = va_arg(args->ap, PGchar *);
+	PUTNULLCHK(args, chp);
+	*args->put.out = *chp;
 	return 1;
 }
 
@@ -31,7 +33,9 @@ pqt_get_char(PGtypeArgs *args)
 int
 pqt_put_bool(PGtypeArgs *args)
 {
-	*args->put.out = ((char) va_arg(args->ap, PGbool)!=0) ? 1 : 0;
+	PGbool *boolp = va_arg(args->ap, PGbool *);
+	PUTNULLCHK(args, boolp);
+	*args->put.out = *boolp != 0 ? 1 : 0;
 	return 1;
 }
 
@@ -53,13 +57,14 @@ pqt_get_bool(PGtypeArgs *args)
 int
 pqt_put_money(PGtypeArgs *args)
 {
-	PGmoney money = va_arg(args->ap, PGmoney);
+	PGmoney *moneyp = va_arg(args->ap, PGmoney *);
+	PUTNULLCHK(args, moneyp);
 	int len = args->fmtinfo->sversion >= 80300 ? 8 : 4;
 
 	if (len == 8)
-		pqt_swap8(args->put.out, &money, 1);
+		pqt_swap8(args->put.out, moneyp, 1);
 	else /* truncate: pre 8.3 server expecting a 4 byte money */
-		pqt_buf_putint4(args->put.out, (int) money);
+		pqt_buf_putint4(args->put.out, (int)*moneyp);
 
 	return len;
 }

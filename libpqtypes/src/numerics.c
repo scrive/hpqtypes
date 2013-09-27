@@ -67,8 +67,9 @@ static int num2str(char *out, size_t outl, NumericVar *var, int dscale);
 int
 pqt_put_int2(PGtypeArgs *args)
 {
-	PGint2 n = (PGint2) va_arg(args->ap, int);
-	pqt_buf_putint2(args->put.out, n);
+	PGint2 *i2p = va_arg(args->ap, PGint2 *);
+	PUTNULLCHK(args, i2p);
+	pqt_buf_putint2(args->put.out, *i2p);
 	return 2;
 }
 
@@ -100,8 +101,9 @@ pqt_get_int2(PGtypeArgs *args)
 int
 pqt_put_int4(PGtypeArgs *args)
 {
-	PGint4 n = va_arg(args->ap, PGint4);
-	*(PGint4 *)args->put.out = (PGint4) htonl(n);
+	PGint4 *i4p = va_arg(args->ap, PGint4 *);
+	PUTNULLCHK(args, i4p);
+	*(PGint4 *)args->put.out = (PGint4) htonl(*i4p);
 	return 4;
 }
 
@@ -133,8 +135,9 @@ pqt_get_int4(PGtypeArgs *args)
 int
 pqt_put_int8(PGtypeArgs *args)
 {
-	PGint8 i8 = va_arg(args->ap, PGint8);
-	pqt_swap8(args->put.out, &i8, 1);
+	PGint8 *i8p = va_arg(args->ap, PGint8 *);
+	PUTNULLCHK(args, i8p);
+	pqt_swap8(args->put.out, i8p, 1);
 	return 8;
 }
 
@@ -160,8 +163,9 @@ pqt_get_int8(PGtypeArgs *args)
 int
 pqt_put_float4(PGtypeArgs *args)
 {
-	PGfloat4 f = (PGfloat4) va_arg(args->ap, double);
-	void *vp = (void *)&f;
+	PGfloat4 *f4p = va_arg(args->ap, PGfloat4 *);
+	PUTNULLCHK(args, f4p);
+	void *vp = (void *)f4p;
 	pqt_buf_putint4(args->put.out, *(int *) vp);
 	return 4;
 }
@@ -193,8 +197,9 @@ pqt_get_float4(PGtypeArgs *args)
 int
 pqt_put_float8(PGtypeArgs *args)
 {
-	PGfloat8 d = va_arg(args->ap, PGfloat8);
-	pqt_swap8(args->put.out, &d, 1);
+	PGfloat8 *f8p = va_arg(args->ap, PGfloat8 *);
+	PUTNULLCHK(args, f8p);
+	pqt_swap8(args->put.out, f8p, 1);
 	return 8;
 }
 
@@ -231,6 +236,8 @@ pqt_put_numeric(PGtypeArgs *args)
 	NumericVar num = {0};
 	short *out;
 	PGnumeric str = va_arg(args->ap, PGnumeric);
+
+	PUTNULLCHK(args, str);
 
 	if (str2num(args, str, &num))
 	{
