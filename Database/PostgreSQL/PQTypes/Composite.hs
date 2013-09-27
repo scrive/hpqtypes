@@ -50,12 +50,12 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
     <$> E.finally (parseRow' res 0 >>= fromRow) (c_PQclear res)
 
 instance CompositeToSQL t => ToSQL (Composite t) where
-  type PQDest (Composite t) = Ptr PGparam
+  type PQDest (Composite t) = PGparam
   toSQL (Composite comp) allocParam conv = alloca $ \err -> allocParam $ \param -> do
     fields <- compositeFields comp
     forM_ fields $ \(CF field) -> do
-      success <- toSQL field allocParam $ \mbase ->
+      success <- toSQL field allocParam $ \base ->
         BS.useAsCString (pqFormat field) $ \fmt ->
-          c_PQPutfMaybe param err fmt mbase
+          c_PQputf1 param err fmt base
       verifyPQTRes err "toSQL (Composite)" success
-    conv . Just $ param
+    conv param

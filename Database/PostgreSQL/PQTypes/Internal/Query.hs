@@ -52,9 +52,9 @@ runSQLQuery dbT sql = dbT $ do
       concat <$> mapM (f err nums) (unSQL sql)
       where
         f   _    _ (SCString s) = return s
-        f err nums (SCValue v) = toSQL v (withPGparam conn) $ \mbase -> do
+        f err nums (SCValue v) = toSQL v (withPGparam conn) $ \base -> do
           BS.useAsCString (pqFormat v) $ \fmt -> do
-            verifyPQTRes err "runQuery.loadSQL" =<< c_PQPutfMaybe param err fmt mbase
+            verifyPQTRes err "runQuery.loadSQL" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
 
     verifyResult conn res

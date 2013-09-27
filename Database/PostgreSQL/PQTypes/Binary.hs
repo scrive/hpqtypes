@@ -8,9 +8,6 @@ module Database.PostgreSQL.PQTypes.Binary (
 
 import Control.Applicative
 import Data.ByteString.Unsafe
-import Foreign.Marshal.Alloc
-import Foreign.Ptr
-import Foreign.Storable
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Format
@@ -35,11 +32,9 @@ instance FromSQL (Binary BS.ByteString) where
     <$> BS.packCStringLen (pgByteaData, fromIntegral pgByteaLen)
 
 instance ToSQL (Binary BS.ByteString) where
-  type PQDest (Binary BS.ByteString) = Ptr PGbytea
-  toSQL (Binary bs) _ conv = alloca $ \ptr ->
-    unsafeUseAsCStringLen bs $ \(cs, len) -> do
-      poke ptr PGbytea {
-        pgByteaLen = fromIntegral len
-      , pgByteaData = cs
-      }
-      conv . Just $ ptr
+  type PQDest (Binary BS.ByteString) = PGbytea
+  toSQL (Binary bs) _ conv = unsafeUseAsCStringLen bs $ \(cs, len) ->
+    put (PGbytea {
+      pgByteaLen = fromIntegral len
+    , pgByteaData = cs
+    }) conv

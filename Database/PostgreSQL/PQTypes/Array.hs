@@ -56,10 +56,10 @@ instance FromSQL t => FromSQL (Array1 t) where
         fromSQL mbase
 
 instance ToSQL t => ToSQL (Array1 t) where
-  type PQDest (Array1 t) = Ptr PGarray
+  type PQDest (Array1 t) = PGarray
   toSQL (Array1 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
     putArray1 arr param conv $ \fmt item ->
-      toSQL item allocParam (c_PQPutfMaybe param err fmt)
+      toSQL item allocParam (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (Array1)"
 
 ----------------------------------------
@@ -82,29 +82,28 @@ instance CompositeFromSQL t => FromSQL (CompositeArray1 t) where
       getItem res err i (_::Ptr CInt) fmt = parseRow res err i fmt >>= fromRow
 
 instance CompositeToSQL t => ToSQL (CompositeArray1 t) where
-  type PQDest (CompositeArray1 t) = Ptr PGarray
+  type PQDest (CompositeArray1 t) = PGarray
   toSQL (CompositeArray1 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
     putArray1 arr param conv $ \fmt item ->
-      toSQL (Composite item) allocParam (c_PQPutfMaybe param err fmt)
+      toSQL (Composite item) allocParam (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (CompositeArray1)"
 
 ----------------------------------------
 
 putArray1 :: forall t r. PQFormat t
           => [t] -> Ptr PGparam
-          -> (Maybe (Ptr PGarray) -> IO r)
+          -> (Ptr PGarray -> IO r)
           -> (CString -> t -> IO ())
           -> IO r
-putArray1 arr param conv putItem = alloca $ \ptr -> do
+putArray1 arr param conv putItem = do
   BS.useAsCString (pqFormat (undefined::t)) $ forM_ arr . putItem
-  poke ptr PGarray {
+  put (PGarray {
     pgArrayNDims = 0
   , pgArrayLBound = V.empty
   , pgArrayDims = V.empty
   , pgArrayParam = param
   , pgArrayRes = nullPtr
-  }
-  conv . Just $ ptr
+  }) conv
 
 getArray1 :: forall a array t. Storable a
           => ([t] -> array)
@@ -153,10 +152,10 @@ instance FromSQL t => FromSQL (Array2 t) where
         fromSQL mbase
 
 instance ToSQL t => ToSQL (Array2 t) where
-  type PQDest (Array2 t) = Ptr PGarray
+  type PQDest (Array2 t) = PGarray
   toSQL (Array2 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
     putArray2 arr param conv $ \fmt item ->
-      toSQL item allocParam (c_PQPutfMaybe param err fmt)
+      toSQL item allocParam (c_PQputf1 param err fmt)
           >>= verifyPQTRes err "toSQL (Array2)"
 
 ----------------------------------------
@@ -179,10 +178,10 @@ instance CompositeFromSQL t => FromSQL (CompositeArray2 t) where
       getItem res err i (_::Ptr CInt) fmt = parseRow res err i fmt >>= fromRow
 
 instance CompositeToSQL t => ToSQL (CompositeArray2 t) where
-  type PQDest (CompositeArray2 t) = Ptr PGarray
+  type PQDest (CompositeArray2 t) = PGarray
   toSQL (CompositeArray2 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
     putArray2 arr param conv $ \fmt item ->
-      toSQL (Composite item) allocParam (c_PQPutfMaybe param err fmt)
+      toSQL (Composite item) allocParam (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (CompositeArray2)"
 
 ----------------------------------------
@@ -222,19 +221,18 @@ getArray2 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $
 
 putArray2 :: forall t r. PQFormat t
           => [[t]] -> Ptr PGparam
-          -> (Maybe (Ptr PGarray) -> IO r)
+          -> (Ptr PGarray -> IO r)
           -> (CString -> t -> IO ())
           -> IO r
-putArray2 arr param conv putItem = alloca $ \ptr -> do
+putArray2 arr param conv putItem = do
   dims <- BS.useAsCString (pqFormat (undefined::t)) $ loop arr 0 0
-  poke ptr PGarray {
+  put (PGarray {
     pgArrayNDims = 2
   , pgArrayLBound = V.fromList [1, 1]
   , pgArrayDims = dims
   , pgArrayParam = param
   , pgArrayRes = nullPtr
-  }
-  conv . Just $ ptr
+  }) conv
   where
     loop :: [[t]] -> CInt -> CInt -> CString -> IO (V.Vector CInt)
     loop rows !size !innerSize fmt = case rows of
