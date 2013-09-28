@@ -32,7 +32,7 @@ runSQLQuery dbT sql = dbT $ do
     }
     Just conn -> E.handle (rethrowWithContext sql) $ do
       res <- withSQL sql (withPGparam conn) $ \param query ->
-        c_PQparamExec conn nullPtr param query 1
+        c_PQparamExec conn nullPtr param query c_RESULT_BINARY
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {

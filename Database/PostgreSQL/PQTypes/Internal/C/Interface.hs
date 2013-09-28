@@ -67,8 +67,8 @@ foreign import ccall unsafe "PQparamClear"
 
 -- it may run for a long time, make it safe
 foreign import ccall safe "PQparamExec"
-  c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> CInt -> IO (Ptr PGresult)
+  c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (Ptr PGresult)
 
-c_PQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> CInt -> IO (ForeignPtr PGresult)
+c_PQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (ForeignPtr PGresult)
 c_PQparamExec conn err param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear
   =<< c_rawPQparamExec conn err param fmt mode

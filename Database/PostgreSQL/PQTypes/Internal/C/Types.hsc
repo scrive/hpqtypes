@@ -1,6 +1,30 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE EmptyDataDecls, RecordWildCards, ScopedTypeVariables #-}
-module Database.PostgreSQL.PQTypes.Internal.C.Types where
+module Database.PostgreSQL.PQTypes.Internal.C.Types (
+    PGconn
+  , PGparam
+  , PGresult
+  , PGtypeArgs
+  , ConnStatusType(..)
+  , c_CONNECTION_OK, c_CONNECTION_BAD, c_CONNECTION_STARTED
+  , c_CONNECTION_MADE, c_CONNECTION_AWAITING_RESPONSE, c_CONNECTION_AUTH_OK
+  , c_CONNECTION_SETENV, c_CONNECTION_SSL_STARTUP, c_CONNECTION_NEEDED
+  , ResultFormat(..)
+  , c_RESULT_TEXT, c_RESULT_BINARY
+  , ExecStatusType(..)
+  , c_PGRES_EMPTY_QUERY, c_PGRES_COMMAND_OK, c_PGRES_TUPLES_OK
+  , c_PGRES_COPY_OUT, c_PGRES_COPY_IN, c_PGRES_BAD_RESPONSE
+  , c_PGRES_NONFATAL_ERROR, c_PGRES_FATAL_ERROR, c_PGRES_COPY_BOTH
+  , TypeClass(..)
+  , c_PQT_SUBCLASS, c_PQT_COMPOSITE, c_PQT_USERDEFINED
+  , PGerror(..)
+  , PGregisterType(..)
+  , PGarray(..)
+  , PGbytea(..)
+  , PGdate(..)
+  , PGtime(..)
+  , PGtimestamp(..)
+  ) where
 
 import Control.Applicative
 import Data.ByteString.Unsafe
@@ -22,6 +46,8 @@ data PGtypeArgs
 #include <libpqtypes.h>
 #include <postgresql/libpq-fe.h>
 
+----------------------------------------
+
 newtype ConnStatusType = ConnStatusType CInt
   deriving Eq
 
@@ -36,6 +62,18 @@ newtype ConnStatusType = ConnStatusType CInt
 , c_CONNECTION_SSL_STARTUP = CONNECTION_SSL_STARTUP
 , c_CONNECTION_NEEDED = CONNECTION_NEEDED
 }
+
+----------------------------------------
+
+newtype ResultFormat = ResultFormat CInt
+
+c_RESULT_TEXT :: ResultFormat
+c_RESULT_TEXT = ResultFormat 0
+
+c_RESULT_BINARY :: ResultFormat
+c_RESULT_BINARY = ResultFormat 1
+
+----------------------------------------
 
 newtype ExecStatusType = ExecStatusType CInt
   deriving Eq
@@ -52,6 +90,8 @@ newtype ExecStatusType = ExecStatusType CInt
 , c_PGRES_COPY_BOTH = PGRES_COPY_BOTH
 }
 
+----------------------------------------
+
 newtype TypeClass = TypeClass CInt
   deriving Eq
 
@@ -60,6 +100,8 @@ newtype TypeClass = TypeClass CInt
 , c_PQT_COMPOSITE = PQT_COMPOSITE
 , c_PQT_USERDEFINED = PQT_USERDEFINED
 }
+
+----------------------------------------
 
 newtype PGerror = PGerror {
   pgErrorMsg :: String
@@ -70,6 +112,8 @@ instance Storable PGerror where
   alignment _ = #{alignment PGerror}
   peek ptr = PGerror <$> peekCString (#{ptr PGerror, msg} ptr)
   poke _ _ = error "Storable PGerror: poke is not supposed to be used"
+
+----------------------------------------
 
 data PGregisterType = PGregisterType {
   pgRegisterTypeTypName :: !CString
@@ -88,6 +132,8 @@ instance Storable PGregisterType where
     #{poke PGregisterType, typname} ptr pgRegisterTypeTypName
     #{poke PGregisterType, typput} ptr pgRegisterTypeTypPut
     #{poke PGregisterType, typget} ptr pgRegisterTypeTypGet
+
+----------------------------------------
 
 c_MAXDIM :: Int
 c_MAXDIM = #{const MAXDIM}
@@ -131,6 +177,8 @@ instance Storable PGarray where
           let len = min baseLen c_MAXDIM
           copyArray dest src len
 
+----------------------------------------
+
 data PGbytea = PGbytea {
   pgByteaLen  :: !CInt
 , pgByteaData :: !CString
@@ -145,6 +193,8 @@ instance Storable PGbytea where
   poke ptr PGbytea{..} = do
     #{poke PGbytea, len} ptr pgByteaLen
     #{poke PGbytea, data} ptr pgByteaData
+
+----------------------------------------
 
 data PGdate = PGdate {
   pgDateIsBC :: !CInt
@@ -175,6 +225,8 @@ instance Storable PGdate where
     #{poke PGdate, jday} ptr pgDateJDay
     #{poke PGdate, yday} ptr pgDateYDay
     #{poke PGdate, wday} ptr pgDateWDay
+
+----------------------------------------
 
 data PGtime = PGtime {
   pgTimeHour   :: !CInt
@@ -211,6 +263,8 @@ instance Storable PGtime where
       let tzabbr = #{ptr PGtime, tzabbr} ptr
       copyArray tzabbr cs (min len 16)
       pokeElemOff tzabbr (min len 15) (0::CChar)
+
+----------------------------------------
 
 data PGtimestamp = PGtimestamp {
   pgTimestampEpoch :: !CLLong
