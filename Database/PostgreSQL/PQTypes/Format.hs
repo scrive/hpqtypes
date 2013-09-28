@@ -90,7 +90,7 @@ instance PQFormat ZonedTime where
 instance PQFormat Bool where
   pqFormat _ = BS.pack "%bool"
 
--- ROWS
+-- TUPLES
 
 instance (
     PQFormat t1, PQFormat t2

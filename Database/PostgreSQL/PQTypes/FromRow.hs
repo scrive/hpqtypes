@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, OverlappingInstances, ScopedTypeVariables
-  , TypeFamilies, UndecidableInstances #-}
+  , UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.FromRow (
     FromRow(..)
   , fromRow'
