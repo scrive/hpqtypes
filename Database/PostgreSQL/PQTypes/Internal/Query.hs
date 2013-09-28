@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts, TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
     runSQLQuery
   ) where
@@ -9,14 +9,11 @@ import Control.Concurrent.MVar
 import Control.Monad.Base
 import Control.Monad.Trans.State
 import Foreign.ForeignPtr
-import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
-import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
-import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
@@ -24,7 +21,6 @@ import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.ToSQL
 
 runSQLQuery :: MonadBase IO m => (StateT DBState m Int -> r) -> SQL -> r
 runSQLQuery dbT sql = dbT $ do
@@ -35,9 +31,8 @@ runSQLQuery dbT sql = dbT $ do
     , dbeError = InternalError "runQuery: no connection"
     }
     Just conn -> E.handle (rethrowWithContext sql) $ do
-      res <- withPGparam conn $ \param -> do
-        query <- loadSQL conn param
-        BS.useAsCString query $ \q -> c_PQparamExec conn nullPtr param q 1
+      res <- withSQL sql (withPGparam conn) $ \param query ->
+        c_PQparamExec conn nullPtr param query 1
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {
@@ -46,16 +41,6 @@ runSQLQuery dbT sql = dbT $ do
   }
   return affected
   where
-    loadSQL conn param = alloca $ \err -> do
-      nums <- newMVar (1::Int)
-      BS.concat <$> mapM (f err nums) (unSQL sql)
-      where
-        f   _    _ (SCString s) = return s
-        f err nums (SCValue v) = toSQL v (withPGparam conn) $ \base -> do
-          BS.useAsCString (pqFormat v) $ \fmt -> do
-            verifyPQTRes err "runQuery.loadSQL" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
-
     verifyResult conn res
       | res == nullPtr = throwSQLError
       | otherwise = do
