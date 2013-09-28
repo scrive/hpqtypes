@@ -73,7 +73,7 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
   foldlM = foldLeftM
   foldrM = foldRightM
 
-  localConnection m = DBT . StateT $ \st -> do
+  withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st
         ts = dbTransactionSettings st
     res <- runDBT cs ts m

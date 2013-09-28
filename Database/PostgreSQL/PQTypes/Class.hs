@@ -20,4 +20,4 @@ class Monad m => MonadDB m where
   foldlM :: FromRow row => (acc -> row -> m acc) -> acc -> m acc
   foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
 
-  localConnection :: m a -> m a
+  withNewConnection :: m a -> m a
