@@ -8,7 +8,6 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad.Base
 import Control.Monad.Trans.State
-import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -38,7 +37,7 @@ runSQLQuery dbT sql = dbT $ do
     Just conn -> E.handle (rethrowWithContext sql) $ do
       res <- withPGparam conn $ \param -> do
         query <- loadSQL conn param
-        withCString query $ \q -> c_PQparamExec conn nullPtr param q 1
+        BS.useAsCString query $ \q -> c_PQparamExec conn nullPtr param q 1
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {
@@ -49,13 +48,13 @@ runSQLQuery dbT sql = dbT $ do
   where
     loadSQL conn param = alloca $ \err -> do
       nums <- newMVar (1::Int)
-      concat <$> mapM (f err nums) (unSQL sql)
+      BS.concat <$> mapM (f err nums) (unSQL sql)
       where
         f   _    _ (SCString s) = return s
         f err nums (SCValue v) = toSQL v (withPGparam conn) $ \base -> do
           BS.useAsCString (pqFormat v) $ \fmt -> do
             verifyPQTRes err "runQuery.loadSQL" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> return . (, "$" ++ show n) $! n+1
+            modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
 
     verifyResult conn res
       | res == nullPtr = throwSQLError
