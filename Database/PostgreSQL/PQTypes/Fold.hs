@@ -12,6 +12,7 @@ import Foreign.C.Types
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -72,13 +73,13 @@ withQueryResult f = do
     Just res -> do
       liftBase $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
-        let expected = rowLength (undefined::row)
+        let expected = pqVariables (undefined::row)
         when (rowlen /= expected) $
           E.throwIO DBException {
             dbeQueryContext = ctx
           , dbeError = RowLengthMismatch expected rowlen
           }
-      fmt <- liftBase . bsToCString $ rowFormat (undefined::row)
+      fmt <- liftBase . bsToCString $ pqFormat (undefined::row)
       acc <- f (undefined::row) ctx res fmt
       clearQueryResult
       return acc

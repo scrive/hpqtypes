@@ -47,20 +47,15 @@ verify err = verifyPQTRes err "fromRow"
 
 fromRow' :: forall row. FromRow row => Ptr PGresult -> CInt -> IO row
 fromRow' res i = alloca $ \err ->
-  BS.useAsCString (rowFormat (u::row)) (fromRow res err i)
+  BS.useAsCString (pqFormat (u::row)) (fromRow res err i)
 
-class FromRow row where
+class PQFormat row => FromRow row where
   fromRow  :: Ptr PGresult -> Ptr PGerror -> CInt -> CString -> IO row
-  rowFormat :: row -> BS.ByteString
-  rowLength :: row -> Int
 
 instance FromSQL t => FromRow t where
   fromRow res err i fmt = alloca $ \p1 -> do
     verify err =<< c_PQgetf1 res err i fmt 0 p1
     peek p1 >>= convert res i 0
-
-  rowFormat = pqFormat
-  rowLength _ = 1
 
 instance (
     FromSQL t1, FromSQL t2
@@ -72,9 +67,6 @@ instance (
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
 
-    rowFormat _ = BS.concat [pqFormat (u::t1), pqFormat (u::t2)]
-    rowLength _ = 2
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3
   ) => FromRow (t1, t2, t3) where
@@ -85,11 +77,6 @@ instance (
           <$> (peek p0 >>= convert res i 0)
           <*> (peek p1 >>= convert res i 1)
           <*> (peek p2 >>= convert res i 2)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
-      ]
-    rowLength _ = 3
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4
@@ -103,12 +90,6 @@ instance (
           <*> (peek p2 >>= convert res i 2)
           <*> (peek p3 >>= convert res i 3)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
-      , pqFormat (u::t4)
-      ]
-    rowLength _ = 4
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5
   ) => FromRow (t1, t2, t3, t4, t5) where
@@ -121,12 +102,6 @@ instance (
           <*> (peek p2 >>= convert res i 2)
           <*> (peek p3 >>= convert res i 3)
           <*> (peek p4 >>= convert res i 4)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3)
-      , pqFormat (u::t4), pqFormat (u::t5)
-      ]
-    rowLength _ = 5
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -142,12 +117,6 @@ instance (
           <*> (peek p3 >>= convert res i 3)
           <*> (peek p4 >>= convert res i 4)
           <*> (peek p5 >>= convert res i 5)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6)
-      ]
-    rowLength _ = 6
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -166,12 +135,6 @@ instance (
           <*> (peek p5 >>= convert res i 5)
           <*> (peek p6 >>= convert res i 6)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7)
-      ]
-    rowLength _ = 7
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8
@@ -189,12 +152,6 @@ instance (
           <*> (peek p5 >>= convert res i 5)
           <*> (peek p6 >>= convert res i 6)
           <*> (peek p7 >>= convert res i 7)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      ]
-    rowLength _ = 8
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -215,13 +172,6 @@ instance (
           <*> (peek p7 >>= convert res i 7)
           <*> (peek p8 >>= convert res i 8)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9)
-      ]
-    rowLength _ = 9
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10
@@ -241,13 +191,6 @@ instance (
           <*> (peek p7 >>= convert res i 7)
           <*> (peek p8 >>= convert res i 8)
           <*> (peek p9 >>= convert res i 9)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10)
-      ]
-    rowLength _ = 10
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -271,13 +214,6 @@ instance (
           <*> (peek p9 >>= convert res i 9)
           <*> (peek p10 >>= convert res i 10)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11)
-      ]
-    rowLength _ = 11
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
@@ -300,13 +236,6 @@ instance (
           <*> (peek p9 >>= convert res i 9)
           <*> (peek p10 >>= convert res i 10)
           <*> (peek p11 >>= convert res i 11)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      ]
-    rowLength _ = 12
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -332,14 +261,6 @@ instance (
           <*> (peek p10 >>= convert res i 10)
           <*> (peek p11 >>= convert res i 11)
           <*> (peek p12 >>= convert res i 12)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13)
-      ]
-    rowLength _ = 13
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -367,14 +288,6 @@ instance (
           <*> (peek p12 >>= convert res i 12)
           <*> (peek p13 >>= convert res i 13)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14)
-      ]
-    rowLength _ = 14
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
@@ -401,14 +314,6 @@ instance (
           <*> (peek p12 >>= convert res i 12)
           <*> (peek p13 >>= convert res i 13)
           <*> (peek p14 >>= convert res i 14)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15)
-      ]
-    rowLength _ = 15
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -438,14 +343,6 @@ instance (
           <*> (peek p13 >>= convert res i 13)
           <*> (peek p14 >>= convert res i 14)
           <*> (peek p15 >>= convert res i 15)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
-      ]
-    rowLength _ = 16
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -477,15 +374,6 @@ instance (
           <*> (peek p15 >>= convert res i 15)
           <*> (peek p16 >>= convert res i 16)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
-      , pqFormat (u::t17)
-      ]
-    rowLength _ = 17
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
@@ -516,15 +404,6 @@ instance (
           <*> (peek p15 >>= convert res i 15)
           <*> (peek p16 >>= convert res i 16)
           <*> (peek p17 >>= convert res i 17)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
-      , pqFormat (u::t17), pqFormat (u::t18)
-      ]
-    rowLength _ = 18
 
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
@@ -559,15 +438,6 @@ instance (
           <*> (peek p17 >>= convert res i 17)
           <*> (peek p18 >>= convert res i 18)
 
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
-      , pqFormat (u::t17), pqFormat (u::t18), pqFormat (u::t19)
-      ]
-    rowLength _ = 19
-
 instance (
     FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
@@ -601,12 +471,3 @@ instance (
           <*> (peek p17 >>= convert res i 17)
           <*> (peek p18 >>= convert res i 18)
           <*> (peek p19 >>= convert res i 19)
-
-    rowFormat _ = BS.concat [
-        pqFormat (u::t1), pqFormat (u::t2), pqFormat (u::t3), pqFormat (u::t4)
-      , pqFormat (u::t5), pqFormat (u::t6), pqFormat (u::t7), pqFormat (u::t8)
-      , pqFormat (u::t9), pqFormat (u::t10), pqFormat (u::t11), pqFormat (u::t12)
-      , pqFormat (u::t13), pqFormat (u::t14), pqFormat (u::t15), pqFormat (u::t16)
-      , pqFormat (u::t17), pqFormat (u::t18), pqFormat (u::t19), pqFormat (u::t20)
-      ]
-    rowLength _ = 20
