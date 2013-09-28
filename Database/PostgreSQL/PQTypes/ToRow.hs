@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, OverlappingInstances, Rank2Types
-  , ScopedTypeVariables, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, Rank2Types, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.ToRow (
     ToRow(..)
   , toRow'
@@ -15,6 +14,7 @@ import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Single
 import Database.PostgreSQL.PQTypes.ToSQL
 
 verify :: Ptr PGerror -> CInt -> IO ()
@@ -29,8 +29,8 @@ toRow' row pa param = alloca $ \err ->
 class PQFormat row => ToRow row where
   toRow :: row -> ParamAllocator -> Ptr PGparam -> Ptr PGerror -> CString -> IO ()
 
-instance ToSQL t => ToRow t where
-  toRow t pa param err fmt = toSQL t pa $ \base ->
+instance ToSQL t => ToRow (Single t) where
+  toRow (Single t) pa param err fmt = toSQL t pa $ \base ->
     verify err =<< c_PQputf1 param err fmt base
 
 instance (

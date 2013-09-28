@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, OverlappingInstances, ScopedTypeVariables
-  , UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.FromRow (
     FromRow(..)
   , fromRow'
@@ -21,6 +20,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Single
 
 u :: a
 u = undefined
@@ -52,10 +52,11 @@ fromRow' res i = alloca $ \err ->
 class PQFormat row => FromRow row where
   fromRow  :: Ptr PGresult -> Ptr PGerror -> CInt -> CString -> IO row
 
-instance FromSQL t => FromRow t where
+instance FromSQL t => FromRow (Single t) where
   fromRow res err i fmt = alloca $ \p1 -> do
     verify err =<< c_PQgetf1 res err i fmt 0 p1
-    peek p1 >>= convert res i 0
+    t <- peek p1 >>= convert res i 0
+    return (Single t)
 
 instance (
     FromSQL t1, FromSQL t2
