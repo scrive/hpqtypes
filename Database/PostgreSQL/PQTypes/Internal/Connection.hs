@@ -16,8 +16,8 @@ import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
 import Foreign.Ptr
-import Foreign.C.String
 import qualified Control.Exception as E
+import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -27,9 +27,9 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 
 data ConnectionSettings = ConnectionSettings {
-  csConnInfo       :: !String
-, csClientEncoding :: !(Maybe String)
-, csComposites     :: ![String]
+  csConnInfo       :: !BS.ByteString
+, csClientEncoding :: !(Maybe BS.ByteString)
+, csComposites     :: ![BS.ByteString]
 }
 
 ----------------------------------------
@@ -58,12 +58,12 @@ poolSource cs numStripes idleTime maxResources = do
 
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = wrapException $ do
-  conn <- withCString csConnInfo c_PQconnectdb
+  conn <- BS.useAsCString csConnInfo c_PQconnectdb
   status <- c_PQstatus conn
   when (status /= c_CONNECTION_OK) $
     throwLibPQError conn "connect"
   F.forM_ csClientEncoding $ \enc -> do
-    res <- withCString enc (c_PQsetClientEncoding conn)
+    res <- BS.useAsCString enc (c_PQsetClientEncoding conn)
     when (res == -1) $
       throwLibPQError conn "connect"
   c_PQinitTypes conn
