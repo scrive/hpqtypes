@@ -67,7 +67,7 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
 
-  getQueryResult = DBT $ gets dbQueryResult
+  getQueryResult = DBT . gets $ dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
 
   foldlM = foldLeftM

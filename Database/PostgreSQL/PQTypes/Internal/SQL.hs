@@ -17,7 +17,6 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.DList as D
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
@@ -31,32 +30,32 @@ data SqlChunk where
   SqlString :: !BS.ByteString -> SqlChunk
   SqlValue  :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
 
-newtype SQL = SQL (D.DList SqlChunk)
+newtype SQL = SQL ([SqlChunk] -> [SqlChunk])
 
 unSQL :: SQL -> [SqlChunk]
-unSQL (SQL dlist) = D.toList dlist
+unSQL (SQL dlist) = dlist []
 
 instance IsString SQL where
   fromString = mkSQL . T.encodeUtf8 . T.pack
 
 instance Show SQL where
-  show = show . concatMap conv . unSQL
+  showsPrec n = showsPrec n . concatMap conv . unSQL
     where
       conv (SqlString s) = BS.unpack s
       conv (SqlValue v) = "<" ++ show v ++ ">"
 
 instance Monoid SQL where
-  mempty = SQL D.empty
-  SQL a `mappend` SQL b = SQL (a `mappend` b)
+  mempty = SQL id
+  SQL a `mappend` SQL b = SQL (a . b)
 
 mkSQL :: BS.ByteString -> SQL
-mkSQL = SQL . D.singleton . SqlString
+mkSQL = SQL . (:) . SqlString
 
 value :: (Show t, ToSQL t) => t -> SQL
-value = SQL . D.singleton . SqlValue
+value = SQL . (:) . SqlValue
 
 (<+>) :: SQL -> SQL -> SQL
-a <+> b = mconcat [a, fromString " ", b]
+a <+> b = mconcat [a, mkSQL (BS.pack " "), b]
 infixr 6 <+>
 
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
@@ -74,5 +73,5 @@ withSQL sql allocParam execute = alloca $ \err -> allocParam $ \param -> do
     f param err nums chunk = case chunk of
       SqlString s -> return s
       SqlValue v -> toSQL v allocParam $ \base -> BS.useAsCString (pqFormat v) $ \fmt -> do
-        verifyPQTRes err "runQuery.loadSQL" =<< c_PQputf1 param err fmt base
+        verifyPQTRes err "withSQL" =<< c_PQputf1 param err fmt base
         modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE EmptyDataDecls, RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE EmptyDataDecls, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.C.Types (
     PGconn
   , PGparam
