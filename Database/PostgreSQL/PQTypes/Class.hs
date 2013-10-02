@@ -7,7 +7,7 @@ import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL.Class
 
-class Monad m => MonadDB m where
+class (Functor m, Monad m) => MonadDB m where
   runQuery     :: IsSQL sql => sql -> m Int
   getLastQuery :: m SomeSQL
 
