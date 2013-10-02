@@ -15,7 +15,7 @@ import Control.Monad.Trans.Control
 import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
-import Foreign.Ptr
+import Foreign.ForeignPtr
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
@@ -36,7 +36,7 @@ data ConnectionSettings = ConnectionSettings {
 ----------------------------------------
 
 newtype Connection = Connection {
-  unConnection :: MVar (Maybe (Ptr PGconn))
+  unConnection :: MVar (Maybe (ForeignPtr PGconn))
 }
 
 newtype ConnectionSource = ConnectionSource {
@@ -59,22 +59,23 @@ poolSource cs numStripes idleTime maxResources = do
 
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = wrapException $ do
-  conn <- BS.useAsCString csConnInfo c_PQconnectdb
-  status <- c_PQstatus conn
-  when (status /= c_CONNECTION_OK) $
-    throwLibPQError conn "connect"
-  F.forM_ csClientEncoding $ \enc -> do
-    res <- BS.useAsCString enc (c_PQsetClientEncoding conn)
-    when (res == -1) $
+  fconn <- BS.useAsCString csConnInfo c_PQconnectdb
+  withForeignPtr fconn $ \conn -> do
+    status <- c_PQstatus conn
+    when (status /= c_CONNECTION_OK) $
       throwLibPQError conn "connect"
-  c_PQinitTypes conn
-  registerComposites conn csComposites
-  Connection <$> newMVar (Just conn)
+    F.forM_ csClientEncoding $ \enc -> do
+      res <- BS.useAsCString enc (c_PQsetClientEncoding conn)
+      when (res == -1) $
+        throwLibPQError conn "connect"
+    c_PQinitTypes conn
+    registerComposites conn csComposites
+  Connection <$> newMVar (Just fconn)
 
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just conn -> c_PQfinish conn
+    Just conn -> finalizeForeignPtr conn
     Nothing   -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
   return Nothing
 

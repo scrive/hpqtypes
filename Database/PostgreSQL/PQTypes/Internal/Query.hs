@@ -31,7 +31,7 @@ runSQLQuery dbT sql = dbT $ do
       dbeQueryContext = sql
     , dbeError = InternalError "runQuery: no connection"
     }
-    Just conn -> E.handle (rethrowWithContext sql) $ do
+    Just fconn -> E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \conn -> do
       res <- withSQL sql (withPGparam conn) $ \param query ->
         c_PQparamExec conn nullPtr param query c_RESULT_BINARY
       affected <- withForeignPtr res $ verifyResult conn
