@@ -61,8 +61,8 @@ data RowLengthMismatch = RowLengthMismatch {
 } deriving (Show, Typeable)
 
 data AffectedRowsMismatch = AffectedRowsMismatch {
-  rowsExpected :: !Int
-, rowsAffected :: !Int
+  rowsExpected  :: ![Int]
+, rowsDelivered :: !Int
 } deriving (Show, Typeable)
 
 instance E.Exception QueryError

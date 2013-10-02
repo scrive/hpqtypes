@@ -63,13 +63,10 @@ withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
                 => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r) -> m r
 withQueryResult f = do
   mres <- liftM unQueryResult `liftM` getQueryResult
-  SomeSQL ctx <- getLastQuery
   case mres of
-    Nothing  -> liftBase . E.throwIO $ DBException {
-      dbeQueryContext = ctx
-    , dbeError = InternalError "withQueryResult: no query result"
-    }
+    Nothing  -> throwDB . InternalError $ "withQueryResult: no query result"
     Just res -> do
+      SomeSQL ctx <- getLastQuery
       liftBase $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
         let expected = pqVariables (undefined::row)

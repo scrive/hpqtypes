@@ -13,10 +13,12 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Data.Monoid
+import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Transaction
@@ -74,6 +76,13 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
 
   foldlM = foldLeftM
   foldrM = foldRightM
+
+  throwDB e = do
+    SomeSQL sql <- getLastQuery
+    liftBase . E.throwIO $ DBException {
+      dbeQueryContext = sql
+    , dbeError = e
+    }
 
   withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st

@@ -3,6 +3,8 @@ module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
+import Control.Exception (Exception)
+
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -19,5 +21,7 @@ class (Functor m, Monad m) => MonadDB m where
 
   foldlM :: FromRow row => (acc -> row -> m acc) -> acc -> m acc
   foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
+
+  throwDB :: Exception e => e -> m a
 
   withNewConnection :: m a -> m a
