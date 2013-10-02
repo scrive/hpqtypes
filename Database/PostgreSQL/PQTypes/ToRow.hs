@@ -29,6 +29,9 @@ toRow' row pa param = alloca $ \err ->
 class PQFormat row => ToRow row where
   toRow :: row -> ParamAllocator -> Ptr PGparam -> Ptr PGerror -> CString -> IO ()
 
+instance ToRow () where
+  toRow _ _ _ _ _ = return ()
+
 instance ToSQL t => ToRow (Single t) where
   toRow (Single t) pa param err fmt = toSQL t pa $ \base ->
     verify err =<< c_PQputf1 param err fmt base

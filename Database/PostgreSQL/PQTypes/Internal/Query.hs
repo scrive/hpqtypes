@@ -19,10 +19,11 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
-runSQLQuery :: MonadBase IO m => (StateT DBState m Int -> r) -> SQL -> r
+runSQLQuery :: (IsSQL sql, MonadBase IO m)
+            => (StateT DBState m Int -> r) -> sql -> r
 runSQLQuery dbT sql = dbT $ do
   mvconn <- gets (unConnection . dbConnection)
   (affected, res) <- liftBase . modifyMVar mvconn $ \mconn -> case mconn of
@@ -36,7 +37,7 @@ runSQLQuery dbT sql = dbT $ do
       affected <- withForeignPtr res $ verifyResult conn
       return (mconn, (affected, res))
   modify $ \st -> st {
-    dbLastQuery = sql
+    dbLastQuery = someSQL sql
   , dbQueryResult = Just $ QueryResult res
   }
   return affected

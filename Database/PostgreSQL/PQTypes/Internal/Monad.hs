@@ -20,6 +20,8 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Transaction
+import Database.PostgreSQL.PQTypes.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 type InnerDBT = StateT DBState
 
@@ -33,7 +35,7 @@ runDBT cs ts m = withConnection cs $ \conn -> do
     dbConnection = conn
   , dbConnectionSource = cs
   , dbTransactionSettings = ts
-  , dbLastQuery = mempty
+  , dbLastQuery = someSQL (mempty::SQL)
   , dbQueryResult = Nothing
   }
   where

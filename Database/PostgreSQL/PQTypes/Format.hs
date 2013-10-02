@@ -92,6 +92,10 @@ instance PQFormat Bool where
 
 -- TUPLES
 
+instance PQFormat () where
+    pqFormat _ = BS.empty
+    pqVariables _ = 0
+
 instance (
     PQFormat t1, PQFormat t2
   ) => PQFormat (t1, t2) where

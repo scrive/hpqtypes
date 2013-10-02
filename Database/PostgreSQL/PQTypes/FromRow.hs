@@ -52,6 +52,9 @@ fromRow' res i = alloca $ \err ->
 class PQFormat row => FromRow row where
   fromRow  :: Ptr PGresult -> Ptr PGerror -> CInt -> CString -> IO row
 
+instance FromRow () where
+  fromRow _ _ _ _ = return ()
+
 instance FromSQL t => FromRow (Single t) where
   fromRow res err i fmt = alloca $ \p1 -> do
     verify err =<< c_PQgetf1 res err i fmt 0 p1

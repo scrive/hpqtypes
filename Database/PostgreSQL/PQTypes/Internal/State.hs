@@ -11,7 +11,7 @@ import Foreign.ForeignPtr
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
-import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 data TransactionSettings = TransactionSettings {
   tsAutoTransaction :: !Bool
@@ -30,6 +30,6 @@ data DBState = DBState {
   dbConnection          :: !Connection
 , dbConnectionSource    :: !ConnectionSource
 , dbTransactionSettings :: !TransactionSettings
-, dbLastQuery           :: !SQL
+, dbLastQuery           :: !SomeSQL
 , dbQueryResult         :: !(Maybe QueryResult)
 }

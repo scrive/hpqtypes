@@ -19,6 +19,7 @@ import qualified Control.Exception.Lifted as LE
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.SQL
 
 defaultTransactionSettings :: TransactionSettings
 defaultTransactionSettings = TransactionSettings {
@@ -53,7 +54,7 @@ withTransaction' ts m = LE.mask $ \restore -> do
 
 begin' :: MonadDB m => TransactionSettings -> m ()
 begin' ts = do
-  _ <- runQuery . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
+  _ <- runQuery . mintercalate " " $ [mkSQL "BEGIN", isolationLevel, permissions]
   return ()
   where
     isolationLevel = case tsIsolationLevel ts of
@@ -68,12 +69,12 @@ begin' ts = do
 
 commit' :: MonadDB m => TransactionSettings -> m ()
 commit' ts = do
-  _ <- runQuery "COMMIT"
+  _ <- runQuery (mkSQL "COMMIT")
   when (tsAutoTransaction ts) $
     begin' ts
 
 rollback' :: MonadDB m => TransactionSettings -> m ()
 rollback' ts = do
-  _ <- runQuery "ROLLBACK"
+  _ <- runQuery (mkSQL "ROLLBACK")
   when (tsAutoTransaction ts) $
     begin' ts

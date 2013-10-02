@@ -8,10 +8,10 @@ module Database.PostgreSQL.PQTypes.Internal.Exception (
 import Data.Typeable
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 
-data DBException = forall e. E.Exception e => DBException {
-  dbeQueryContext :: !SQL
+data DBException = forall e sql. (E.Exception e, Show sql) => DBException {
+  dbeQueryContext :: !sql
 , dbeError        :: !e
 } deriving Typeable
 
@@ -19,8 +19,8 @@ deriving instance Show DBException
 
 instance E.Exception DBException
 
-rethrowWithContext :: SQL -> E.SomeException -> IO a
-rethrowWithContext ctx (E.SomeException e) = E.throwIO DBException {
-    dbeQueryContext = ctx
+rethrowWithContext :: IsSQL sql => sql -> E.SomeException -> IO a
+rethrowWithContext sql (E.SomeException e) = E.throwIO DBException {
+    dbeQueryContext = sql
   , dbeError = e
   }

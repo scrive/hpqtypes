@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, Rank2Types
+  , ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Fold (
     foldLeftM
   , foldRightM
@@ -19,13 +20,12 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.Internal.SQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
           => (acc -> row -> m acc) -> acc -> m acc
-foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
-  ferr <- liftBase mallocForeignPtr
+foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
   liftBase (withForeignPtr fres c_PQntuples)
     >>= worker ctx fres ferr ffmt initAcc 0
   where
@@ -42,8 +42,7 @@ foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
 
 foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
            => (row -> acc -> m acc) -> acc -> m acc
-foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
-  ferr <- liftBase mallocForeignPtr
+foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
   liftBase (withForeignPtr fres c_PQntuples)
     >>= worker ctx fres ferr ffmt initAcc (-1) . pred
   where
@@ -61,10 +60,10 @@ foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ffmt -> do
 ----------------------------------------
 
 withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
-                => (row -> SQL -> ForeignPtr PGresult -> ForeignPtr CChar -> m r) -> m r
+                => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r) -> m r
 withQueryResult f = do
   mres <- liftM unQueryResult `liftM` getQueryResult
-  ctx <- getLastQuery
+  SomeSQL ctx <- getLastQuery
   case mres of
     Nothing  -> liftBase . E.throwIO $ DBException {
       dbeQueryContext = ctx
@@ -80,6 +79,7 @@ withQueryResult f = do
           , dbeError = RowLengthMismatch expected rowlen
           }
       fmt <- liftBase . bsToCString $ pqFormat (undefined::row)
-      acc <- f (undefined::row) ctx res fmt
+      err <- liftBase mallocForeignPtr
+      acc <- f (undefined::row) ctx res err fmt
       clearQueryResult
       return acc

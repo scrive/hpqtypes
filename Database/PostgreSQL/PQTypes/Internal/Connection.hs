@@ -25,6 +25,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.SQL
 
 data ConnectionSettings = ConnectionSettings {
   csConnInfo       :: !BS.ByteString
@@ -78,4 +79,4 @@ disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> 
   return Nothing
 
 wrapException :: IO a -> IO a
-wrapException = E.handle (rethrowWithContext mempty)
+wrapException = E.handle $ rethrowWithContext (mempty::SQL)

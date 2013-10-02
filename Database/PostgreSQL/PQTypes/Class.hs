@@ -5,11 +5,11 @@ module Database.PostgreSQL.PQTypes.Class (
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.Internal.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 class Monad m => MonadDB m where
-  runQuery     :: SQL -> m Int
-  getLastQuery :: m SQL
+  runQuery     :: IsSQL sql => sql -> m Int
+  getLastQuery :: m SomeSQL
 
   getQueryResult   :: m (Maybe QueryResult)
   clearQueryResult :: m ()
