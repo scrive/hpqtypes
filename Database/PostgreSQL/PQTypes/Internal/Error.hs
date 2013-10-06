@@ -25,13 +25,13 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
-data QueryError = QueryError !String
+newtype QueryError = QueryError String
   deriving (Show, Typeable)
 
-data InternalError = InternalError !String
+newtype InternalError = InternalError String
   deriving (Show, Typeable)
 
-data LibPQError = LibPQError !String
+newtype LibPQError = LibPQError String
   deriving (Show, Typeable)
 
 data ConversionError = forall e. E.Exception e => ConversionError {
@@ -61,7 +61,7 @@ data RowLengthMismatch = RowLengthMismatch {
 } deriving (Show, Typeable)
 
 data AffectedRowsMismatch = AffectedRowsMismatch {
-  rowsExpected  :: ![Int]
+  rowsExpected  :: ![(Int, Int)]
 , rowsDelivered :: !Int
 } deriving (Show, Typeable)
 

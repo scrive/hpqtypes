@@ -7,10 +7,8 @@ module Database.PostgreSQL.PQTypes.Internal.State (
   , DBState(..)
   ) where
 
-import Foreign.ForeignPtr
-
-import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.SQL.Class
 
 data TransactionSettings = TransactionSettings {
@@ -21,8 +19,6 @@ data TransactionSettings = TransactionSettings {
 
 data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializable
 data Permissions = DefaultPermissions | ReadOnly | ReadWrite
-
-newtype QueryResult = QueryResult { unQueryResult :: ForeignPtr PGresult }
 
 ----------------------------------------
 

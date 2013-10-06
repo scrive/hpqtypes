@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, FlexibleContexts, Rank2Types
-  , ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, Rank2Types, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Fold (
     foldLeftM
   , foldRightM
@@ -62,10 +61,10 @@ foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
 withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
                 => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r) -> m r
 withQueryResult f = do
-  mres <- liftM unQueryResult `liftM` getQueryResult
+  mres <- getQueryResult
   case mres of
-    Nothing  -> throwDB . InternalError $ "withQueryResult: no query result"
-    Just res -> do
+    Nothing -> throwDB . InternalError $ "withQueryResult: no query result"
+    Just (QueryResult res) -> do
       SomeSQL ctx <- getLastQuery
       liftBase $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
