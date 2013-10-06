@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, RecordWildCards #-}
-module Database.PostgreSQL.PQTypes.Internal.Transaction (
-    defaultTransactionSettings
-  , withTransaction
+module Database.PostgreSQL.PQTypes.Transaction (
+    withTransaction
   , begin
   , commit
   , rollback
@@ -17,18 +16,9 @@ import Control.Monad.Trans.Control
 import qualified Control.Exception.Lifted as LE
 
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
-
-defaultTransactionSettings :: TransactionSettings
-defaultTransactionSettings = TransactionSettings {
-  tsAutoTransaction = True
-, tsIsolationLevel  = DefaultLevel
-, tsPermissions     = DefaultPermissions
-}
-
-----------------------------------------
 
 withTransaction :: (MonadBaseControl IO m, MonadDB m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m

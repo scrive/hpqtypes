@@ -21,9 +21,10 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.Internal.Transaction
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
+import Database.PostgreSQL.PQTypes.Transaction
+import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 type InnerDBT = StateT DBState
 

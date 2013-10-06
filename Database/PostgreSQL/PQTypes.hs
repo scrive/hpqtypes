@@ -24,20 +24,6 @@ module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.QueryResult
   , QueryResult
   , ntuples
-  -- Database.PostgreSQL.PQTypes.Internal.State
-  , TransactionSettings(..)
-  , IsolationLevel(..)
-  , Permissions(..)
-  -- Database.PostgreSQL.PQTypes.Internal.Transaction
-  , defaultTransactionSettings
-  , withTransaction
-  , begin
-  , commit
-  , rollback
-  , withTransaction'
-  , begin'
-  , commit'
-  , rollback'
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class
@@ -52,6 +38,8 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.SQL.Raw
   , module Database.PostgreSQL.PQTypes.ToRow
   , module Database.PostgreSQL.PQTypes.ToSQL
+  , module Database.PostgreSQL.PQTypes.Transaction
+  , module Database.PostgreSQL.PQTypes.Transaction.Settings
   , module Database.PostgreSQL.PQTypes.Utils
   ) where
 
@@ -60,8 +48,6 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Monad
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
-import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.Internal.Transaction
 
 import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Binary
@@ -77,4 +63,6 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.ToRow
 import Database.PostgreSQL.PQTypes.ToSQL
+import Database.PostgreSQL.PQTypes.Transaction
+import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
