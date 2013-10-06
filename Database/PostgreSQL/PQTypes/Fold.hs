@@ -18,7 +18,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 

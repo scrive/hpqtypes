@@ -7,6 +7,7 @@ import Control.Exception (Exception)
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.SQL.Class
 
 class (Functor m, Monad m) => MonadDB m where

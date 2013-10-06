@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, Rank2Types, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
-    ConnectionSettings(..)
-  , Connection(..)
+    Connection(..)
+  , ConnectionSettings(..)
   , ConnectionSource(..)
   , defaultSource
   , poolSource

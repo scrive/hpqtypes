@@ -3,7 +3,6 @@ module Database.PostgreSQL.PQTypes.Internal.State (
     TransactionSettings(..)
   , IsolationLevel(..)
   , Permissions(..)
-  , QueryResult(..)
   , DBState(..)
   ) where
 
