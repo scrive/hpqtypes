@@ -415,8 +415,12 @@ pqt_putparam(PGparam *param, PGerror *err, const void *data, int datal,
 	}
 	else
 	{
-		/* need more mem for param value ptr */
-		if (v->ptrl < datal)
+		/* allocate more mem for param value ptr or if v->ptr is NULL,
+		 * since then the data will not be copied (memcpy with first
+		 * argument being NULL silently does nothing). it usually happens
+		 * when datal is 0 (eg. empty string was passed).
+		 */
+		if (v->ptrl < datal || v->ptr == NULL)
 		{
 			char *ptr = (char *) pqt_realloc(v->ptr, datal);
 
