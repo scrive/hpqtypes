@@ -47,8 +47,8 @@
 		RERR(_args, "invalid hour value ... range is 0 to 23"); \
 	if ((_t)->min < 0 || (_t)->min > 59) \
 		RERR(_args, "invalid minute value ... range is 0 to 59"); \
-	if ((_t)->sec < 0 || (_t)->sec > 59) \
-		RERR(_args, "invalid second value ... range is 0 to 59"); \
+	if ((_t)->sec < 0 || (_t)->sec > 60) \
+		RERR(_args, "invalid second value ... range is 0 to 60"); \
 	if ((_t)->usec < 0 || (_t)->usec > 999999) \
 		RERR(_args, "invalid microsecond value ... range is 0 to 999999"); \
 	if ((_withtz) && !ISVALIDGMTOFF((_t)->gmtoff)) \
