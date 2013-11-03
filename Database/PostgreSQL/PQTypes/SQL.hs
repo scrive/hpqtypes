@@ -49,7 +49,7 @@ instance IsSQL SQL where
         SqlString s -> return s
         SqlValue v -> toSQL v allocParam $ \base ->
           BS.useAsCString (pqFormat v) $ \fmt -> do
-            verifyPQTRes err "withSQL (SQL.Dynamic)" =<< c_PQputf1 param err fmt base
+            verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
 
 instance Monoid SQL where
