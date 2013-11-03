@@ -3,8 +3,10 @@
 module Database.PostgreSQL.PQTypes.SQL.Class (
     SomeSQL(..)
   , IsSQL(..)
+  , unsafeSQL
   ) where
 
+import Data.String
 import Foreign.C.String
 import Foreign.Ptr
 
@@ -16,3 +18,8 @@ data SomeSQL = forall sql. IsSQL sql => SomeSQL sql
 class Show sql => IsSQL sql where
   someSQL :: sql -> SomeSQL
   withSQL :: sql -> ParamAllocator -> (Ptr PGparam -> CString -> IO r) -> IO r
+
+----------------------------------------
+
+unsafeSQL :: (IsSQL sql, IsString sql) => String -> sql
+unsafeSQL = fromString

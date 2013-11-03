@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs, Rank2Types, TupleSections #-}
 module Database.PostgreSQL.PQTypes.SQL (
     SQL
-  , unsafeFromString
   , mkSQL
   , value
   , (<?>)
@@ -66,9 +65,6 @@ instance Show SQL where
       conv (SqlValue v) = "<" ++ show v ++ ">"
 
 ----------------------------------------
-
-unsafeFromString :: String -> SQL
-unsafeFromString = fromString
 
 mkSQL :: BS.ByteString -> SQL
 mkSQL = SQL . (:) . SqlString
