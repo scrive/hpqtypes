@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Database.PostgreSQL.PQTypes.Internal.Utils (
-    mintercalate
-  , bsToCString
+    bsToCString
   , unexpectedNULL
   , verifyPQTRes
   , withPGparam
@@ -10,8 +9,6 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.ByteString.Unsafe
-import Data.List
-import Data.Monoid
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
@@ -23,9 +20,6 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
-
-mintercalate :: Monoid m => m -> [m] -> m
-mintercalate s = mconcat . intersperse s
 
 bsToCString :: ByteString -> IO (ForeignPtr CChar)
 bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do

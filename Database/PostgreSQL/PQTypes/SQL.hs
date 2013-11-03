@@ -5,7 +5,6 @@ module Database.PostgreSQL.PQTypes.SQL (
   , unsafeFromString
   , mkSQL
   , value
-  , (<+>)
   , (<?>)
   ) where
 
@@ -18,6 +17,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
+import Data.Monoid.Space
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.Utils
@@ -56,6 +56,9 @@ instance Monoid SQL where
   mempty = SQL id
   SQL a `mappend` SQL b = SQL (a . b)
 
+instance SpaceMonoid SQL where
+  mspace = mkSQL mspace
+
 instance Show SQL where
   showsPrec n sql = ("SQL " ++) . (showsPrec n . concatMap conv . unSQL $ sql)
     where
@@ -72,10 +75,6 @@ mkSQL = SQL . (:) . SqlString
 
 value :: (Show t, ToSQL t) => t -> SQL
 value = SQL . (:) . SqlValue
-
-(<+>) :: SQL -> SQL -> SQL
-a <+> b = mconcat [a, mkSQL (BS.pack " "), b]
-infixr 6 <+>
 
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
 s <?> v = s <+> value v

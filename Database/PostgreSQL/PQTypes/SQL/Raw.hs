@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, StandaloneDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Database.PostgreSQL.PQTypes.SQL.Raw (
     RawSQL
   , rawSQL
@@ -12,6 +12,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
+import Data.Monoid.Space
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToRow
@@ -32,6 +33,9 @@ instance (Show row, ToRow row) => IsSQL (RawSQL row) where
 instance Monoid (RawSQL ()) where
   mempty = rawSQL BS.empty ()
   RawSQL a () `mappend` RawSQL b () = RawSQL (a `mappend` b) ()
+
+instance SpaceMonoid (RawSQL ()) where
+  mspace = RawSQL mspace ()
 
 rawSQL :: (Show row, ToRow row) => BS.ByteString -> row -> RawSQL row
 rawSQL = RawSQL
