@@ -76,19 +76,19 @@
 #define CMDOKAY(msg) EXECOKAY(msg, PGRES_COMMAND_OK)
 #define TUPSOKAY(msg) EXECOKAY(msg, PGRES_TUPLES_OK)
 
-#define PUTOKAY(paramobj, retval, msg) do{ \
+#define PUTOKAY(paramobj, retval, mesg) do{ \
 	if ((retval) == 0){ \
 		failcnt++; \
-		fprintf(stderr, "  **ERROR: %s - %s\n", msg, PQgeterror()); \
+		fprintf(stderr, "  **ERROR: %s - %s\n", mesg, err.msg); \
 		return;	\
 	} \
 }while (0)
 
 #define GETOKAY(retval, msg) GETOKAY2(result, retval, msg)
-#define GETOKAY2(_res, retval, msg) do{ \
+#define GETOKAY2(_res, retval, mesg) do{ \
 	if ((retval) == 0){ \
 		failcnt++; \
-		fprintf(stderr, "  **ERROR: %s - %s\n", msg, PQgeterror()); \
+		fprintf(stderr, "  **ERROR: %s - %s\n", mesg, err.msg); \
 		PQclear(result); \
 		return;	\
 	} \
@@ -153,6 +153,7 @@ static int testcnt = 0;
 static int failcnt = 0;
 static const char *datestyle = "";
 static PGconn *conn = NULL;
+static PGerror err;
 static PGparam *param = NULL;
 static PGresult *result = NULL;
 
@@ -183,34 +184,35 @@ int main(int argc, char **argv)
 
 	testcnt++;
 	regtype.typname = "bad_type";
-	if(PQregisterTypes(conn, PQT_COMPOSITE, &regtype, 1, 0))
+	if(PQregisterTypes(conn, &err, PQT_COMPOSITE, &regtype, 1, 0))
 	{
 		failcnt++;
 		fprintf(stderr, "Test bad type register failure case (FAILED)\n");
 	}
 
 	regtype.typname = "mytype_t";
-  if(!PQregisterTypes(conn, PQT_COMPOSITE, &regtype, 1, 0))
-    fprintf(stderr, "%s\n", PQgeterror());
+	if(!PQregisterTypes(conn, &err, PQT_COMPOSITE, &regtype, 1, 0))
+		fprintf(stderr, "%s\n", err.msg);
 
 	test_composite();
 
 	PQclear(PQexec(conn, "SET DateStyle TO 'ISO'"));
-	param = PQparamCreate(conn);
+	param = PQparamCreate(conn, &err);
 
 	/* test PQputvf - result should be 10 */
 	testcnt++;
 	printf("\nPQputvf\n");
-	result = execf("SELECT %int4 + (%int4 % %int4) AS answer", 9, 67, 3);
+	int i1 = 9, i2 = 67, i3 = 3;
+	result = execf("SELECT %int4 + (%int4 % %int4) AS answer", &i1, &i2, &i3);
 	if (PQresultStatus(result) != PGRES_TUPLES_OK)
 	{
-		fprintf(stderr, "  **ERROR: PQputvf - %s\n", PQgeterror());
+		fprintf(stderr, "  **ERROR: PQputvf - %s\n", err.msg);
 		PQclear(result);
 		failcnt++;
 		return 1;
 	}
 
-	PQgetf(result, 0, "#int4", "answer", &n);
+	PQgetf(result, &err, 0, "#int4", "answer", &n);
 	PQclear(result);
 	if (n != 10)
 	{
@@ -224,10 +226,10 @@ int main(int argc, char **argv)
 
 	testcnt++;
 	printf("\nPQspecPrepare\n");
-	if(!PQspecPrepare(conn, "test", "SELECT %int8 + %int4", 1))
+	if(!PQspecPrepare(conn, &err, "test", "SELECT %int8 + %int4", 1))
 	{
 		failcnt++;
-		fprintf(stderr, "  PQspecPrepare - FAILED (%s)\n", PQgeterror());
+		fprintf(stderr, "  PQspecPrepare - FAILED (%s)\n", err.msg);
 	}
 	else
 	{
@@ -237,17 +239,18 @@ int main(int argc, char **argv)
 		ba.len = 4;
 		ba.data = data;
 
-		result = PQexecf(conn, "@test", i8, 4);
+		i1 = 4;
+		result = PQexecf(conn, &err, "@test", &i8, &i1);
 		if(!result)
 		{
 			failcnt++;
-			fprintf(stderr, "  PQspecPrepare - FAILED (%s)\n", PQgeterror());
+			fprintf(stderr, "  PQspecPrepare - FAILED (%s)\n", err.msg);
 		}
 		else
 		{
 			PGint8 i8out=0;
 
-			PQgetf(result, 0, "%int8", 0, &i8out);
+			PQgetf(result, &err, 0, "%int8", 0, &i8out);
 
 			if(i8 + 4 != i8out)
 			{
@@ -295,7 +298,7 @@ int main(int argc, char **argv)
 	regtype.typget = epoch_get;
 
 	/* Test type sub-classing, use the epoch example from docs */
-	if (!PQregisterTypes(conn, PQT_SUBCLASS, &regtype, 1, 0))
+	if (!PQregisterTypes(conn, &err, PQT_SUBCLASS, &regtype, 1, 0))
 	{
 		fprintf(stderr, "PQregisterTypes(epoch, subclass): %s\n",
 			PQerrorMessage(conn));
@@ -320,7 +323,7 @@ int main(int argc, char **argv)
 	if (!datestyle)
 		datestyle = "";
 
-	param = PQparamCreate(conn);
+	param = PQparamCreate(conn, &err);
 	test_datetime(0);
 	test_datetime(1);
 	cleanup();
@@ -336,10 +339,10 @@ static PGresult *execf(const char *cmdSpec, ...)
   PGresult *res;
   va_list ap;
   char stmt[4096];
-  PGparam *prm = PQparamCreate(conn);
+  PGparam *prm = PQparamCreate(conn, &err);
 
   va_start(ap, cmdSpec);
-  n = PQputvf(prm, stmt, sizeof(stmt), cmdSpec, ap);
+  n = PQputvf(prm, &err, stmt, sizeof(stmt), cmdSpec, ap);
   va_end(ap);
 
   /* error message in PQparamErrorMessage */
@@ -349,8 +352,8 @@ static PGresult *execf(const char *cmdSpec, ...)
     return NULL;
   }
 
-	printf("  %s\n", stmt);
-  res = PQparamExec(conn, prm, stmt, 1);
+  printf("  %s\n", stmt);
+  res = PQparamExec(conn, &err, prm, stmt, 1);
   PQparamClear(prm);
   return res;
 }
@@ -395,7 +398,7 @@ static void sighandler(int s)
 
 static void test_composite(void)
 {
-	int i,x,r;
+	int i,j,x,r;
 	int ntups;
 	int inttups;
 	PGtext text;
@@ -417,18 +420,18 @@ static void test_composite(void)
 
 	printf("  Testing empty array handling ");
 	PQclear(PQexec(conn, "DROP TABLE libpq_array"));
-  result = PQexec(conn, "CREATE TABLE libpq_array (arr int[])");
-  CMDOKAY("creating libpq_array table:");
-  PQclear(result);
+	result = PQexec(conn, "CREATE TABLE libpq_array (arr int[])");
+	CMDOKAY("creating libpq_array table:");
+	PQclear(result);
 
 	result = PQexec(conn, "INSERT INTO libpq_array VALUES ('{}')");
 	CMDOKAY("inserting into libpq_array:");
-  PQclear(result);
+	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_array", 1);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_array", 1);
 	TUPSOKAY("executing select on libpq_array:");
 
-	r = PQgetf(result, 0, "%int4[]", 0, &intarr);
+	r = PQgetf(result, &err, 0, "%int4[]", 0, &intarr);
 
 	GETOKAY(r, "Failed to get an empty array");
 	PQclear(result);
@@ -461,10 +464,10 @@ static void test_composite(void)
 	CMDOKAY("creating complex type");
 	PQclear(result);
 
-	if (!PQregisterTypes(conn, PQT_COMPOSITE, types, 2, 0))
+	if (!PQregisterTypes(conn, &err, PQT_COMPOSITE, types, 2, 0))
 	{
 		fprintf(stderr, "  **ERROR: PQregisterTypes(%s %s): %s\n",
-			types[0].typname, types[1].typname, PQgeterror());
+			types[0].typname, types[1].typname, err.msg);
 		failcnt++;
 		return;
 	}
@@ -473,9 +476,9 @@ static void test_composite(void)
 	CMDOKAY("creating libpq_composite table:");
 	PQclear(result);
 
-	simple = PQparamCreate(conn);
-	complex = PQparamCreate(conn);
-	prm = PQparamCreate(conn);
+	simple = PQparamCreate(conn, &err);
+	complex = PQparamCreate(conn, &err);
+	prm = PQparamCreate(conn, &err);
 
 	/* array[10][3] */
 	intarr.ndims     = 2;
@@ -483,38 +486,40 @@ static void test_composite(void)
 	intarr.dims[1]   = 3;
 	intarr.lbound[0] = 1;
 	intarr.lbound[1] = 1;
-	intarr.param = PQparamCreate(conn);
+	intarr.param = PQparamCreate(conn, &err);
 
 	/* If a 1D array is being used, you can avoid setting the dimension
 	 * members of the PGarray structure by zeroing it.
 	 */
 	memset(&comparr, 0, sizeof(PGarray));
-	comparr.param = PQparamCreate(conn);
+	comparr.param = PQparamCreate(conn, &err);
 
 	/* generate a complex[] containing 100 elements */
 	for (i=0; i < 100; i++)
 	{
 		PGint8 val = ((PGint8)1<<48) + (PGint8)i;
 
+		j = i+1000000;
 		/* pack the fields of the 'simple' composite */
-		r = PQputf(simple, "%int4 %int8", i+1000000, val);
+		r = PQputf(simple, &err, "%int4 %int8", &j, &val);
 		PUTOKAY(simple, r, "putting simple attributes");
 
 		/* populate the complex.arr[10][3] */
-		PQputf(intarr.param, "%null");
+		PQputf(intarr.param, &err, "%null");
 		for (x=1; x < 30; x++)
 		{
-			r= PQputf(intarr.param, "%int4", x+1);
+			j = x+1;
+			r= PQputf(intarr.param, &err, "%int4", &j);
 			PUTOKAY(intarr.param, r, "putting complex.arr element");
 		}
 
 		/* pack the fields of the 'complex' composite */
 		sprintf((char *) buf, "text_%03d", i+1);
-		r = PQputf(complex, "%text %simple %int4[]", buf, simple, &intarr);
+		r = PQputf(complex, &err, "%text %simple %int4[]", buf, simple, &intarr);
 		PUTOKAY(complex, r, "putting complex attributes");
 
 		/* now put element 'i' into the composite array */
-		r = PQputf(comparr.param, "%complex", complex);
+		r = PQputf(comparr.param, &err, "%complex", complex);
 		PUTOKAY(comparr.param, r, "putting complex[] element");
 
 		/* make sure to reset the params, otherwise you will continue to
@@ -530,14 +535,14 @@ static void test_composite(void)
 		 */
 		if(i == 49)
 		{
-			PQputf(comparr.param, "%complex", NULL);
+			PQputf(comparr.param, &err, "%complex", NULL);
 			i++;
 		}
 	}
 
 	/* insert the complex[] */
-	PQputf(prm, "%complex[]", &comparr);
-	result = PQparamExec(conn, prm,
+	PQputf(prm, &err, "%complex[]", &comparr);
+	result = PQparamExec(conn, &err, prm,
 		"INSERT INTO libpq_composite VALUES ($1)", 1);
 	CMDOKAY("inserting into libpq_composite");
 	PQclear(result);
@@ -552,11 +557,11 @@ static void test_composite(void)
 	PQparamClear(prm);
 
 	/* select complex[] back out */
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_composite", 1);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_composite", 1);
 	TUPSOKAY("PQparamExec(SELECT:composite[])");
 
 	/* getf it into a PGarray */
-	r = PQgetf(result, 0, "%complex[]", 0, &comparr);
+	r = PQgetf(result, &err, 0, "%complex[]", 0, &comparr);
 	GETOKAY(r, "PQgetf(complex[])");
 	PQclear(result);
 
@@ -594,7 +599,7 @@ static void test_composite(void)
 		}
 
 		/* get the complex composite at tuple 'i' */
-		r = PQgetf(comparr.res, i, "%text %simple #int4[]",
+		r = PQgetf(comparr.res, &err, i, "%text %simple #int4[]",
 			0, &text, 1, &simple_res, "arr", &intarr);
 		GETOKAY2(comparr.res, r, "PQgetf(comparr.res element)");
 
@@ -614,7 +619,7 @@ static void test_composite(void)
 		/* Check the simple field: reference by fname, use '#'
 		 * rather than '%'
 		 */
-		r = PQgetf(simple_res, 0, "#int4 #int8", "a", &a, "b", &b);
+		r = PQgetf(simple_res, &err, 0, "#int4 #int8", "a", &a, "b", &b);
 		GETOKAY2(simple_res, r, "PQgetf(complex[].simple.*)");
 		PQclear(simple_res);
 
@@ -647,7 +652,7 @@ static void test_composite(void)
 		inttups = PQntuples(intarr.res);
 		for (x=1; x < inttups; x++)
 		{
-			r = PQgetf(intarr.res, x, "%int4", 0, &a);
+			r = PQgetf(intarr.res, &err, x, "%int4", 0, &a);
 			GETOKAY2(intarr.res, r, "PQgetf(complex.int[][] element");
 
 			if (a != x+1)
@@ -685,11 +690,30 @@ static void test_natives(int format)
 	PQparamReset(param);
 	printf("\nNative C types: (%s)\n", format ? "binary" : "text");
 
-	r = PQputf(param, "%char %char %int2 %int2 %int4 %int4 %int8 %int8 "
+	ca = -117;
+	cb = 224;
+	i2a = -32000;
+	i2b = 32000;
+	i4a = INT_MIN;
+	i4b = INT_MAX;
+	i8a = LLONG_MIN;
+	i8b = LLONG_MAX;
+	f4a = -1.23456f;
+	f4b = 1.23456f;
+	f8a = -123456789.654321;
+	f8b = 123456789.654321;
+	mona = INT_MIN;
+	monb = 600000000054LL;
+	oida = 91982;
+	oidb = 3000000000U;
+	boola = 0;
+	boolb = 1;
+
+	r = PQputf(param, &err, "%char %char %int2 %int2 %int4 %int4 %int8 %int8 "
 		"%float4 %float4 %float8 %float8 %money %money %oid %oid %bool %bool",
-		-117, 224, -32000, 32000, INT_MIN, INT_MAX, LLONG_MIN, LLONG_MAX,
-		-1.23456f, 1.23456f, -123456789.654321, 123456789.654321,
-		(PGmoney)INT_MIN, 600000000054LL, 91982, 3000000000U, 0, 1);
+		&ca, &cb, &i2a, &i2b, &i4a, &i4b, &i8a, &i8b,
+		&f4a, &f4b, &f8a, &f8b,
+		&mona, &monb, &oida, &oidb, &boola, &boolb);
 	PUTOKAY(param, r, "PQputf(natives)");
 
 	DROP_TABLE("libpq_natives");
@@ -707,16 +731,16 @@ static void test_natives(int format)
 	CMDOKAY("creating libpq_natives table");
 	PQclear(result);
 
-	result = PQparamExec(conn, param, "INSERT INTO libpq_natives VALUES"
+	result = PQparamExec(conn, &err, param, "INSERT INTO libpq_natives VALUES"
 		"($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",
 		format);
 	CMDOKAY("PQparamExec(INSERT:natives)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_natives", format);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_natives", format);
 	TUPSOKAY("PQparamExec(SELECT:natives)");
 
-	r = PQgetf(result, 0, "%char %char %int2 %int2 %int4 %int4 %int8 %int8 "
+	r = PQgetf(result, &err, 0, "%char %char %int2 %int2 %int4 %int4 %int8 %int8 "
 		"%float4 %float4 %float8 %float8 %money, %money %oid %oid %bool %bool",
 		0, &ca, 1, &cb, 2, &i2a, 3, &i2b, 4, &i4a, 5, &i4b, 6, &i8a, 7, &i8b, 8,
 		&f4a, 9, &f4b, 10, &f8a, 11, &f8b, 12, &mona, 13, &monb, 14, &oida,
@@ -767,7 +791,7 @@ static void test_geometrics(int format)
 	PQparamReset(param);
 	printf("\nGeometric types: (%s)\n", format ? "binary" : "text");
 
-	r = PQputf(param, "%point %lseg %box %circle %path %polygon",
+	r = PQputf(param, &err, "%point %lseg %box %circle %path %polygon",
 		&pointval, &lsegval, &boxval, &circleval, &pathval, &polygonval);
 	PUTOKAY(param, r, "PQputf(geos)");
 
@@ -778,15 +802,15 @@ static void test_geometrics(int format)
 	CMDOKAY("creating libpq_geos table");
 	PQclear(result);
 
-	result = PQparamExec(conn, param, "INSERT INTO libpq_geos VALUES"
+	result = PQparamExec(conn, &err, param, "INSERT INTO libpq_geos VALUES"
 		"($1,$2,$3,$4,$5,$6)", format);
 	CMDOKAY("PQparamExec(INSERT:geos)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_geos", format);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_geos", format);
 	TUPSOKAY("PQparamExec(SELECT:geos)");
 
-	r = PQgetf(result, 0, "%point %lseg %box %circle %path %polygon",
+	r = PQgetf(result, &err, 0, "%point %lseg %box %circle %path %polygon",
 		0, &point, 1, &lseg, 2, &box, 3, &circle, 4, &path, 5, &polygon);
 	GETOKAY(r, "PQgetf(geos)");
 
@@ -844,7 +868,7 @@ static void test_varlen(int format)
 	PQparamReset(param);
 	printf("\nVariable-length types: (%s)\n", format ? "binary" : "text");
 
-	r = PQputf(param, "%bpchar %bpchar* %varchar %varchar* "
+	r = PQputf(param, &err, "%bpchar %bpchar* %varchar %varchar* "
 		"%text %text* %bytea %bytea* %uuid %numeric",
 		bpcharin, bpcharin, varcharin, varcharin, textin, textin,
 		&byteain, &byteain, uuidin, numin);
@@ -859,16 +883,16 @@ static void test_varlen(int format)
 	CMDOKAY("creating libpq_varlen table");
 	PQclear(result);
 
-	result = PQparamExec(conn, param, "INSERT INTO libpq_varlen VALUES"
+	result = PQparamExec(conn, &err, param, "INSERT INTO libpq_varlen VALUES"
 		"($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", format);
 	CMDOKAY("PQparamExec(INSERT:varlen)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL,
+	result = PQparamExec(conn, &err, NULL,
 		"SELECT bp_a,vc_a,text_a,bytea_a,uid,n FROM libpq_varlen", format);
 	TUPSOKAY("PQparamExec(SELECT:varlen)");
 
-	r = PQgetf(result, 0,
+	r = PQgetf(result, &err, 0,
 		"%bpchar %varchar %text %bytea %uuid %numeric",
 		0, &bpcharp,     /* field_num, PGbpchar* */
 		1, &varcharp,    /* field_num, PGvarchar* */
@@ -980,7 +1004,7 @@ static void test_datetime(int format)
 	printf("\nDate & Time types: (%s '%s')\n",
 		format ? "binary" : "text", datestyle);
 
-	r = PQputf(param, "%date %date %date %time %time %time %timetz %timetz "
+	r = PQputf(param, &err, "%date %date %date %time %time %time %timetz %timetz "
 		"%timetz %timestamp %timestamp %timestamp %interval %timestamptz",
 		&dateval[0], &dateval[1], &dateval[2], &timeval[0], &timeval[1],
 		&timeval[2], &timetzval[0], &timetzval[1], &timetzval[2],
@@ -999,15 +1023,15 @@ static void test_datetime(int format)
 	CMDOKAY("creating libpq_datetime table");
 	PQclear(result);
 
-	result = PQparamExec(conn, param, "INSERT INTO libpq_datetime VALUES"
+	result = PQparamExec(conn, &err, param, "INSERT INTO libpq_datetime VALUES"
 		"($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)", format);
 	CMDOKAY("PQparamExec(INSERT:datetime)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_datetime", format);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_datetime", format);
 	TUPSOKAY("PQparamExec(SELECT:datetime)");
 
-	r = PQgetf(result, 0, "%date %date %date %time %time %time %timetz "
+	r = PQgetf(result, &err, 0, "%date %date %date %time %time %time %timetz "
 		"%timetz %timetz %timestamp %timestamp %timestamp %interval "
 		"%timestamptz",
 		 0, &date[0],       1, &date[1],       2, &date[2],
@@ -1216,13 +1240,13 @@ static void test_network(int format)
 		freeaddrinfo(info);
 	}
 
-	r = have_ipv4 ? PQputf(param, "%inet", &ipv4) : PQputf(param, "%null");
+	r = have_ipv4 ? PQputf(param, &err, "%inet", &ipv4) : PQputf(param, &err, "%null");
 	PUTOKAY(param, r, "PQputf(network-ipv4)");
 
-	r = have_ipv6 ? PQputf(param, "%inet", &ipv6) : PQputf(param, "%null");
+	r = have_ipv6 ? PQputf(param, &err, "%inet", &ipv6) : PQputf(param, &err, "%null");
 	PUTOKAY(param, r, "PQputf(network-ipv6)");
 
-	r = PQputf(param, "%macaddr", &mac);
+	r = PQputf(param, &err, "%macaddr", &mac);
 	PUTOKAY(param, r, "PQputf(network-macaddr)");
 
 	DROP_TABLE("libpq_network");
@@ -1232,15 +1256,15 @@ static void test_network(int format)
 	CMDOKAY("creating libpq_network table");
 	PQclear(result);
 
-	result = PQparamExec(conn, param,
+	result = PQparamExec(conn, &err, param,
 		"INSERT INTO libpq_network VALUES ($1,$2,$3)", format);
 	CMDOKAY("PQparamExec(INSERT:network)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_network", format);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_network", format);
 	TUPSOKAY("PQparamExec(SELECT:network)");
 
-	r = PQgetf(result, 0, "%inet %inet %macaddr",
+	r = PQgetf(result, &err, 0, "%inet %inet %macaddr",
 		0, &ipv4out, 1, &ipv6out, 2, &macout);
 	GETOKAY(r, "PQgetf(network)");
 
@@ -1341,20 +1365,20 @@ static void test_subclass(int format)
 	CMDOKAY("creating libpq_subclass table");
 	PQclear(result);
 
-	prm = PQparamCreate(conn);
-	if (!PQputf(prm, "%epoch %epoch", timevals[0], timevals[1]))
-		fprintf(stderr, "subclass_put failed: %s\n", PQgeterror());
-	result = PQparamExec(conn, prm, "INSERT INTO libpq_subclass "
+	prm = PQparamCreate(conn, &err);
+	if (!PQputf(prm, &err, "%epoch %epoch", timevals[0], timevals[1]))
+		fprintf(stderr, "subclass_put failed: %s\n", err.msg);
+	result = PQparamExec(conn, &err, prm, "INSERT INTO libpq_subclass "
 		"VALUES ($1, $2)", format);
 	PQparamClear(prm);
 	CMDOKAY("PQparamExec(INSERT:subclass)");
 	PQclear(result);
 
-	result = PQparamExec(conn, NULL, "SELECT * FROM libpq_subclass", format);
+	result = PQparamExec(conn, &err, NULL, "SELECT * FROM libpq_subclass", format);
 	TUPSOKAY("PQparamExec(SELECT:subclass)");
 
 	/* use schema-qualified name */
-	r = PQgetf(result, 0, "%libpq.epoch %epoch",
+	r = PQgetf(result, &err, 0, "%libpq.epoch %epoch",
 		0, &timeout[0], 1, &timeout[1]);
 	GETOKAY(r, "PQgetf(subclass)");
 	PQclear(result);

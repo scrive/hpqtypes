@@ -1026,8 +1026,8 @@ execLookupTypes(PGconn *conn, PGerror *err, PGtypeData *data, PGarray *schemas,
 	PGarray *names, int want_attrs)
 {
 	if(data->fmtinfo.sversion >= 80400)
-		return PQexecf(conn, err, LOOKUP_TYPES, schemas, names, want_attrs);
-	return PQexecf(conn, err, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
+		return PQexecf(conn, err, LOOKUP_TYPES, schemas, names, &want_attrs);
+	return PQexecf(conn, err, LOOKUP_TYPES_PRE_8_4, &want_attrs, schemas, names);
 }
 
 static int
@@ -1035,8 +1035,8 @@ sendLookupTypes(PGconn *conn, PGerror *err, PGtypeData *data, PGarray *schemas,
 	PGarray *names, int want_attrs)
 {
 	if(data->fmtinfo.sversion >= 80400)
-		return PQsendf(conn, err, LOOKUP_TYPES, schemas, names, want_attrs);
-	return PQsendf(conn, err, LOOKUP_TYPES_PRE_8_4, want_attrs, schemas, names);
+		return PQsendf(conn, err, LOOKUP_TYPES, schemas, names, &want_attrs);
+	return PQsendf(conn, err, LOOKUP_TYPES_PRE_8_4, &want_attrs, schemas, names);
 }
 
 static int
