@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.ToSQL (
   , put
   ) where
 
+import Data.ByteString.Unsafe
 import Data.Int
 import Data.Text (Text)
 import Data.Text.Encoding
@@ -22,6 +23,7 @@ import qualified Data.ByteString.Char8 as BS
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Utils
 
 type ParamAllocator = forall r. (Ptr PGparam -> IO r) -> IO r
 
@@ -77,16 +79,18 @@ instance ToSQL Word8 where
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance ToSQL BS.ByteString where
-  type PQDest BS.ByteString = CChar
-  toSQL bs _ = BS.useAsCString bs
+  type PQDest BS.ByteString = PGbytea
+  toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
+    put (cStringLenToBytea cslen) conv
 
 instance ToSQL Text where
-  type PQDest Text = CChar
+  type PQDest Text = PGbytea
   toSQL = toSQL . encodeUtf8
 
 instance ToSQL String where
-  type PQDest String = CChar
-  toSQL s _ = withCString s
+  type PQDest String = PGbytea
+  toSQL s _ conv = withCStringLen s $ \cslen ->
+    put (cStringLenToBytea cslen) conv
 
 -- DATE
 

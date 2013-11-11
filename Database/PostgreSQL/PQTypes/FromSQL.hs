@@ -76,19 +76,18 @@ instance FromSQL Word8 where
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance FromSQL String where
-  type PQBase String = CString
+  type PQBase String = PGbytea
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just cs) = peekCString cs
+  fromSQL (Just bytea) = peekCStringLen $ byteaToCStringLen bytea
 
 instance FromSQL BS.ByteString where
-  type PQBase BS.ByteString = CString
+  type PQBase BS.ByteString = PGbytea
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just cs) = BS.packCString cs
+  fromSQL (Just bytea) = BS.packCStringLen $ byteaToCStringLen bytea
 
 instance FromSQL Text where
-  type PQBase Text = CString
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just cs) = either E.throwIO return . decodeUtf8' =<< BS.packCString cs
+  type PQBase Text = PGbytea
+  fromSQL mbytea = either E.throwIO return . decodeUtf8' =<< fromSQL mbytea
 
 -- DATE
 

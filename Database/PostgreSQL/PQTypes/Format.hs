@@ -54,13 +54,13 @@ instance PQFormat Word8 where
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance PQFormat String where
-  pqFormat _ = BS.pack "%text"
+  pqFormat _ = BS.pack "%btext"
 
 instance PQFormat BS.ByteString where
-  pqFormat _ = BS.pack "%text"
+  pqFormat _ = BS.pack "%btext"
 
 instance PQFormat Text where
-  pqFormat _ = BS.pack "%text"
+  pqFormat _ = BS.pack "%btext"
 
 -- DATE
 

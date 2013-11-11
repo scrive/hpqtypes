@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Utils (
-    bsToCString
+    cStringLenToBytea
+  , byteaToCStringLen
+  , bsToCString
   , unexpectedNULL
   , verifyPQTRes
   , withPGparam
@@ -20,6 +23,15 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+
+cStringLenToBytea :: CStringLen -> PGbytea
+cStringLenToBytea (cs, len) = PGbytea {
+  pgByteaLen = fromIntegral len
+, pgByteaData = cs
+}
+
+byteaToCStringLen :: PGbytea -> CStringLen
+byteaToCStringLen PGbytea{..} = (pgByteaData, fromIntegral pgByteaLen)
 
 bsToCString :: ByteString -> IO (ForeignPtr CChar)
 bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do

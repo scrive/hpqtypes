@@ -33,8 +33,5 @@ instance FromSQL (Binary BS.ByteString) where
 
 instance ToSQL (Binary BS.ByteString) where
   type PQDest (Binary BS.ByteString) = PGbytea
-  toSQL (Binary bs) _ conv = unsafeUseAsCStringLen bs $ \(cs, len) ->
-    put (PGbytea {
-      pgByteaLen = fromIntegral len
-    , pgByteaData = cs
-    }) conv
+  toSQL (Binary bs) _ conv = unsafeUseAsCStringLen bs $ \cslen ->
+    put (cStringLenToBytea cslen) conv
