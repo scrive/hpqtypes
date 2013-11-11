@@ -17,7 +17,6 @@ import qualified Control.Exception.Lifted as LE
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
 

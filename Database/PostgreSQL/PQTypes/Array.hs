@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, DeriveFunctor, FlexibleInstances
-  , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveFunctor
+  , FlexibleInstances, RecordWildCards, ScopedTypeVariables
+  , TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Array (
     Array1(..)
   , unArray1
@@ -14,6 +15,7 @@ module Database.PostgreSQL.PQTypes.Array (
 
 import Control.Applicative
 import Control.Monad
+import Data.Typeable
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -35,7 +37,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Array1 a = Array1 [a]
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unArray1 :: Array1 a -> [a]
 unArray1 (Array1 a) = a
@@ -65,7 +67,7 @@ instance ToSQL t => ToSQL (Array1 t) where
 ----------------------------------------
 
 newtype CompositeArray1 a = CompositeArray1 [a]
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unCompositeArray1 :: CompositeArray1 a -> [a]
 unCompositeArray1 (CompositeArray1 a) = a
@@ -131,7 +133,7 @@ getArray1 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $
 ----------------------------------------
 
 newtype Array2 a = Array2 [[a]]
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unArray2 :: Array2 a -> [[a]]
 unArray2 (Array2 a) = a
@@ -161,7 +163,7 @@ instance ToSQL t => ToSQL (Array2 t) where
 ----------------------------------------
 
 newtype CompositeArray2 a = CompositeArray2 [[a]]
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unCompositeArray2 :: CompositeArray2 a -> [[a]]
 unCompositeArray2 (CompositeArray2 a) = a
