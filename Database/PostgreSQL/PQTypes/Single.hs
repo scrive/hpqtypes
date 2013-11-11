@@ -1,14 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE DeriveFunctor, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Single (
     Single(..)
   , unSingle
   ) where
 
+import Data.Typeable
+
 import Database.PostgreSQL.PQTypes.Format
 
 newtype Single a = Single a
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unSingle :: Single a -> a
 unSingle (Single a) = a

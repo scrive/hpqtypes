@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE DeriveFunctor, FlexibleInstances, RecordWildCards
-  , TypeFamilies #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleInstances
+  , RecordWildCards, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Binary (
     Binary(..)
   , unBinary
@@ -8,6 +8,7 @@ module Database.PostgreSQL.PQTypes.Binary (
 
 import Control.Applicative
 import Data.ByteString.Unsafe
+import Data.Typeable
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Format
@@ -17,7 +18,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
 newtype Binary b = Binary b
-  deriving (Eq, Functor, Ord, Show)
+  deriving (Eq, Functor, Ord, Show, Typeable)
 
 unBinary :: Binary b -> b
 unBinary (Binary b) = b

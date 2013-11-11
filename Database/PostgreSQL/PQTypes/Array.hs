@@ -81,7 +81,7 @@ instance CompositeFromSQL t => FromSQL (CompositeArray1 t) where
   fromSQL (Just arr) = getArray1 CompositeArray1 arr ffmt getItem
     where
       ffmt = pqFormat (undefined::CompositeRow t)
-      getItem res err i (_::Ptr CInt) fmt = fromRow res err i fmt >>= toComposite
+      getItem res err i (_::Ptr CInt) fmt = toComposite <$> fromRow res err i fmt
 
 instance CompositeToSQL t => ToSQL (CompositeArray1 t) where
   type PQDest (CompositeArray1 t) = PGarray
@@ -177,7 +177,7 @@ instance CompositeFromSQL t => FromSQL (CompositeArray2 t) where
   fromSQL (Just arr) = getArray2 CompositeArray2 arr ffmt getItem
     where
       ffmt = pqFormat (undefined::CompositeRow t)
-      getItem res err i (_::Ptr CInt) fmt = fromRow res err i fmt >>= toComposite
+      getItem res err i (_::Ptr CInt) fmt = toComposite <$> fromRow res err i fmt
 
 instance CompositeToSQL t => ToSQL (CompositeArray2 t) where
   type PQDest (CompositeArray2 t) = PGarray
