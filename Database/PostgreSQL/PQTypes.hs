@@ -2,6 +2,7 @@
 module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.Connection
     Connection
+  , ConnectionStats(..)
   , ConnectionSettings(..)
   , ConnectionSource(..)
   , defaultSource
@@ -24,6 +25,7 @@ module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.QueryResult
   , QueryResult
   , ntuples
+  , nfields
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class

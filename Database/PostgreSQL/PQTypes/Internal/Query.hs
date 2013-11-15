@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
     runSQLQuery
   ) where
@@ -32,17 +32,33 @@ runSQLQuery dbT sql = dbT $ do
       dbeQueryContext = sql
     , dbeError = InternalError "runQuery: no connection"
     }
-    Just fconn -> E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \conn -> do
-      res <- withSQL sql (withPGparam conn) $ \param query ->
-        c_PQparamExec conn nullPtr param query c_RESULT_BINARY
-      affected <- withForeignPtr res $ verifyResult conn
-      return (mconn, (affected, res))
+    Just (fconn, stats) ->
+      E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \conn -> do
+        (paramCount, res) <- withSQL sql (withPGparam conn) $ \param query -> (,)
+          <$> (fromIntegral <$> c_PQparamCount param)
+          <*> c_PQparamExec conn nullPtr param query c_RESULT_BINARY
+        affected <- withForeignPtr res $ verifyResult conn
+        stats' <- case affected of
+          Left _ -> return stats {
+            statsQueries = statsQueries stats + 1
+          , statsParams  = statsParams stats + paramCount
+          }
+          Right rows -> do
+            columns <- fromIntegral <$> withForeignPtr res c_PQnfields
+            return stats {
+              statsQueries = statsQueries stats + 1
+            , statsRows = statsRows stats + rows
+            , statsValues = statsValues stats + (rows * columns)
+            , statsParams  = statsParams stats + paramCount
+            }
+        return (Just (fconn, stats'), (either id id affected, res))
   modify $ \st -> st {
     dbLastQuery = someSQL sql
   , dbQueryResult = Just $ QueryResult res
   }
   return affected
   where
+    verifyResult :: Ptr PGconn -> Ptr PGresult -> IO (Either Int Int)
     verifyResult conn res
       | res == nullPtr = throwSQLError
       | otherwise = do
@@ -52,15 +68,15 @@ runSQLQuery dbT sql = dbT $ do
             mn <- c_PQcmdTuples res >>= BS.packCString
             case BS.readInt mn of
               Nothing
-                | BS.null mn -> return 0
+                | BS.null mn -> return . Left $ 0
                 | otherwise  -> throwParseError
               Just (n, rest)
                 | rest /= BS.empty -> throwParseError
-                | otherwise        -> return n
-          _ | st == c_PGRES_TUPLES_OK    -> fromIntegral <$> c_PQntuples res
+                | otherwise        -> return . Left $ n
+          _ | st == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
           _ | st == c_PGRES_FATAL_ERROR  -> throwSQLError
           _ | st == c_PGRES_BAD_RESPONSE -> throwSQLError
-          _ | otherwise                  -> return 0
+          _ | otherwise                  -> return . Left $ 0
           where
             throwSQLError = throwQueryError conn
             throwParseError = E.throwIO DBException {

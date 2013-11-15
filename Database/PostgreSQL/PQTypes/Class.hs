@@ -6,6 +6,7 @@ module Database.PostgreSQL.PQTypes.Class (
 import Control.Exception (Exception)
 
 import Database.PostgreSQL.PQTypes.FromRow
+import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -13,6 +14,8 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 class (Functor m, Monad m) => MonadDB m where
   runQuery     :: IsSQL sql => sql -> m Int
   getLastQuery :: m SomeSQL
+
+  getConnectionStats :: m ConnectionStats
 
   getQueryResult   :: m (Maybe QueryResult)
   clearQueryResult :: m ()

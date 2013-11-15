@@ -17,6 +17,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQparamExec
   , c_PQparamCreate
   , c_PQparamClear
+  , c_PQparamCount
   )  where
 
 import Foreign.C
@@ -87,6 +88,9 @@ foreign import ccall unsafe "PQparamCreate"
 
 foreign import ccall unsafe "PQparamClear"
   c_PQparamClear :: Ptr PGparam -> IO ()
+
+foreign import ccall unsafe "PQparamCount"
+  c_PQparamCount :: Ptr PGparam -> IO CInt
 
 ----------------------------------------
 

@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
+  , ConnectionStats(..)
   , ConnectionSettings(..)
   , ConnectionSource(..)
   , defaultSource
@@ -9,8 +10,10 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   ) where
 
 import Control.Applicative
+import Control.Arrow
 import Control.Concurrent.MVar
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Data.Monoid
 import Data.Pool
@@ -35,8 +38,23 @@ data ConnectionSettings = ConnectionSettings {
 
 ----------------------------------------
 
+data ConnectionStats = ConnectionStats {
+  statsQueries :: !Int
+, statsRows    :: !Int
+, statsValues  :: !Int
+, statsParams  :: !Int
+} deriving (Eq, Ord, Show)
+
+emptyStats :: ConnectionStats
+emptyStats = ConnectionStats {
+  statsQueries = 0
+, statsRows    = 0
+, statsValues  = 0
+, statsParams  = 0
+}
+
 newtype Connection = Connection {
-  unConnection :: MVar (Maybe (ForeignPtr PGconn))
+  unConnection :: MVar (Maybe (ForeignPtr PGconn, ConnectionStats))
 }
 
 newtype ConnectionSource = ConnectionSource {
@@ -52,8 +70,13 @@ poolSource :: ConnectionSettings -> Int -> NominalDiffTime -> Int -> IO Connecti
 poolSource cs numStripes idleTime maxResources = do
   pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
   return ConnectionSource {
-    withConnection = withResource pool
+    withConnection = withResource pool . (clearStats >=>)
   }
+  where
+    clearStats conn@(Connection mv) = do
+      liftBase . modifyMVar_ mv $ \mconn ->
+        return $ second (const emptyStats) <$> mconn
+      return conn
 
 ----------------------------------------
 
@@ -70,13 +93,13 @@ connect ConnectionSettings{..} = wrapException $ do
         throwLibPQError conn "connect"
     c_PQinitTypes conn
     registerComposites conn csComposites
-  Connection <$> newMVar (Just fconn)
+  Connection <$> newMVar (Just (fconn, emptyStats))
 
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just conn -> finalizeForeignPtr conn
-    Nothing   -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
+    Just (conn, _) -> finalizeForeignPtr conn
+    Nothing -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
   return Nothing
 
 wrapException :: IO a -> IO a

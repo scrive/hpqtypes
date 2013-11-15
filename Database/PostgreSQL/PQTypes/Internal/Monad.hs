@@ -8,6 +8,7 @@ module Database.PostgreSQL.PQTypes.Internal.Monad (
   ) where
 
 import Control.Applicative
+import Control.Concurrent.MVar
 import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Monad.Trans
@@ -18,6 +19,7 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
@@ -68,6 +70,12 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
 instance MonadBaseControl IO m => MonadDB (DBT m) where
   runQuery = runSQLQuery DBT
   getLastQuery = DBT . gets $ dbLastQuery
+
+  getConnectionStats = do
+    mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
+    case mconn of
+      Nothing -> throwDB $ InternalError "getConnectionStats: no connection"
+      Just (_, stats) -> return stats
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
