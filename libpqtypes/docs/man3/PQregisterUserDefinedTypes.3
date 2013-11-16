@@ -1,0 +1,82 @@
+.TH "PQregisterUserDefinedTypes" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQregisterUserDefinedTypes \- Registers a user-defined types.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQregisterUserDefinedTypes(PGconn *\fIconn\fP, PGregisterType *\fItypes\fP,
+.br
+                               int \fIcount\fP);
+\fP
+.SH DEPRECATED
+.LP
+THIS FUNCTION IS DEPRECATED.  New applications should use PQregisterTypes.
+This function is now a wrapper to PQregisterTypes.
+.SH DESCRIPTION
+.LP
+The \fIPQregisterUserDefinedTypes\fP() function allows an application
+to register one or more user-defined types at runtime.  User-defined types
+are custom types in a backend that implement their own C procedures for
+in/out/send/recv.
+
+This function must execute a query against the backend to retrieve type
+information for each user-defined type, thus this should not be called
+from within a transaction.  It is recommended to register multiple types at
+the same time to avoid round trip overhead.
+
+The \fItypes\fP argument is an array containing \fIcount\fP user-defined
+types to register. If any type does not exist, the register
+is aborted.  Either typput and/or typget must be specified for each type
+in the \fItypes\fP array.
+
+NOTE: The typname member of the PGregisterType structure can optionally
+contain the type's schema: schema.typname.
+
+WARNING: \fIPQparamCreate\fP is only aware of types that have already been
+registered.  If you need to put a type into a param, make sure it is first
+registered.
+
+\fBUser-defined Types Registration\fP
+.br
+This example registers two user-defined types.
+.nf
+.RS
+.LP
+\fBPGregisterType types[] = {
+	{"graphics.rgb", rgb_put, rgb_get},
+	{"graphics.digon", digon_put, digon_get}
+};
+
+if (!PQregisterUserDefinedTypes(conn, types, 2))
+	fprintf(stderr, "PQregisterUserDefinedTypes: %s\\n", PQgeterror());
+\fP
+.RE
+.fi
+
+.SH RETURN VALUE
+.LP
+On success, a non-zero value is returned.  On error, zero is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-handlers(3)\fP, \fIPQputf(3)\fP, \fIPQgetf(3)\fP
+

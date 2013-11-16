@@ -1,0 +1,104 @@
+.TH "PQexecf" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQexecf \- Prepares parameters and executes a command.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+PGresult *PQexecf(const PGconn *\fIconn\fP, const char *\fIcmd\fP, ...);
+.br
+PGresult *PQexecvf(const PGconn *\fIconn\fP, const char *\fIcmd\fP, va_list \fIap\fP);
+.br
+int PQsendf(const PGconn *\fIconn\fP, const char *\fIcmd\fP, ...);
+.br
+int PQsendvf(const PGconn *\fIconn\fP, const char *\fIcmd\fP, va_list \fIap\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQexecf\fP() function executes a command that uses libpqtypes
+type specifiers instead of $1, $2, etc... syntax.  The idea
+is to combine \fIPQputvf\fP() and \fIPQparamExec\fP() into a single call.
+The variable argument list must match the type specs listed within the
+cmd. The type specifiers should be placed where one would normally place
+$1, $2, etc...
+
+The \fIPQexecvf\fP() function is identical to \fIPQexecf\fP() except
+it takes a va_list.
+
+The \fIPQsendf\fP() and \fIPQsendvf\fP() functions are identical to
+\fIPQexecf\fP() and \fIPQexecvf\fP() except they are asynchronous versions,
+meaning an additional call, PQgetResult, must be issued to get the PGresult
+object.  For more information, see the PostgreSQL Documentation: specifically
+the "Asynchronous Command Processing" section under
+"Client Interfaces | libpq - C library".
+
+A prepared type spec "@name" can be used with these functions, granted that
+\fIPQspecPrepare\fP() was called with a non-zero value for the is_stmt
+argument.  These functions needs an actual SQL statement to execute.
+.SH RETURN VALUE
+.LP
+PQexecf and PQexecvf return NULL on error and a valid PGresult on success.
+PQsendf and PQsendvf return zero on error and a non-zero value on success.
+On error, use \fIPQgeterror(3)\fP to obtain an error message.
+.SH EXAMPLES
+.LP
+.SS Using PQexecf
+The example uses PQexecf function to execute a query.
+.RS
+.nf
+.LP
+\fB
+/* The PQexecf call is shorthand for:
+ *
+ *   PGparam *param = PQparamCreate(conn);
+ *   PQputf(param, "%int4 %int4", 1, 1);
+ *   res = PQparamExec(conn, param, "SELECT $1 + $2", 1);
+ *   PQparamClear(param);
+ *
+ * As you may notice, PQexecf makes life much simpler.
+ */
+PGresult *res = PQexecf(conn, "SELECT %int4 + %int4", 1, 1);
+
+if(!res)
+	fprintf(stderr, "PQexecf failed: %s", PQgeterror());
+else
+	PQclear(res);
+
+/* A bit more common, this puts an int4 and a text into a generated
+ * PGparam and then executes 'myfunc($1, $2)'
+ */
+res = PQexecf(conn, "SELECT * FROM myfunc(%int4, %text)", 2, "abc");
+
+/* Prepared type spec example.  To use with execf, the final "is_stmt"
+ * argument must be set to a non-zero value!
+ */
+PQspecPrepare(conn, "account_insert", "INSERT INTO account VALUES "
+	"(%int8, %text, %int4)", 1);
+
+PGint8 acc_id = 78236;
+PGtext acc_name = "ABC Coders, LLC.";
+PGint4 acc_biz = ACC_BIZ_TECHNOLOGY;
+
+PQexecf(conn, "@account_insert", acc_id, acc_name, acc_biz);
+\fP
+.fi
+.RE
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQgeterror(3)\fP, \fIPQputvf(3)\fP, \fIPQparamExec(3)\fP
+

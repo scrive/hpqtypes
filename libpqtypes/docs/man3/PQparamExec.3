@@ -1,0 +1,106 @@
+.TH "PQparamExec" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQparamExec, PQparamExecPrepared \- Executes a paramertized query using the parameters in a PGparam.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+PGresult *PQparamExec(PGconn *\fIconn\fP, PGparam *\fIparam\fP,
+.br
+                      const char *\fIcommand\fP, int \fIresultFormat\fP);
+.br
+PGresult *PQparamExecPrepared(PGconn *\fIconn\fP, PGparam *\fIparam\fP,
+.br
+                              const char *\fIstmtName\fP, int \fIresultFormat\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQparamExec\fP() and \fIPQparamExecPrepared\fP() functions execute
+a parameterized query using the parameters in a PGparam.  The only difference
+between these functions is that \fIPQparamExec\fP() expects a parameterized
+\fIcommand\fP string while \fIPQparamExecPrepared\fP() expects a \fIstmtName\fP
+previously prepared via PQprepare().
+
+Both functions take a \fIparam\fP argument, which must contain the same number
+of parameters as either the \fIcommand\fP string or previously prepared \fIstmtName\fP.
+Internally, the \fIparam\fP is transformed into parallel arrays that are
+supplied to a PQexecParams() or PQexecPrepared() call.
+
+The \fIresultFormat\fP argument indicates if text or binary results are desired;
+a value of zero or one respectively.  \fIPQgetf\fP supports both text and binary
+result formats, with the exclusion of arrays and composites which only support binary.
+.SH RETURN VALUE
+.LP
+On success, a pointer to a PGresult is returned.  On error, NULL is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+
+\fBIMPORTANT!\fP
+.br
+There is a difference in behavior between \fIPQparamExec\fP() and \fIPQparamExecPrepared\fP()
+and the libpq functions they wrap, PQexecParams() and PQexecPrepared().
+\fIPQparamExec\fP() and \fIPQparamExecPrepared\fP() only return a non-NULL
+PGresult when the result status is either PGRES_COMMAND_OK, PGRES_TUPLES_OK or
+PGRES_EMPTY_QUERY.  If these functions detect any other result status, the
+PGresult is cleared and a NULL result is returned.  Before clearing the PGresult
+and returning NULL, these functions first copy the result error message into the
+libpqtypes error system, accessible via \fIPQgeterror(3)\fP.  This allows applications
+to get a result\'s error message without needing the result object.  \fIconn\fP error
+messages are also copied to the libpqtypes error system.
+
+This behavior difference provides a single error indicator, a NULL return, and a
+single function that can get the error message, \fIPQgeterror\fP().
+.SH EXAMPLES
+.LP
+.SS Using PQparamExec
+The example uses \fIPQparamExec\fP() to execute a query using a PGparam.
+The example also demonstrates how to detect a failed exec and output an error
+message.
+.RS
+.nf
+.LP
+\fBPGparam *param = PQparamCreate(conn);
+
+if(!PQputf(param, "%text %int4", "ACTIVE", CAT_CAR))
+{
+	fprintf(stderr, "PQputf: %s\\n", PQgeterror());
+}
+else
+{
+	PGresult *res = PQparamExec(conn, param,
+		"SELECT * FROM t WHERE status=$1 AND category=$2", 1);
+
+	if(!res)
+		fprintf(stderr, "PQparamExec: %s\\n", PQgeterror());
+	else
+		print_results(res);
+
+	PQclear(res);
+}
+
+PQparamClear(param);
+\fP
+.fi
+.RE
+.SS Using PQparamExecPrepared
+\fIPQparamExecPrepared\fP() is behaves identically to \fIPQparamExec\fP(), except
+\fIPQparamExecPrepared\fP() requires that a statement has been previously prepared
+via PQprepare().  Also, a \fIstmtName\fP is supplied rather than a parameterized
+\fIcommand\fP string.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQparamCreate(3)\fP, \fIPQparamSendQuery(3)\fP, \fIPQparamSendQueryPrepared(3)\fP

@@ -1,0 +1,335 @@
+
+LIBPQTYPES CHANGE LOG
+---------------------
+
+Initially, libpqtypes was a libpq patch named (PQparam/PGparam) and can
+be found on the -hackers and -patches mailing lists.  This change log
+begins at the point libpqtypes was put on pgfoundry as its own project.
+
+To gain access to the "(NOT RELEASED)" code, do a cvs checkout.
+
+Jun 27, 2013 v1.5.1
+- fixed issue in spec.c where the type name was not being lower cased
+  when it was required.
+- Moved AUTHORS, ChangeLog, INSTALL, LICENSE and README to EXTRA_DIST
+  - Jozef Mlich
+- Modified configure.ac and Makefile.am to properly do SO versioning.
+  - Jozef Mlich
+- error.c uses the GCC contructor attribute so it can create the the
+  TLS key for each thread's error structure.  For whatever reason, 
+  calling the constructor function 'my_init' was causing it to never
+  get called?!?  Renamed it and all is well.  This becomes apparent
+  when libpqtypes is linked with apps using pthread_key_create.
+- Removed -no-undefined from LDFLAGS in Makefile.am.  This proved to be
+  annoying.
+- Updated groff2html so it no longer includes an inline style for
+  pre tag width.
+- Updated pqt-handlers.3, the PGtypeHandler structure was out of date.
+- pqt-composites.3 man page had a bug when registering the simple and complex
+  composite.  It was only indicating 1 type instead of 2.
+
+Apr 11, 2011 v1.5.0
+- Bumped version to 1.5.0 due to many API removals and additions.
+- Added -avoid-version and -no-undefined to Makefile.am.
+- Added PQinitTypes to replace PQtypesRegister.  The new function
+  adds no new behavior, just a name change.
+- Deprecated PQtypesRegister, use PQinitTypes in its place.
+- PQclearTypes was added to allow one to clear all registered type handlers.
+- Added an internal API pqt_cleartypes since clearing the type data
+  is now called from PQclearTypes and pqt_eventproc.
+- Added a PQclearSpecs function that allows clearing all prepared specifiers
+  in a single call.  Currently, specs can be cleared one at a time by
+  setting PQspecPrepare's 3rd 'format' argument to NULL.  This is useful
+  but makes clearing all specs difficult because it is not always known
+  what specs have been prepared by all modules of an application.
+- Removed "automatic" re-registering of types during PQresetXXX.  This
+  fails miserably during asynchronous resets.  Replaced with the
+  folowing call sequence: PQresetXXX, PQclearTypes, PQregisterTypes.
+  NOTE: It is not required to re-register type handlers after a PQresetXXX.
+    It is only useful if there is concern that registered types may have
+    gone stale.
+  WARNING: If an application is reliant upon automatic re-registration of
+    type handlers during a PQresetXXX, you will have to update your
+    code to manually do a PQclearTypes followed by PQregisterTypes just
+    after the reset call.
+- Removed the orig_xxx members and regtype from PGtypeHandler structure.
+  These members were used by the reset event which was yanked.
+- Finally 86'd PQregisterTypeHandler, which has been deprecated since
+  v1.4.0, around 18 months as of Apr 2011.
+- Updated copyright date from 2009 to 2011, affected source code and
+  man pages.
+- Updated AUTHORS file to include a list of maintainers and some verbage.
+- Deprecated PQregisterSubClasses, PQregisterComposites and
+  PQregisterUserDefinedTypes in favor of PQregisterTypes.  This new
+  function takes a 'which' argument that indicates if PQT_SUBCLASS,
+  PQT_COMPOSITE or PQT_USERDEFINED types are being registered.  This
+  function provides full support for asynchronous type registration via
+  a simple 'async' boolean argument.  The typical PQconsumeInput, PQisBusy
+  and PQgetResult should be used to obtain a result.  After a result is
+  obtained, the new PQregisterResult function needs to be called
+  to complete the registration.
+- Added PQregisterResult which registers the types found within
+  the result set.  Added to support asynchronous type registration and
+  to avoid type lookups for every new connection by caching the PGresult
+  type data for use with this function.
+- Add PQregisterTypes.3 man page and added it to the make system install.
+- Add PQregisterResult.3 man page and added it to the make system install.
+- Removed referneces in documentation and code examples to PQregisterSubClasses,
+  PQregisterComposites and PQregisterUserDefinedTypes.  Replaced with
+  new PQregisterTypes call.
+- Regression test now uses PQregisterTypes.  NOTE: no regression test
+  for PQregisterResult or asynchronous type registration yet.
+- Marked PQregisterSubClasses.3, PQregisterComposites.3 and
+  PQregisterUserDefinedTypes.3 man pages as deprecated.  They are still
+  installed with a `make install` and will be until removed.
+- Added PQparamDup, which given a PGparam will make an exact duplicate.
+  This is useful in cases where you want to queue qeuries to execute
+  at a later time, like a connection pooler.  The problem is PGparamCreate
+  requires a connection object, which may not be available when attempting
+  to enqueue a query with its PGparam object.  Instead, a PGparam object
+  can used for the sole purpose of creating duplicates while there are
+  no available PGconn objects.
+- Updated PGparamCreate man page to include documentation about PGparamDup.
+
+Feb 26, 2010 v1.4.3
+- Fixed bug in handler.c. The type lookup query was matching typename
+  its array based on the array name being '_' plus the typename. This
+  was slower and unsafe.
+
+Oct 03, 2010 v1.4.2
+- Fixed bug in events.c.  When clearing a type handler list the 'max' count
+  (amount allocated) was not set to zero.  This caused a crash during
+  a PQreset call.
+- Updated PQgetf documentation, clarified how to handle errors when
+  getting data types that require memory management: PGresult and PGarray.
+- Moved libpq-events.h out of libpqtypes.h and into libpqtypes-int.h.
+  Added libpq-fe to libpqtypes.h.
+
+Apr 06, 2010 v1.4.1
+- Fix memory leak in events.c during PGEVT_CONNRESET.  Not a big deal as the
+  leak occurs within an out-of-memory error case, so the process is most
+  likely toast.  Either way, leak has been plugged.
+- pqt_allowsptr was returning FALSE if the type's schema was not provided.
+  It now returns TRUE as it should.
+- Fixed how missing types are handled during register functions.  They were
+  not properly indicating errors in all cases.
+
+Nov 10, 2009 v1.4.0
+- Added PQgetvf to compliment PQgetf.  PQgetf is now a light wrapper
+  PQgetvf.  This did not change the behavior of PQgetf in any way.
+- Fixed bug in IPv6 regression_test.  When AF_INET6 is available, the
+  'hints' parameter to getaddrinfo should be supplied with the ai_family
+  set to AF_INET6.
+- 63% Performance improvement to the type handling duplication which occurs
+  whenever a result is copied or a PGparam is created.  Previously, the
+  type handlers contained allocated strings for the identifier names:
+  like type and schema name.  When duplicating the handlers, the strdup
+  cost added up to a noticeable amount of time (mostly seen during
+  PQgetf(a_composite_or_array) which duplicates the handlers when generating
+  a new PGresult).  These strings were changed to fixed length buffers
+  65 bytes wide; 64 max char identifier plus terminating NUL.  The names
+  no longer need to be deep copied, they are instead copied as part of a
+  larger memcpy.  Additionally, the attDescs array now uses a fixed length
+  buffer when the number of compsoite attrs is <= 16 (common case).  When
+  larger, allocation is used.  'freeAttDescs' flag was added to the
+  PGtypeHandler structure to indicate if the attDescs requires freeing.
+  In total, these changes made type handling duplication 63% faster.
+  NOTE:
+    This increased the size of PGtypeHandler by around 434 bytes.  The
+    size of PGrecordAttDesc increased by 65 bytes.  This change modified
+    2 public structures so please ensure your libpqtypes.h is current.
+- Split PQregisterTypeHandler into three different functions:
+  PQregisterComposites, PQregisterUserDefinedTypes and PQregisterSubClasses.
+  This was done for two reasons: needed the ability to register multiple
+  types at the same time, avoid round trip issues, and simplify the interface.
+- PQregisterTypeHandler is now deprecated and should no longer be used.  It
+  exists only for compatibility reasons.  It is a wrapper to
+  PQregisterComposites, PQregisterUserDefinedTypes and PQregisterSubClasses.
+- The PGEVT_REGISTER event was not be handled properly by libpqtypes.  It
+  neglected to initialize the internal type formatting information.
+- Error case in pqt_parse() was accessing a NULL pointer.
+- Bug in network.c when getting text inet/cidr types.  Apparently, windows
+  requires a few hints about the address family when using getaddrinfo:
+  both IPv4 and IPv6.  This must be a recent Microsoft winsock update as
+  this code used to work.
+
+Sep 15, 2009 v1.3.4
+- In v1.2b, a caching system for type spec format strings was introduced.
+  PQputf and PQgetf would cache the last spec format seen, like "%int4".
+  This avoided constant type handling lookups when using arrays, since
+  one must put/get every element.  This version expands on this concept
+  by adding an additional API call: PQspecPrepare.  The application can
+  now prepare an unlimited number of spec format strings.
+  NOTE:
+    This change does not effect the behavior of putf or getf in older versions.
+    Although, some libpqtypes code may run slower since type spec format
+    strings are no longer automatically cached.  If you have loops calling
+    putf or getf with the same spec format string, typically arrays, you
+    would probably benefit from PQspecPrepare.
+- Added a PQsendf() and PQsendvf(), same as PQexecf and PQexecvf except they
+  are asynchronous versions.  Created manual pages for these functions as well.
+- Fixed a bug in PQexecf and PQexevf documentation, the prototypes were
+  documented as returning an int rather than a PGresult*.
+- Fixed spelling error in PQspecPrepare.3 man page and added PQsendf and
+  PQsendvf to the list of supported functions.
+- Fixed memory leak in the error handling code.  Multi-threaded windows
+  builds were not cleaning up the internal error structure in error.c.
+  This is because windows has no automatic cleanup for TLS storage.  The
+  only solution was to use fixed length buffers and truncate unusually
+  long error messages; including error fields.
+
+May 29, 2009 v1.3.3
+- Added PQexecf and PQexecvf which allows one to pack parameters and
+  execute a command all in one statement.  Example:
+    PQexecf(conn, "SELECT %int4 + %int4", 1, 1);
+- Updated the PQputf.3 man page execf documentation which stated that
+  execf should be implemented by the application ... not libpqtypes.
+  Apparently, we no longer feel that way :)
+- Fixed bug in datetime.c that accessed index 7 of a 7 byte array, ooppps.
+  Thanks to GCC version 4.3.2 for catching this one:
+    "src/datetime.c:930: warning: array subscript is above array bounds"
+
+Apr 27, 2009 v1.3.2
+- Slight change in the behavior of PQputf and PQputvf.  These functions
+  will now silently auto-fill unset composite fields with NULLs.  This only
+  pertains to the last N fields: if there are 10 fields in a compsoite
+  and only 7 are put, the last 3 fields will be auto-filled with SQL NULLs.
+  Previously, an error was raised indicating the client and server have
+  different ideas about the number of fields in the composite.  That error
+  is still raised if the number of params exceeds the number of composite
+  fields.  Auto-filling only occurs when the number of params falls short.
+- User-defined CFLAGS were being lost due to a dumb assigment at the
+  top of the script.  It now properly appends flags to the ones supplied
+  by the user.
+- Updated PQgetf man page to include a warning about getting arrays and
+  composites.  If getf fails after an array or composite was retrieved,
+  the PGresult representing the array/composite must still be cleared.
+  The solution is to get arrays/composites by themselves or to always
+  make them the last field in the getf call (the latter only works
+  if there is only one array or composite in the field list).
+- Fixed SEGFAULT when getting a NULL compsoite array item.
+
+Feb 11, 2009 v1.3.1
+- PQgetf of an empty array was always returning a result with a single
+  tuple (array item), eventhough the PGarray members were correctly set
+  for an empty array.  This has been fixed.
+- Added empty array test to regression-test.c.
+- getaddrinfo is missing on Windows 2000 and earlier versions.  Wspiapi.h
+  and ws2tcpip.h must be included to provide a replacement.  libpqtypes-int.h
+  neglected to include Wspiapi.h, which it now does.
+  Microsoft docs on issue: http://support.microsoft.com/kb/955045
+
+Feb 03, 2009 v1.3.0
+- The internal put_int2 and put_int4 type handlers were passing a va_arg
+  call as an argument to the pqt_buf_putint2 and pqt_buf_putint4 macros.
+  This corrupted the value being put on UnixWare 7.1.4.  The return
+  of va_arg is now stored in a local variable that is passed to
+  one of the putintX macros.
+- Renamed PGinet sa_len member since it conflicts with some systems.
+  For instance: SCO UnixWare defines a sa_len macro in sys/socket.h
+  #define sa_len sa_un.sa_s.sa_saus_len
+  Renamed it to sa_buf_len and changed all references.
+- network.c had an issue with struct sockaddr not being zero'd on AIX.
+  This caused all inet/cidr tests to fail.  Update regresion-test.c
+  with similar fixes.
+- AI_NUMERICHOST defined if not available in network.c.  If getaddrinfo
+  fails with EAI_BADFLAGS, its tried again w/o numeric host.
+- AIX defaults to an unsigned char, which broke "char" type handling.
+  Changed PGchar typedef to signed char and added the GCC option
+  -fsigned-char to configure.ac.
+- Changed the return type of PQgeterror from a const char* to a char*.
+  Having it be const served no purpose.
+- Added PQparamCount which returns the number of parameters in a PGparam.
+  Added PQparamCount.3 man page and updated Makefile.
+- Made errFields implementation more memory efficient by allocating all
+  fields as a single reusable buffer.
+- Reformatted code to match PostgreSQL Project.  This changed every
+  source file so take note when looking at CVS diffs.
+- Defined HAVE_VSNPRINTF in port.c when compiling for mingw or cygwin.
+- Fixed man page errors in PQputf and pqt-handlers.
+- Updated INSTALL file to include the 'install' and uninstall' targets.
+- Makefile.am (unix make) now installs PQgetErrorField man page.
+- Update copyright notices to reflect 2009: source files, LICENSE
+  and man pages.
+- Removed typeargs state flag PUT_STATE_FREEOUT from param.c since it
+  is no longer used.
+
+Dec 03, 2008 v1.2e
+- Added support for PQresultErrorField as PQgetErrorField.  PQparamExec and
+  PQparamExecPrepared clear resutls in a failure status, thus removing
+  the abillity to get error fields.  PQgetErrorField can now be used and
+  it doesn't require a result.
+
+Dec 02, 2008 v1.2d
+- Fixed bug when putting a NULL array item; %null or %pqt.null.  array.c
+  was not adding in the 4 byte length when the length's value was NULL_LEN.
+  This resulted in "ERROR:  insufficient data left in message" errors from
+  the server during a PQparamExec() call.
+- Added a %null test in regression-test.c for composites and arrays.
+
+Nov 18, 2008 v1.2c
+- removed GCC __thread modifier from error.c.  Only pthread TLS keys
+  are now used.  The TLS key for the error system is now intialized
+  with the GCC function attribute "constructor"; which replaced _init().
+  This GCC attribute has been around since GCC version 2.7.0, old enough.
+  The error system used to intialize the TLS key via pthread_once(),
+  but this function is broken on all version of Solaris prior to 10
+  (its actually a stub function the returns 0).  This means libpqtypes
+  versions prior to this one cannot use thread-safe mode on Solaris 9 or
+  below.  Windows continues to use __declspec(thread).
+- The PATH geo type was completely broken (SIGBUS) on many RISC processors,
+  we tested a couple of UltraSparcs, Itanium, PA-RISC and MIPS.  This is
+  due to memory alignment issues (boy, spoiled by x86!).  A configure
+  check was added to detect when strict memory alignment is required
+  (STRICT_MEMORY_ALIGNMENT) and the source is toggled appropriately.
+- Add pqt_buf_xxx functions to abstract reading and writing data
+  to/from buffers.  Another memory alignment change.
+- fixed regression-test.c on hpux which was referencing unknown macros:
+  LLONG_MAX and LLONG_MIN.  HPUX uses LONG_LONG_MAX.
+- cleaned up a few things in Makefile.am (unix make file)
+- win32.mak for MSVC had an issue with include variable.  created INC2
+  to solve this.
+
+Nov 11, 2008 v1.2b
+- Added a type specifier caching system.  Whenever putf or getf are
+  called, it compares the specifier string with the last one libpqtypes
+  saw.  If it is a match, the parsing and type handler lookup
+  stage can be bipassed, giving a 25% performance increase for arrays
+  and large result sets.  This also makes libpqtypes noticably faster
+  than using libpq in text mode ... PQexec.
+- preprocessing bug in port.c, #elif HAVE_VSNPRINTF instead of
+  #elif defined(HAVE_VSNPRINTF).
+- windows was completely broken from a change in v1.2a.  Apparantley
+  windows has different memory addresses for DLL exported functions;
+  the address seen outside the DLL and the address seen from within the DLL.
+  This broke the PQtypesRegister macro that was referencing PQtypesEventProc,
+  since the external address was being used to register the event proc
+  but the internal address was being used by libpqtypes.  This problem was
+  solved by converting PQtypesRegister to a function, which forces the
+  event proc to always be referenced from within libpqtypes.
+  PQtypesEventProc was completely removed form the public interface.
+- Updated make system to be more configurable, allows setting things
+  like CC, CFLAGS, etc.. at the prompt (see INSTALL).
+
+Sept 26, 2008 v1.2a
+- libpqtypes uses the libpq event system, an approaved patch for 8.4.
+  The object hooks patch was redesigned and than renamed to libpq events.
+- bug fix in timestamp code
+- memory leak fix in error system, didn't clean up thread memory.
+- pqytpe's PGEventProc is now a public function named PQtypesEventProc
+
+May 19, 2008 v1.0c
+- Bug fix in datetime.c.  When performing a time value conversion, 1-based
+  and 0-based month values were being used/confused.
+- libpqtypes using objecthooks, a proposed patch for libpq allowing
+  outside apps, like libpqtypes, to hook into libpq.
+
+May 09, 2008 v1.0b
+- Added copyright notice to all source files.
+- Updated several man pages.
+- Added an include for stdarg.h to libpqtypes.h
+- Updated makefile and groff2html
+
+April 28, 2008 v1.0
+- libpqtypes project was created on pgfoundry
+- make system was put into place (mingw, cygwin and msvc support)

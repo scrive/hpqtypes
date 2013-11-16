@@ -1,0 +1,89 @@
+.TH "PQparamSendQuery" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQparamSendQuery, PQparamSendQueryPrepared \- Executes an asynchronous paramertized query using the parameters in a PGparam.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQparamSendQuery(PGconn *\fIconn\fP, PGparam *\fIparam\fP,
+.br
+                     const char *\fIcommand\fP, int \fIresultFormat\fP);
+.br
+int PQparamSendQueryPrepared(PGconn *\fIconn\fP, PGparam *\fIparam\fP,
+.br
+                             const char *\fIstmtName\fP, int \fIresultFormat\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQparamSendQuery\fP() and \fIPQparamSendQueryPrepared\fP() functions execute
+an asynchronous paramertized query using the parameters in a PGparam.  The only difference
+between these functions is that \fIPQparamSendQuery\fP() expects a parameterized
+\fIcommand\fP string while \fIPQparamSendQueryPrepared\fP() expects a \fIstmtName\fP
+previously prepared via PQprepare().
+
+Both functions take a \fIparam\fP argument, which must contain the same number
+of parameters as either the \fIcommand\fP string or previously prepared \fIstmtName\fP.
+Internally, the \fIparam\fP is transformed into parallel arrays that are
+supplied to a PQsendQueryParams() or PQsendQueryPrepared() call.
+
+The \fIresultFormat\fP argument indicates if text or binary results are desired;
+a value of zero or one respectively.  \fIPQgetf\fP supports both text and binary
+result formats, with the exclusion of arrays and composites which only support binary.
+
+After successfully calling \fIPQparamSendQuery\fP() or \fIPQparamSendQueryPrepared\fP(),
+call libpq\'s PQgetResult() one or more times to obtain the results.
+.SH RETURN VALUE
+.LP
+On success, a non-zero value is returned.  On error, zero is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+.SH EXAMPLES
+.LP
+.SS Using PQparamSendQuery
+The example uses \fIPQparamSendQuery\fP() to execute a query using a PGparam.
+.RS
+.nf
+.LP
+\fBPGparam *param = PQparamCreate(conn);
+
+if(!PQputf(param, "%text %int4", "ACTIVE", CAT_CAR))
+{
+	fprintf(stderr, "PQputf: %s\\n", PQgeterror());
+}
+else
+{
+	int success = PQparamSendQuery(conn, param,
+		"SELECT * FROM t WHERE status=$1 AND category=$2", 1);
+
+	if(!success)
+		fprintf(stderr, "PQparamSendQuery: %s\\n", PQgeterror());
+	else
+		get_and_print_results(conn); /* calls PQgetResult() */
+}
+
+PQparamClear(param);
+\fP
+.fi
+.RE
+.SS Using PQparamSendQueryPrepared
+\fIPQparamSendQueryPrepared\fP() is behaves identically to \fIPQparamSendQuery\fP(), except
+\fIPQparamSendQueryPrepared\fP() requires that a statement has been previously prepared
+via PQprepare().  Also, a \fIstmtName\fP is supplied rather than a parameterized
+\fIcommand\fP string.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQparamCreate(3)\fP, \fIPQgeterror(3)\fP, \fIPQparamExec(3)\fP, \fIPQparamExecPrepared(3)\fP

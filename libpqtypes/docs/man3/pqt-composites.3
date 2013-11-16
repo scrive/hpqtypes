@@ -1,0 +1,263 @@
+.TH "pqt-composites" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+pqt-composites \- A manual for libpqtypes composite handling.
+.SH NOTE TO READER
+.LP
+Please read the \fIpqt-specs(3)\fP manual page prior to this document.
+This document does not explain how to put or get data types.  It
+only describes how to put or get composites and composite arrays.
+.SH DESCRIPTION
+.LP
+A composite is put using the PGparam structure.  Each attribute of a
+composite is put into a PGparam.  When all attributes have been put,
+the PGparam is put into another PGparam.  Composites must be registered
+on a per connection basis, \`man \fIpqt-handlers(3)\fP\'.
+
+To get a composite, a PGresult structure is used.  Each composite
+attribute is a field of the result.  For non-array composites, there
+is always only one tuple.
+
+Composites are only handled using binary format.  This means that any type used
+as a composite attribute must be put and gotten in binary format.  If a
+user-defined type does not implement a send and recv function in the backend,
+it can not be used as a composite attribute.
+.SS Simple Composite Example
+.LP
+This example demostrates the basics of putting and getting a composite type.
+.nf
+.RS
+\fB
+CREATE TYPE simple AS (a int4, t text);
+
+PGregisterType type = {"simple", NULL, NULL};
+
+/* need to register the simple composite */
+PQregisterTypes(conn, PQT_COMPOSITE, &type, 1, 0);
+
+/* Composite attributes are put into PGparam structures */
+PGparam *simple = PQparamCreate(conn);
+
+/* put the simple composite attributes */
+PQputf(simple, "%int4 %text*", 45, "foobar");
+
+/* Put an int4 and a simple composite */
+PGparam *param = PQparamCreate(conn);
+PQputf(param, "%int4 %simple", 10, simple);
+PQparamClear(simple);
+
+/* exec an insert */
+res = PQparamExec(conn, param, "INSERT INTO t VALUES($1,$2)", resfmt);
+PQparamClear(param);
+
+/* -------------------------
+ * Getting a composite
+ */
+
+PGint4 i4;
+PGtext textp;
+char text[80];
+PGresult *simple;
+
+/* Get a simple composite, provide a ptr to a PGresult ptr. */
+PQgetf(result, 0, "%simple", 0, &simple);
+
+/* no longer needed */
+PQclear(result);
+
+/* Get the simple composite attributes from the simple result.
+ * Reference fields by name by using a '#' rather than a '%'.
+ * The field names are the composite attributes.
+ */
+PQgetf(simple, 0, "#int4 #text", "a", &i4, "t", &textp);
+strcpy(text, textp);
+PQclear(simple);
+\fP
+.RE
+.nf
+
+In the above example, we used the \'#\' specifier mark to reference
+fields by their name.  The field names for a composite result object
+are the composite attribute names.
+.SS Nested Composite example:
+.LP
+The below example puts and gets a nested composite.  The simple composite
+is used as an attribute within the complex composite.
+.nf
+.RS
+\fB
+CREATE TYPE simple AS (a int4, t text)
+CREATE TYPE complex AS (f8 float8, s simple);
+
+/* need to register simple and complex */
+PGregisterType types[] = {
+	{"simple", NULL, NULL},
+	{"complex", NULL, NULL}
+};
+
+PQregisterTypes(conn, PQT_COMPOSITE, types, 2, 0);
+
+/* Composite attributes are put into PGparam structures */
+PGparam *simple = PQparamCreate(conn);
+PGparam *complex = PQparamCreate(conn);
+
+/* put the simple composite attributes */
+PQputf(simple, "%int4 %text*", 45, "foobar");
+
+/* put the complex composite attributes, which includes
+ * a nested composite.
+ */
+PQputf(complex, "%float8 %simple", 111.2223334, simple);
+
+/* no longer needed */
+PQparamClear(simple);
+
+/* Put an int4 and a complex composite */
+PGparam *param = PQparamCreate(conn);
+PQputf(param, "%int4 %complex", 10, complex);
+PQparamClear(complex);
+
+/* exec an insert */
+res = PQparamExec(conn, param, "INSERT INTO t VALUES($1,$2)", resfmt);
+PQparamClear(param);
+
+/* -------------------------
+ * Getting a nested composite
+ */
+
+PGfloat8 f8;
+PGint4 i4;
+PGtext textp;
+char text[80];
+PGresult *complex;
+PGresult *simple;
+
+/* Get the complex composite, provide a ptr to a PGresult ptr. */
+PQgetf(result, 0, "%complex", 0, &complex);
+
+/* no longer needed */
+PQclear(result);
+
+/* Get the complex composite attributes from the complex result.
+ * Composite attributes are the result fields.  When getting
+ * a single composite, non-array, only tuple 0 will exist.
+ * For the nested simple composite, we again provide a ptr to
+ * a PGresult ptr.
+ */
+PQgetf(complex, 0, "%float8 %simple", 0, &f8, 1, &simple);
+
+/* no longer needed */
+PQclear(complex);
+
+/* Get the simple composite attributes from the simple result.
+ * Reference fields by name by using a '#' rather than a '%'.
+ */
+PQgetf(simple, 0, "#int4 #text", "a", &i4, "t", &textp);
+strcpy(text, textp);
+PQclear(simple);
+\fP
+.RE
+.nf
+.SS An array of composites:
+.LP
+This example makes an array of complex composites.  It builds
+off the previous example.
+.nf
+.RS
+\fB
+int i;
+PGarray complex_arr;
+PGparam *simple = PQparamCreate(conn);
+PGparam *complex = PQparamCreate(conn);
+
+complex_arr.ndims = 0;
+complex_arr.param = PQparamCreate(conn);
+
+for(i=0; i < 100; i++)
+{
+  /* put the simple composite attributes */
+  PQputf(simple, "%int4 %text*", 45, "foobar");
+
+  /* put the complex composite attributes, which includes
+   * a nested composite.
+   */
+  PQputf(complex, "%float8 %simple", 111.2223334, simple);
+
+  /* put the complex composite */
+  PQputf(complex_arr.param, "%complex", complex);
+
+  /* You must reset the simple and complex composites for
+   * the next loop iteration.
+   */
+  PQparamReset(simple);
+  PQparamReset(complex);
+}
+
+/* not needed anymore */
+PQparamClear(simple);
+PQparamClear(complex);
+
+/* Put a complex composite array */
+PGparam *param = PQparamCreate(conn);
+PQputf(param, "%complex[]", &complex_arr);
+PQparamClear(complex_arr.param);
+
+/* exec an insert */
+res = PQparamExec(conn, param, "INSERT INTO t VALUES($1)", resfmt);
+PQparamClear(param);
+
+/* -------------------------
+ * Getting an array of composites
+ */
+
+int i;
+int ntups;
+PGfloat8 f8;
+PGint4 i4;
+PGtext textp;
+PGresult *simple;
+PGarray complex_arr;
+
+/* Get the complex[], provide a ptr to a PGarray. */
+PQgetf(exec_result, 0, "%complex[]", 0, &complex_arr);
+
+/* no longer needed */
+PQclear(exec_result);
+
+ntups = PQntuples(complex_arr.res);
+for(i=0; i < ntups; i++)
+{
+  PQgetf(complex_arr.res, i, "%float8 %simple", 0, &f8, 1, &simple);
+
+  /* Nested composites are like any other composite, tuple 0!  Unless,
+   * its a nested composite array.
+   */
+  PQgetf(simple, 0, "#int4 #text", "a", &i4, "t", &textp);
+
+  printf("(%f, (%d, %s))\\n", f8, i4, textp);
+  PQclear(simple);
+}
+
+PQclear(complex_arr.res);
+\fP
+.RE
+.nf
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQgetf(3)\fP, \fIPQputf(3)\fP, \fIPQputvf(3)\fP

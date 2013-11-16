@@ -1,0 +1,117 @@
+.TH "PQputf" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQputf, PQputvf \- Packs a set of parameters in a PGparam for use with a parameterized query.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQputf(PGparam *\fIparam\fP, const char *\fIformat\fP, ...);
+.br
+int PQputvf(PGparam *\fIparam\fP, char *\fIstmtBuf\fP, size_t \fIstmtBufLen\fP,
+.br
+            const char *\fIformat\fP, va_list \fIap\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQputf\fP() and \fIPQputvf\fP() functions put one or more query
+parameters into a PGparam using a printf style interface.  Any number
+of parameters can be put at the same time.
+
+The \fIformat\fP argument is a data type specifier string indicating the
+parameters being put, such as "%int4 %polygon".  \fIformat\fP cannot be
+NULL or an empty string.  The variable argument list must match the
+\fIformat\fP, either "..." or \fIap\fP.  The number of arguments required
+for each data type is dependant on the data type itself; built-in
+PostgreSQL types always require a single argument.
+
+The \fIPQputvf\fP() function can construct a parameterized command string
+from \fIformat\fP, as long as \fIstmtBuf\fP and \fIstmtBufLen\fP have been
+provided.  If the construction of \fIstmtBuf\fP is not desired, set it
+to NULL and set \fIstmtBufLen\fP to 0.  When a constructed statement is desired,
+the contents of \fIformat\fP will be copied to \fIstmtBuf\fP and
+all data type specifiers, like "%int4", will be replaced with $1, $2, etc...
+syntax.  The result is a parameterized statement in synch with \fIparam\fP
+and ready to be executed.  For instance: if \fIspec\fP is "SELECT %int4 + %int4",
+the resulting \fIstmtBuf\fP would be "SELECT $1 + $2".
+.SH RETURN VALUE
+.LP
+On success, a non-zero value is returned.  On error, zero is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+
+If any put operation fails, the \fIparam\fP is reverted back to the number
+of parameters it had prior to the function call; partial puts are not allowed.
+.SH EXAMPLES
+.LP
+.SS Using PQputf
+The example uses \fIPQputf\fP() to put a couple parameters into a PGparam.
+.RS
+.nf
+.LP
+\fBPGtext text = "foobar";
+PGint8 i8 = PQT_INT64CONST(1099511627776);
+PGparam *param = PQparamCreate(conn);
+
+if(!PQputf(param, "%text %int8", text, i8))
+	fprintf(stderr, "*ERROR: %s\\n", PQgeterror());
+
+PQparamClear(param);
+\fP
+.fi
+.RE
+.SS Using PQputvf
+The example creates an application function named execf.  execf is a
+wrapper to \fIPQputvf\fP(), as well as \fIPQparamExec(3)\fP.  It is
+similar to \fIPQexecf\fP().  The only difference is that the PQexecf
+implementation uses a smaller stack buffer and allocates heap memory
+when needed.
+.RS
+.nf
+.LP
+\fBPGresult *
+execf(PGconn *conn, const char *format, ...)
+{
+	va_list ap;
+	char stmt[32768];
+	PGparam *param;
+	PGresult *res = NULL;
+
+	/* create the temporary PGparam */
+	if(!(param = PQparamCreate(conn)))
+		return NULL; /* PQseterror already called */
+
+	/* put the params, create the stmt and exec it */
+	va_start(ap, format);
+	if(PQputvf(param, stmt, sizeof(stmt), format, ap))
+		res = PQparamExec(conn, param, stmt, 1); // resfmt is binary
+	va_end(ap);
+
+	/* param must be cleared */
+	PQparamClear(param);
+	return res;
+}
+
+/* Example: execf will put 2 ints and execute "SELECT $1 + $2" */
+PGresult *res = execf(conn, "SELECT %int4 + %int4", 100, 67);
+if(!res)
+	fprintf(stderr, "*ERROR: %s\\n", PQgeterror());
+\fP
+.fi
+.RE
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-specs(3)\fP, \fIPQparamCreate(3)\fP, \fIPQgeterror(3)\fP, \fIPQseterror(3)\fP

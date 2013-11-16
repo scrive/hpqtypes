@@ -1,0 +1,66 @@
+.TH "PQlocalTZInfo" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQlocalTZInfo \- Gets the local machine\'s timezone information.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+void PQlocalTZInfo(time_t *\fIt\fP, int *\fIgmtoff\fP, int *\fIisdst\fP, char **\fItzabbrp\fP);
+\fP
+.SH DESCRIPTION
+.LP
+This function retrieves the local machine\'s timezone information.
+
+If the \fIt\fP argument is not NULL, it represents a time_t value to get timezone
+information for.  If it is NULL, the current time is used.
+
+The \fIgmtoff\fP argument will be pointed at the number of seconds from GMT,
+same value as the GNU (struct tm).tm_gmtoff extension.
+
+The \fIisdst\fP argument will be pointed at zero if in standard time, one if in
+daylight savings time and negative one if unknown.
+
+The \fItzabbrp\fP argument will be pointed at the timezone abbreviation, like
+PST, ADT, EST, etc..
+.SH RETURN VALUE
+.LP
+None.
+.SH EXAMPLES
+.LP
+This example gets the local timezone information for a file\'s modified time.
+.LP
+.RS
+.nf
+\fBint gmtoff;
+int isdst;
+char *tzabbr;
+struct stat st;
+
+stat("report.xml", &st);
+PQlocalTZInfo(&st.st_mtime, &gmtoff, &isdst, &tzabbr);
+\fP
+.fi
+.RE
+.SH RATIONALE
+.LP
+libpqtypes needs the ability to get the local machine\'s timezone information for the
+datetime data types.  It later became apparent that a portable way of getting timezone
+information was very useful and in demand.  Thus, this function was made public.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-specs(3)\fP

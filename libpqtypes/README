@@ -1,0 +1,54 @@
+
+LIBPQTYPES LIBRARY
+------------------
+
+This package contains the source code, documentation and management
+files for the libpqtypes library, an extension to the PostgreSQL
+libpq library.
+
+libpqtypes is a libpq extension that offers a new way of handling 
+parameterized queries and getting result field values.  Both 
+putting parameters and getting values use a printf/scanf style 
+interface, with consistent specifiers for both. 
+
+  - Full support for binary and text format (parameter and result)
+
+  - Full support for composites, arrays and composite arrays.
+
+  - printf style interface to libpq's binary parameterized API.
+
+  - scanf style interface for getting values: PQgetvalue extension.
+
+  - Ability to register user-defined types, aliases and data type
+    sub-classes for use with printf style interfaces: ex. "%mytype".
+
+  - Per-thread global error message: PQgeterror, PQseterror.
+
+  - Online docs as well as man pages.
+
+INSTALL
+libpqtypes cannot be used by itself, it can only be used with libpq.
+To build and install libpqtypes, see the INSTALL file included with
+this package.  
+
+LICENSE
+libpqtypes is released under the BSD license just like all software
+components of the PostgreSQL Database Management System.  See the
+LICENSE file included with this package.
+
+AUTHORS
+libpqtypes is a contribution of eSilo, LLC and was written by
+Andrew Chernow and Merlin Moncure.  See the AUTHORS file.
+
+To report bugs, feature requests or general questions goto the 
+libpqtypes forum at http://pgfoundry.org/forum/?group_id=1000370 
+or send an email to <libpqtypes@esilo.com>.
+
+Online documentation:
+
+  http://libpqtypes.esilo.com/
+
+The latest version:
+
+  http://pgfoundry.org/projects/libpqtypes/
+

@@ -1,0 +1,80 @@
+.TH "PQregisterComposites" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQregisterComposites \- Registers a composites.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+int PQregisterComposites(PGconn *\fIconn\fP, PGregisterType *\fItypes\fP,
+.br
+                         int \fIcount\fP);
+\fP
+.SH DEPRECATED
+.LP
+THIS FUNCTION IS DEPRECATED.  New applications should use PQregisterTypes.
+This function is now a wrapper to PQregisterTypes.
+.SH DESCRIPTION
+.LP
+The \fIPQregisterComposites\fP() function allows an application
+to register one or more composites.  This function can be
+called as many times as an application needs on a PGconn.
+
+This function must execute a query against the backend to retrieve type
+information for each composite, thus this should not be called from within
+a transaction.  It is recommended to register multiple composites at
+the same time to avoid round trip overhead.
+
+The \fItypes\fP argument is an array containing \fIcount\fP composite types
+to register.  Composites do not use the typput or typget members of the
+PGregisterType structure, thus these memebrs are ignored.  If any composite
+does not exist, the register is aborted.
+
+NOTE: The typname member of the PGregisterType structure can optionally
+contain the type's schema: schema.typname.
+
+WARNING: \fIPQparamCreate\fP is only aware of types that have already been
+registered.  If you need to put a composite into a param, make sure it is first
+registered.
+
+.SH EXAMPLES
+.LP
+.SS Using PQregisterComposites
+The example registers two composite types.
+.RS
+.nf
+.LP
+\fBPGregisterType comp_types[] = {
+	{"myschema.simple", NULL, NULL},
+	{"complex", NULL, NULL}
+};
+
+if (!PQregisterComposites(conn, comp_types, 2))
+	fprintf(stderr, "PQregisterComposites: %s\\n", PQgeterror());
+\fP
+.fi
+.RE
+.SH RETURN VALUE
+.LP
+On success, a non-zero value is returned.  On error, zero is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-handlers(3)\fP, \fIPQputf(3)\fP, \fIPQgetf(3)\fP
+

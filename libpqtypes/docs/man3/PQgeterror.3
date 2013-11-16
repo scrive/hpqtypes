@@ -1,0 +1,56 @@
+.TH "PQgeterror" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQgeterror, PQseterror, PQgetErrorField \- libpqtypes error system management functions
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+char *PQgeterror(void);
+.br
+void PQseterror(const char *\fIformat\fP, ...);
+.br
+char *PQgetErrorField(int \fIfieldcode\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The libpqtypes library maintains a per-thread global error message.  The error
+message is managed by \fIPQgeterror\fP() and \fiPQseterror\fP().
+
+\fiPQseterror\fP() takes a regular printf compatible \fIformat\fP string for
+setting the libpqtypes error message.
+
+\fiPQgetErrorField\fP() gets an error field from the last executed query.
+The error field is only set by PQparamExec and PQparamExecPrepared.  When
+using libpq functions that return results, like PQexec, continue to use
+PQresultErrorField.
+
+To clear the libpqtypes error message, call \fiPQseterror\fP() with a NULL
+\fIformat\fP string: PQseterror(NULL);  This will also clear error fields.
+.SH RETURN VALUE
+.LP
+\fIPQgeterror\fP() returns the last error message for the calling thread.  It will
+never return NULL.
+.LP
+\fIPQgetErrorField\fP() returns the error field, referenced by fieldcode, for
+the last executed query.  NULL is returned if no value exists.
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-specs(3)\fP

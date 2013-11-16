@@ -1,0 +1,56 @@
+.TH PQinitTypes 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQinitTypes \- Initializes libpqtypes with the libpq event system.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQinitTypes(PGconn *conn);
+.br
+int PQclearTypes(PGconn *\fIconn\fP);
+\fP
+.SH DESCRIPTION
+.LP
+libpqtypes makes use of the libpq Event System.  Before using
+libpqtypes, you must initialize libpqtypes as a libpq EventProc.
+The PQinitTypes function takes a PGconn that libpqtypes will be initialized
+with; each PGconn requires its own initialization.
+
+PQclearTypes removes all registered types from the given PGconn.  A good use
+for this is after a PQresetXXX call when it might be desired to re-register
+all types that may have gone stale.
+.SH RETURN VALUE
+.LP
+PQinitTypes and PQclearTypes return zero if it fails and non-zero if it succeeds.
+.SH EXAMPLES
+.LP
+.SS Initializing libpqtypes
+The examples shows how to initialize libpqtypes with the libpq event system.
+.RS
+.nf
+.LP
+\fB/* call prior to any other libpqtypes functions that operate on conn. */
+PQinitTypes(conn);
+\fP
+.fi
+.RE
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+None
+
+

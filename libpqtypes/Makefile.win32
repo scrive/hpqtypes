@@ -1,0 +1,49 @@
+##############################################################
+# Project: libpqtypes
+# Makefile for Cygwin or Mingw Environments (GCC)
+#
+# make -f Makefile.win32 [options] [targets]
+#
+# For further build instructions, see the package's INSTALL file.
+#
+# Authors: Andrew Chernow, Merlin Moncure
+# Contact: libpqtypes@esilo.com
+##############################################################
+
+PROJNAME = libpqtypes
+
+DEPS = src/libpqtypes-int.h src/libpqtypes.h
+OBJECTS = src/array.o src/datetime.o src/error.o \
+	src/events.o src/exec.o src/geo.o src/handler.o \
+	src/misc.o src/network.o src/numerics.o \
+	src/param.o src/port.o src/record.o src/spec.c \
+	src/utils.o src/varlena.o
+
+INC += -Isrc
+LIBS = -lpq -lws2_32
+CFLAGS += -s -Wall -Wpointer-arith -D_GNU_SOURCE -O3 \
+	-std=gnu99 -Wlong-long -D_WIN32_WINNT=0x0501 -D_REENTRANT
+
+ifdef MT
+	CFLAGS += -DPQT_THREAD_SAFE -D_THREAD_SAFE
+	LIBS += -lpthread
+endif
+
+ifdef PQT_LONG_LONG
+	CFLAGS += -DPQT_LONG_LONG=$(PQT_LONG_LONG)
+endif
+
+all: $(OBJECTS)
+	dllwrap -o $(PROJNAME).dll -dllname $(PROJNAME).dll $(OBJECTS) $(LPATH) $(LIBS)
+	dlltool --dllname $(PROJNAME).dll --output-lib $(PROJNAME).a
+
+test:
+	gcc $(CFLAGS) $(INC) -o regtest src/regression-test.c $(PROJNAME).dll $(LPATH) $(LIBS)
+	-@rm -f regression-test.o
+
+%.o: %.c $(DEPS)
+	gcc $(CFLAGS) $(INC) -o $@ -c $<
+
+clean:
+	-@rm -f $(OBJECTS) $(PROJNAME).so $(PROJNAME).a regtest
+

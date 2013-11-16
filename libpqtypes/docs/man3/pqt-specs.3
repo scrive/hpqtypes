@@ -1,0 +1,1213 @@
+.TH "pqt-specs" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+pqt-specs \- A manual for libpqtypes data type specifier strings.
+.SH DESCRIPTION
+.LP
+The type system allows addressing backend data types by their fully
+qualified schema name.  Similar to the backend type system, libpqtypes has
+an input and output function for each type: put and get respectively.
+All builtin types are supported by libpqtypes.  Additional types, such as
+composites and user-defined types, can be registered by an API-user
+on a per connection basis.
+
+Putting and getting types are addressed by their backend names as
+printf-style format specifiers.  For instance: %int4, %timestamptz or %text.
+They can also be addressed using their fully qualified schema names:
+%pg_catalog.int4, %pg_catalog.timestamptz, %pg_catalog.text or
+%myschema.mytype to avoid ambiguity.
+
+.SS Specifier Strings
+\fISpecifier Mark\fP
+.br
+A specifier mark indicates where a specifier begins. A mark is not part
+of the type name.
+
+   %  Marks the beginning of a type name.  When getting results, this
+      also indicates that a field will be referenced by number.
+
+   #  Marks the beginning of a type name.  When getting results, this
+      also indicates that a field will be referenced by name.
+
+   @  Marks the beginning of a prepared specifier name, see
+      PQspecPrepare().  When used, it must be the first and only
+      specifier in the format string: "@prepared_spec", "@myfunc",
+      etc...  NOTE: the \'@\' must be the first character, no spaces.
+
+\fIType Specifier\fP
+.br
+Type specifiers are comprised of an optional schema name and type name.
+Type specifiers have a set of rules:
+
+   -) Format: [schema].type - optional schema name, a "." separator
+      between schema and type and the type name.
+
+   -) First character must be a-z or an underscore
+
+   -) Double quotes are required for characters not in [a-zA-Z0-9_]
+      NOTE: In libpqtypes, this includes "double precision"
+
+   -) Schema "." separator, specifier marks or flags are not included
+      in double quotes
+
+   -) Non-quoted type names are casefolded, quoted names are not.
+
+   -) Examples:
+      "%int4"
+      "%pg_catalog.int4"
+      "%\\"my oDd~ !tYpe naMe#\\""
+      "%myschema.\\"my oDd~ !tYpe naMe#\\""
+      "%abc.int4 %pg_catalog.int4" <= fully qualified type names
+
+   -) Last in First out: To find a type referenced in a specifier
+      string, the search begins with the last type registered.
+      User registered type handlers are searched first, followed
+      by builtin types.
+
+   -) pqt schema: There is a builtin schema named pqt.  By default,
+      it contains two types: \'str\' and \'null\'.  Anything can be
+      put into this schema, which has nothing to do with the server.
+      This is good for aliases or type sub-classes that are
+      client-specific.
+
+\fISpecifier Flag\fP
+.br
+Flags are used to alter the behavior of a type specifier.  They are always placed
+at the end of the specifier name.  If the name is double quoted, the flag is just
+after the closing quote.
+
+   *  This is called the pointer flag.  It is only supported on a
+      handful of builtin types during a \fIPQputf(3)\fP, but user registered
+      types can provide support for them.  Supported types are:
+      VARCHAR, BPCHAR, TEXT, BYTEA, NAME and the pqt.str.
+
+      Putting data: this flag tells libpqtypes to store a direct
+      pointer to the data being put, rather than making a copy of
+      it.
+
+      Getting data: no built-in types make use of the pointer flag.
+      User-defined type handlers can make the pointer flag behave
+      anyway they see fit.  The \'get\' type handler is supplied a
+      PGtypeArgs which contains an \'is_ptr\' member.
+
+   [] This is called the array flag.  It indicates that an array is
+      being referenced rather than a simple type.  This flag is always
+      used with a PGarray.
+.SH NUMERICS
+.LP
+With the exception of the "numeric" type, all numeric types behave
+identically: int2, int4, int8, float4 and float8.
+.RS
+.nf
+.LP
+PG type    C type
+PGint2     short
+PGint4     int
+PGint8     long long (platform dependent)
+PGfloat4   float
+PGfloat8   double
+.fi
+.RE
+
+Putting numeric values: If the value supplied is too large for the PG
+type, it will be silently truncated.
+.RS
+.nf
+\fB
+PQputf(param, "%int2 %int4 %int8 %float4 %float8",
+	SHRT_MAX, INT_MAX, LLONG_MAX, 1234.56, 123456.789);\fP
+.fi
+.RE
+
+Getting numeric values: Like scanf, the correctly sized data type must be
+used.  For instance: you cannot use a 4-byte int for %int2 - you must use a short.
+.RS
+.nf
+\fB
+// Read an int2 from field 0, int4 from field 1, int8 from
+// field 2, float4 from field 3 and a float8 from field 4
+PGint2 i2;
+PGint4 i4;
+PGint8 i8;
+PGfloat4 f4;
+PGfloat8 f8;
+PQgetf(result, tup_num, "%int2 %int4 %int8 %float4 %float8",
+	0, &i2, 1, &i4, 2, &i8, 3, &f4, 4, &f8);\fP
+.fi
+.RE
+
+The numeric data type is always exposed in text format.
+There is no C data structure. It is always sent in binary format.
+.RS
+.nf
+\fB
+PQputf(param, "%numeric", "1728718718271827121233.121212121212");\fP
+.fi
+.RE
+
+Even if binary results are used when getting a numeric value, libpqtypes will
+internally convert the numeric to text. This has the advantage of allowing
+you to use binary results and still have access to numeric fields.  If you
+want to work with a numeric in binary form, use PQgetvalue() on a binary result set.
+.RS
+.nf
+\fB
+PGnumeric numstr;
+PQgetf(result, tup_num, "%numeric", field_num, &numstr);\fP
+.fi
+.RE
+
+The first argument is the field number of the numeric. The second argument is a
+pointer to a PGnumeric to receive the numeric string value (which will
+always be NUL terminated).
+.SH ARRAY
+.LP
+Arrays are put using the PGarray structure.  Elements are put using \fIPQputf(3)\fP
+into a PGparam structure contained withn a PGarray.  The PGarray contains
+array dimension members for specifing the number of dimension, the
+dimensions of each dimension and the lower bounds of each dimension.
+
+Arrays are only handled using binary format.  This means that any type used
+as an array element must be put and gotten in binary format.  If a
+user-defined type does not implement a send and recv function in the backend,
+it can not be used as an array element.
+
+For a discussion of composite arrays, \`man pqt-composites(3)\'.
+.RS
+.nf
+\fB
+typedef struct
+{
+	/* The number of array dimensions.  Specifing zero for this
+	 * value on puts has special meaning.  When zero, this value
+	 * is set to one, dims[0] is set to the number of items in
+	 * the \'param\' member and lbound[0] is set to one.
+	 */
+	int ndims;
+
+	/* An array of lower bounds for each dimension. */
+	int lbound[MAXDIM];
+
+	/* An array of dimensions for each dimension. */
+	int dims[MAXDIM];
+
+	/* When putting array elements, this PGparam is used.  Each
+	 * item put is one array element.  Because the \fIPQputf(3)\fP
+	 * interface allows putting more than one item at a time, you
+	 * can put multiple array elements.
+	 */
+	PGparam *param;
+
+	/* When getting an array, this is the PGresult object that
+	 * contains the array elements.  Each element is one tuple,
+	 * regardless of the array dimensions.  If the array has 100
+	 * elements across 3 dimensions, PQntuples(arr.res) will return
+	 * 100.  The only valid field, for non-composite arrays, is
+	 * field zero.
+	 */
+	PGresult *res;
+} PGarray;
+\fP
+.fi
+.RE
+
+When all elements have been put, the PGarray structure must be put using the
+"[]" array specifer flag into a PGparam structure.  \fIPQputf(3)\fP is used to build the
+array elements and to put the resulting PGarray.
+
+Putting an array value:
+.RS
+.nf
+\fB
+PGint4 i;
+PGarray arr;
+PGparam *param;
+
+/* One dimensional arrays do not require setting dimension info. For
+ * convience, you can zero the structure or set ndims to zero.
+ */
+arr.ndims = 0;
+
+/* create the param object that will contain the elements */
+arr.param = PQparamCreate(conn);
+
+/* Use \fIPQputf(3)\fP to put the array elements */
+for(i=0; i < 1000; i++)
+  PQputf(arr.param, "%int4", i);
+
+/* The PGarray must be put into a PGparam struture.  So far, only
+ * the array elements have been put.  \'param\' can continue to be
+ * used to pack more parameters.  The array is now a single parameter
+ * within \'param\'.
+ */
+param = PQparamCreate(conn);
+PQputf(param, "%int[]", &arr);
+
+/* no longer needed */
+PQparamClear(arr.param);
+\fP
+.fi
+.RE
+
+To get an array, \fIPQgetf(3)\fP is used in conjunction with the PGarray
+structure.  The result object contained with the PGarray is populated
+with the array elements.  The dimension info is assigned as well.  Each
+array element is its own tuple that only contains a single field for non
+composite arrays.
+
+Getting an array value:
+.RS
+.nf
+\fB
+int i;
+PGint4 val;
+int ntups;
+PGarray arr;
+PGresult *result = ...;
+
+PQgetf(result, 0, "%int[]", 0, &arr);
+
+/* not needed anymore*/
+PQclear(result);
+
+/* each tuple is an array element */
+ntups = PQntuples(arr.res);
+for(i=0; i < ntups; i++)
+{
+  /* Always field 0 */
+  PQgetf(arr.res, i, "%int4", 0, &val);
+  printf("[%03d] %d\\n", i, val);
+}
+
+PQclear(arr.res);
+\fP
+.fi
+.RE
+
+The result object is not organized based on the dimension info.  Indexes are always
+zero-based.  If the dimension info is meaningful to your application, index
+translation must be done using the ndims, dims and lbound members of the PGarray
+structure.
+
+You cannot reference an array element by field name.  The only logical name for an
+array element would be the string version of its index ... "0", "1", etc..  The
+index value of a non-composite array is its tuple number, the field number is always
+zero.  This means "#int" is not legal for non-composite arrays.  You must use
+"%int" and reference field 0.
+.SH CHAR
+.LP
+The "char" data type uses the PGchar.  The value is limited to 8-bits.
+
+Putting a "char" value:
+.RS
+.nf
+\fB
+PGchar c = \'a\';
+PQputf(param, "%char %char", 213, c);\fP
+.fi
+.RE
+
+Getting a "char" value:
+.RS
+.nf
+\fB
+PGchar c;
+PQgetf(result, tup_num, "%char", field_num, &c);\fP
+.fi
+.RE
+.SH VARIABLE-LENGTH CHARACTER TYPES
+.LP
+BPCHAR, VARCHAR, NAME and TEXT are handled identically.  libpqtypes does no range
+checking on NAME, BPCHAR or VARCHAR, it lets the server perform these checks.
+There are two ways to put strings: allow libpqtypes to make an internal copy of the
+string (default behavior) or as a direct pointer: (both require that the C
+string is NUL-terminated)
+.RS
+.nf
+\fB
+/* Put a string so libpqtypes makes a copy. In this case,
+ * 4 copies would be made of the same string.
+ */
+PGtext str = "foobar";
+PQputf(param, "%bpchar %varchar %name %text", str, str, str, str);
+
+/* Put a string so libpqtypes doesn\'t make a copy,
+ * keeps a direct pointer.  More efficient than above,
+ * especially if these are large strings.
+ */
+PQputf(param, "%bpchar* %varchar* %name* %text*", str, str, str, str);\fP
+.fi
+.RE
+
+WARNING: Be careful about variable scope when using the "*" specifier flag:
+.RS
+.nf
+\fB
+/* when \'func\' returns, the str pointer becomes invalid!
+ * The below should be using "%text" ... w/o the * flag.
+ */
+int func(PGparam *param)
+{
+	PGchar str[16];
+	strcpy(str, "foobar");
+	return PQputf(param, "%text*", str); // BAD IDEA!
+}\fP
+.fi
+.RE
+
+To \fIPQgetf(3)\fP a string, you supply a pointer to a PGtext.  Unlike putting string
+values, getting them doesn\'t make use of the "*" specifier flag (silently ignored).
+.RS
+.nf
+\fB
+/* Get a string value */
+PGvarchar str;
+PQgetf(result, tup_num, "%varchar", field_num, &str);
+
+/* identical to */
+str = PQgetvalue(result, tup_num, field_num);\fP
+.fi
+.RE
+
+The reason the \'*\' specifier flag is silently ignored, rather than raising a syntax
+error, is it is common to define macros for specifer strings; that can be used for
+puts and gets:
+.RS
+.nf
+\fB
+/* user_id, username, password */
+#define TYPESPEC_USERINFO "%int4 %text* %text*"
+
+PGint4 uid = 0;
+PGtext user = "foo", pass = "bar";
+PQputf(param, TYPESPEC_USERINFO, uid, user, pass);
+PQgetf(param, tup_num, TYPESPEC_USERINFO, 0, &uid, 1, &user, 2, &pass);\fP
+.fi
+.RE
+
+The above allowance is more useful than a syntax error.
+.SH BYTEA
+.LP
+There are two ways to put a bytea: copy or direct pointer (just like variable-length
+character types).  In either case, you supply a pointer to a PGbytea.
+.RS
+.nf
+\fB
+typedef struct
+{
+  int len;    /* number of bytes */
+  char *data; /* pointer to the bytea data */
+} PGbytea;
+
+/* Put a bytea letting libpqtypes make a copy; */
+PGbytea bytea = {4, {0, 1, 2, 3}};
+PQputf(param, "%bytea", &bytea);
+
+/* Put a bytea not letting libpqtypes make a copy, stores a
+ * direct pointer to PGbytea.data.
+ */
+PQputf(param, "%bytea*", &bytea);\fP
+.fi
+.RE
+
+To get a bytea, you provide a pointer to a PGbytea.  Unlike putting bytea
+values, there is only one way to get them.
+.RS
+.nf
+\fB
+/* Get a bytea value (exposed as binary, no
+ * escaping/unescaping needed)
+ */
+PGbytea bytea;
+PQgetf(result, tup_num, "%bytea", field_num, &bytea);\fP
+.fi
+.RE
+
+NOTE: For text results, PQgetlength will not match the length returned by \fIPQgetf(3)\fP.
+The values \fIPQgetf(3)\fP assigns to the user provided PGbytea* represent the unescaped bytea value.
+.SH DATE
+.LP
+PGdate is used by DATE, TIMESTAMP and TIMESTAMPTZ data types. To put a date,
+you must set the isbc, year, mon and mday members.  All other members are ignored.
+
+.RS
+.nf
+\fBtypedef struct
+{
+	/* When non-zero, the date is in the BC ERA. */
+	int isbc;
+
+	/*
+	 * The BC or AD year, which is NOT adjusted by 1900 like
+	 * the POSIX struct tm.  Years are always positive values,
+	 * even BC years.  To distinguish between BC and AD years,
+	 * use the isbc flag: (year 0 not used)
+	 *   Ex. -1210 is represented as: isbc=1, year=1209
+	 */
+	int year;
+
+	/* The number of months since January, in the range 0 to 11. */
+	int mon;
+
+	/* The day of the month, in the range 1 to 31. */
+	int mday;
+
+	/* The Julian day in the Gregorian calendar. */
+	int jday;
+
+	/* The number of days since January 1, in the range 0 to 365. */
+	int yday;
+
+	/* The number of days since Sunday, in the range 0 to 6. */
+	int wday;
+} PGdate;\fP
+.fi
+.RE
+
+Putting a date value:
+.RS
+.nf
+\fB
+// \'1401-01-19 BC\'
+PGdate date;
+date.isbc = 1;
+date.year = 1401;
+date.mon  = 0;
+date.mday = 19;
+PQputf(param, "%date", &date);\fP
+.fi
+.RE
+
+Getting a date value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%date", field_num, &date);\fP
+.fi
+.RE
+.SH TIME
+.LP
+PGtime is used by TIME, TIMETZ, TIMESTAMP and TIMESTAMPTZ data types. To put a time, you must set the hour, min, sec and usec members.  All other members are ignored.
+.RS
+.nf
+\fB
+typedef struct
+{
+	/* The number of hours past midnight, in the range 0 to 23. */
+	int hour;
+
+	/* The number of minutes after the hour, in the
+	 * range 0 to 59.
+	 */
+	int min;
+
+	/* The number of seconds after the minute, in the
+	 * range 0 to 59.
+	 */
+	int sec;
+
+	/* The number of microseconds after the second, in the
+	 * range of 0 to 999999.
+	 */
+	int usec;
+
+	/*
+	 * When non-zero, this is a TIME WITH TIME ZONE.  Otherwise,
+	 * it is a TIME WITHOUT TIME ZONE.
+	 */
+	int withtz;
+
+	/* A value of 1 indicates daylight savings time.  A value of 0
+	 * indicates standard time.  A value of -1 means unknown or
+	 * could not determine.
+	 */
+	int isdst;
+
+	/* Offset from UTC in seconds. This value is not always
+	 * available. It is set to 0 if it cannot be determined.
+	 */
+	int gmtoff;
+
+	/* Timezone abbreviation: such as EST, GMT, PDT, etc.
+	 * This value is not always available.  It is set to an empty
+	 * string if it cannot be determined.
+	 */
+	char tzabbr[16];
+} PGtime;
+\fP
+.fi
+.RE
+
+Putting a time value:
+.RS
+.nf
+\fB
+// \'10:41:06.002897\'
+PGdate time;
+time.hour   = 10;
+time.min    = 41;
+time.sec    = 6;
+time.usec   = 2897;
+PQputf(param, "%time", &time);\fP
+.fi
+.RE
+
+Getting a time value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%time", field_num, &time);
+\fP
+.fi
+.RE
+.SH TIMETZ
+.LP
+The TIMETZ data type uses the PGtime structure, for a description of this
+structure see the TIME section.  To put a timetz, you must set the hour, min,
+sec, usec and gmtoff members.  All other members are ignored.
+
+Putting a timetz value:
+.RS
+.nf
+\fB
+// \'10:41:06.002897-05\'
+PGdate timetz;
+timetz.hour   = 10;
+timetz.min    = 41;
+timetz.sec    = 6;
+timetz.usec   = 2897;
+timetz.gmtoff = -18000;
+PQputf(param, "%timetz", &timetz);
+\fP
+.fi
+.RE
+
+Getting a timetz value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%timetz", field_num, &timetz);
+\fP
+.fi
+.RE
+.SH TIMESTAMP
+.LP
+To put a timestamp, the isbc, year, mon, mday, hour, min, sec and usec members must be set.  No other members are used.
+.RS
+.nf
+\fB
+typedef struct
+{
+	/* The number seconds before or after midnight UTC of
+	 * January 1, 1970, not counting leap seconds.
+	 */
+	PGint8 epoch;
+
+	/* The date part of the timestamp. */
+	PGdate date;
+
+	/* The time part of the timestamp. */
+	PGtime time;
+} PGtimestamp;
+\fP
+.fi
+.RE
+
+Putting a timestamp value:
+.RS
+.nf
+\fB
+// \'2000-01-19 10:41:06\'
+PGtimestamp ts;
+ts.date.isbc   = 0;
+ts.date.year   = 2000;
+ts.date.mon    = 0;
+ts.date.mday   = 19;
+ts.time.hour   = 10;
+ts.time.min    = 41;
+ts.time.sec    = 6;
+ts.time.usec   = 0;
+PQputf(param, "%timestamp", &ts);
+\fP
+.fi
+.RE
+
+Getting a timestamp value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%timestamp", field_num, &ts);
+\fP
+.fi
+.RE
+
+The timestamp type has no concept of timezone, so the value returned by \fIPQgetf(3)\fP is
+exactly what the server sent; no timezone adjustments are attempted.  The gmtoff is always
+set to zero, tzabbr will be an empty string and withtz will be zero.
+.SH TIMESTAMPTZ
+.LP
+To put a timestamptz, the isbc, year, mon, mday, hour, min, sec, usec and gmtoff
+members must be set.  No other members are used.
+
+Putting a timestamptz value:
+.RS
+.nf
+\fB
+// \'2000-01-19 10:41:06-05\'
+PGtimestamp ts;
+ts.date.isbc   = 0;
+ts.date.year   = 2000;
+ts.date.mon    = 0;
+ts.date.mday   = 19;
+ts.time.hour   = 10;
+ts.time.min    = 41;
+ts.time.sec    = 6;
+ts.time.usec   = 0;
+ts.time.gmtoff = -18000;
+PQputf(param, "%timestamptz", &ts);
+\fP
+.fi
+.RE
+
+Getting a timestamptz value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%timestamptz", field_num, &ts);
+\fP
+.fi
+.RE
+
+When using \fIPQgetf(3)\fP in binary mode, the timestamptz value is converted into the local
+machine\'s timezone.  If the local machine's timezone can not be determined, the
+value will be in GMT (gmtoff is set to zero and tzabbr is set to GMT).
+
+When using \fIPQgetf(3)\fP in text mode, the timestamptz value is returned as a datetime string
+in the server\'s timezone.  No adjustments are made to this value.  If the server is
+using a DateStyle that encodes the gmtoff "00:00:00-05", then gmtoff will be set to
+this value and tzabbr will be "GMT+/-hhmmss" (00:00:00-05 => GMT-0500).  In this case,
+isdst is set to -1 ... meaning unknown.  If the server\'s DateStyle encodes a timezone
+abbreviation, like PST, then tzabbr is set to this value.  The gmtoff and isdst members
+are properly set:
+
+.nf
+  DateStyle includes a timezone abbrev - "SQL, MDY"
+  01/25/2007 00:00:00 EST => tzabbr=EST, gmtoff=-18000, isdst=0
+  01/25/2007 01:00:00 EDT => tzabbr=EDT, gmtoff=-14400, isdst=1
+.fi
+.SH INTERVAL
+.LP
+To put an interval, all relevant members of a PGinterval should be assigned and those
+not used should be set to zero.
+.RS
+.nf
+\fB
+typedef struct
+{
+	/* the number of years */
+	int years;
+
+	/* the number of months */
+	int mons;
+
+	/* the number of days */
+	int days;
+
+	/* the number of hours */
+	int hours;
+
+	/* the number of mins */
+	int mins;
+
+	/* the number of seconds */
+	int secs;
+
+	/* the number of microseconds */
+	int usecs;
+} PGinterval;
+\fP
+.fi
+.RE
+
+Putting an interval value:
+.RS
+.nf
+\fB
+// "20 years 8 months 9 hours 10 mins 15 secs 123456 usecs"
+PGinterval interval;
+interval.years = 20;
+interval.mons  = 8;
+interval.days  = 0; // not used, set to 0
+interval.hours = 9;
+interval.mins  = 10;
+interval.secs  = 15;
+interval.usecs = 123456;
+PQputf(param, "%interval", &interval);
+\fP
+.fi
+.RE
+
+Getting an interval value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%interval", field_num, &interval);
+\fP
+.fi
+.RE
+
+NOTE: When using text results with a non-ISO DateStyle, microseconds are
+truncated to a 2 digit value.  For example: "4 mins 2.11 secs" but microseconds
+is really 111456.
+.SH POINT
+.LP
+The PGpoint structure is used to put and get a point.
+.RS
+.nf
+\fB
+typedef struct
+{
+	double x; // point x value
+	double y; // point y value
+} PGpoint;
+\fP
+.fi
+.RE
+
+Putting a point value:
+.RS
+.nf
+\fB
+PGpoint pt = {12.345, 6.789};
+PQputf(param, "%point", &pt);
+\fP
+.fi
+.RE
+
+Getting a point value:
+.RS
+.nf
+\fB
+PGpoint pt;
+PQgetf(result, tup_num, "%point", field_num, &pt);
+\fP
+.fi
+.RE
+.SH LSEG
+.LP
+The PGlseg structure is used to put and get a line segnment.
+.RS
+.nf
+\fB
+typedef struct
+{
+  PGpoint pts[2];
+} PGlseg;
+\fP
+.fi
+.RE
+
+Putting a lseg value:
+.RS
+.nf
+\fB
+PGlseg lseg = {{{12.345, 6.789}, {99.8, 88.9}}};
+PQputf(param, "%lseg", &lseg);
+\fP
+.fi
+.RE
+
+Getting a lseg value:
+.RS
+.nf
+\fB
+PGlseg lseg;
+PQgetf(result, tup_num, "%lseg", field_num, &lseg);
+\fP
+.fi
+.RE
+.SH BOX
+.LP
+The PGbox structure is used to put and get a box.
+.RS
+.nf
+\fB
+typedef struct
+{
+  PGpoint high;
+  PGpoint low;
+} PGbox;
+\fP
+.fi
+.RE
+
+Putting a box value:
+.RS
+.nf
+\fB
+PGbox box = {{12.345, 6.789}, {22.234, 1.9998}};
+PQputf(param, "%box", &box);
+\fP
+.fi
+.RE
+
+Getting a box value:
+.RS
+.nf
+\fB
+PGbox box;
+PQgetf(result, tup_num, "%box", field_num, &box);
+\fP
+.fi
+.RE
+.SH CIRCLE
+.LP
+The PGcircle structure is used to put and get a circle.
+.RS
+.nf
+\fB
+typedef struct
+{
+  PGpoint center;
+  double radius;
+} PGcircle;
+\fP
+.fi
+.RE
+
+Putting a circle value:
+.RS
+.nf
+\fB
+PGcircle circle = {{12.345, 6.789}, 2.34567};
+PQputf(param, "%circle", &circle);
+\fP
+.fi
+.RE
+
+Getting a circle value:
+.RS
+.nf
+\fB
+PGcircle circle;
+PQgetf(result, tup_num, "%circle", field_num, &circle);
+\fP
+.fi
+.RE
+.SH PATH
+.LP
+The PGpath structure is used to put and get a path.  If the closed member is
+non-zero, the path is closed, otherwise it is open.
+.RS
+.nf
+\fB
+typedef struct
+{
+  int npts;
+  int closed;
+  PGpoint *pts;
+} PGpath;
+\fP
+.fi
+.RE
+
+Putting a path value:
+.RS
+.nf
+\fB
+// Put a closed path that contains 2 points
+PGpoint pts[] = {{12.345, 6.789}, {19.773, 7.882}};
+PGpath path = {2, 1, pts};
+PQputf(param, "%path", &path);
+\fP
+.fi
+.RE
+
+Getting a path value:
+.RS
+.nf
+\fB
+PGpath path;
+if(PQgetf(result, tup_num, "%path", field_num, &path))
+{
+	// path.pts must be copied out if needed after clearing results
+	copy_points(path.npts, path.pts, ...);
+
+	PQclear(result);
+	// path.pts is now invalid!
+}
+\fP
+.fi
+.RE
+.SH POLYGON
+.LP
+The PGpolygon structure is used to put and get a polygon.
+.RS
+.nf
+\fB
+typedef struct
+{
+  int npts;
+  PGpoint *pts;
+} PGpolygon;
+\fP
+.fi
+.RE
+
+Putting a polygon value:
+.RS
+.nf
+\fB
+// Put a polygon that contains 2 points
+PGpoint pts[] = {{12.345, 6.789}, {19.773, 7.882}};
+PGpolygon polygon = {2, 1, pts};
+PQputf(param, "%polygon", &polygon);
+\fP
+.fi
+.RE
+
+Getting a polygon value:
+.RS
+.nf
+\fB
+PGpolygon polygon;
+if(PQgetf(result, tup_num, "%polygon", field_num, &polygon))
+{
+	// polygon.pts must be copied out if needed after clearing results
+	copy_points(polygon.npts, polygon.pts, ...);
+
+	PQclear(result);
+	// polygon.pts is now invalid
+}
+\fP
+.fi
+.RE
+.SH INET & CIDR
+.LP
+When putting an inet or cidr, all members must be set excluding the sa_len.
+.RS
+.nf
+\fB
+typedef struct
+{
+	/* The address mask, 32 for a single IP. */
+	int mask;
+
+	/* When non-zero, the PGinet structure represents a cidr
+	 * otherwise an inet.
+	 */
+	int is_cidr;
+
+	/* the length in bytes of the sa_buf member. */
+	int sa_len;
+
+	/* the socket address buffer, contains the data.  This can
+	 * be casted to a sockaddr, sockaddr_in, sockaddr_in6 or a
+	 * sockaddr_storage structure. This buffer is 128 bytes so
+	 * that it is large enough for a sockaddr_storage structure.
+	 */
+	char sa_buf[128];
+} PGinet;
+\fP
+.fi
+.RE
+
+Putting an inet or cidr:
+.RS
+.nf
+\fB
+socklen_t len;
+PGinet inet;
+
+cli_fd = accept(srv_fd, (struct sockaddr *)inet.sa_buf, &len);
+if(cli_fd != -1)
+{
+	inet.is_cidr = 0;
+	inet.mask = 32;
+	PQputf(param, "%inet", &inet);
+}
+\fP
+.fi
+.RE
+
+Getting an inet or cidr:
+.RS
+.nf
+\fB
+PGinet inet;
+unsigned short port;
+
+/* gets an inet from field 2 and an int2 from field 6 */
+if(PQgetf(result, tup_num, "%inet %int2", 2, &inet, 6, &port))
+{
+	char ip[80];
+	struct sockaddr *sa = (struct sockaddr *)inet.sa_buf;
+
+	// converting a PGinet to an IPv4 or IPv6 address string
+	getnameinfo(sa, inet.sa_len, ip, sizeof(ip),
+		NULL, 0, NI_NUMERICHOST);
+
+	// The inet data type does not store a port.
+	if(sa->sa_family == AF_INET)
+		((struct sockaddr_in *)sa)->sin_port = htons(port);
+	else
+		((struct sockaddr_in6 *)sa)->sin6_port = htons(port);
+
+	printf("Connecting to %s:%d\\n", ip, port);
+	connect(sock_fd, sa, inet.sa_len);
+}
+\fP
+.fi
+.RE
+.SH MACADDR
+.LP
+The PGmacaddr structure is used to put and get a macaddr.
+.RS
+.nf
+\fB
+typedef struct
+{
+	int a;
+	int b;
+	int c;
+	int d;
+	int e;
+	int f;
+} PGmacaddr;
+\fP
+.fi
+.RE
+
+Putting a macaddr value:
+.RS
+.nf
+\fB
+PGmacaddr macaddr = {0, 1, 2, 3, 4, 5};
+PQputf(param, "%macaddr", &macaddr);
+\fP
+.fi
+.RE
+
+Getting a macaddr value:
+.RS
+.nf
+\fB
+PGmacaddr macaddr;
+PQgetf(result, tup_num, "%macaddr", field_num, &macaddr);
+\fP
+.fi
+.RE
+.SH MONEY
+.LP
+The money type is put/get as a PGmoney (64-bit integer).  It can be
+converted to dollar and cents format by dividing by 100:
+double money = (double)money64 / 100.0;.  Pre 8.3 servers are limited to
+32-bit money values.
+
+Putting a money value:
+.RS
+.nf
+\fB
+PGmoney money = 600000000054LL; // 6 billion dollars and 54 cents
+PQputf(param, "%money", money);
+\fP
+.fi
+.RE
+
+Getting a money value:
+.RS
+.nf
+\fB
+PQgetf(result, tup_num, "%money", field_num, &money);
+\fP
+.fi
+.RE
+.SH BOOL
+.LP
+The bool type is put/get as a PGbool.  To put true or false, use 1 or 0.
+
+Putting a bool value:
+.RS
+.nf
+\fB
+PGbool b = 1; // put true
+PQputf(param, "%bool", b);
+\fP
+.fi
+.RE
+
+Getting a bool value:
+.RS
+.nf
+\fB
+PGbool b;
+PQgetf(result, tup_num, "%bool", field_num, &b);
+\fP
+.fi
+.RE
+.SH UUID
+.LP
+The uuid type is put/get as a sequence of 16 bytes.  To put a uuid as
+text, use "%str".  NOTE: this type is not available on pre 8.3 servers.
+
+Putting a uuid value:
+.RS
+.nf
+\fB
+PGuuid uuid = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+PQputf(param, "%uuid", uuid);
+\fP
+.fi
+.RE
+
+Getting a uuid value:
+.RS
+.nf
+\fB
+PGuuid uuid;
+PQgetf(result, tup_num, "%uuid", field_num, &uuid);
+\fP
+.fi
+.RE
+
+WARNING: The data provided on a put call is expected to be at least 16 bytes.
+.SH OID
+.LP
+Putting an oid value:
+.RS
+.nf
+\fB
+Oid oid = 2318;
+PQputf(param, "%oid", oid);
+\fP
+.fi
+.RE
+
+Getting an oid value:
+.RS
+.nf
+\fB
+Oid oid;
+PQgetf(result, tup_num, "%oid", field_num, &oid);
+\fP
+.fi
+.RE
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQgetf(3)\fP, \fIPQputf(3)\fP.

@@ -1,0 +1,90 @@
+.TH "PQregisterTypes" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQregisterTypes \- Registers sub-classes, composites and user-defined types.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+int PQregisterTypes(PGconn *\fIconn\fP, int \fIwhich\fP, PGregisterType *\fItypes\fP,
+.br
+                    int \fIcount\fP, int \fIasync\fP);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQregisterTypes\fP() function allows an application
+to register one or more PQT_SUBCLASS, PQT_COMPOSITE or PQT_USERDEFINED
+types which is defined by the \fIwhich\fP argument.
+
+When \fIwhich\fP is PQT_COMPOSITE or PQT_USERDEFINED, this function must
+execute a query against the backend to retrieve type information, thus
+this should not be called from within a transaction.  It is recommended to
+register multiple composites at the same time to avoid round trip overhead.
+
+The \fItypes\fP argument is an array containing \fIcount\fP types
+to register.  Composites do not use the typput or typget members of the
+PGregisterType structure, thus these memebrs are ignored.  If any composite
+does not exist, the register is aborted.  User-defined types must set either
+typput and/or typget for each type.   Sub-classes typname member of the
+PGregisterType structure must specify an inheritence relationship:
+ex. "myint=int4" where myint inherits from int4.  The \'=\' is called the
+inheritence operator.  If both typput and typget members of the PGregisterType
+structure are NULL, the type at that element will behave identically to the
+type it is inheriting from; an alias.  Otherwise, the base type's put and/or
+get routines will be overridden.
+
+The \fIasync\fP argument indicates if the asynchronous type registration
+should be used.  When non-zero, the caller must proceed in the normal
+async libpq fashion (PQconsumeInput, PQisBusy, PQgetResult) and provide a
+PGresult to PQregisterResult when obtained to complete the registration.
+
+NOTE: The typname member of the PGregisterType structure can optionally
+contain the type's schema: schema.typname.
+
+WARNING: \fIPQparamCreate\fP is only aware of types that have already been
+registered.  If you need to put a type into a param, make sure it is first
+registered.
+
+.SH EXAMPLES
+.LP
+.SS Using PQregisterTypes
+The example registers two composite types.
+.RS
+.nf
+.LP
+\fBPGregisterType comp_types[] = {
+	{"myschema.simple", NULL, NULL},
+	{"complex", NULL, NULL}
+};
+
+if (!PQregisterTypes(conn, PQT_COMPOSITE, comp_types, 2, 0))
+	fprintf(stderr, "PQregisterTypes: %s\\n", PQgeterror());
+\fP
+.fi
+.RE
+.SH RETURN VALUE
+.LP
+On success, both PQregisterTypes returns a non-zero value.
+On error, zero is returned and \fIPQgeterror(3)\fP will contain an
+error message.
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQregisterResult(3)\fP, \fIpqt-handlers(3)\fP, \fIPQputf(3)\fP, \fIPQgetf(3)\fP
+
+

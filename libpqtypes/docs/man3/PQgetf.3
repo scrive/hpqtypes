@@ -1,0 +1,104 @@
+.TH "PQgetf" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQgetf \- Gets one or more values from a PGresult in a scanf fashion.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQgetf(const PGresult *\fIres\fP, int \fItup_num\fP,
+.br
+           const char *\fIformat\fP, ...);
+.br
+int PQgetvf(const PGresult *\fIres\fP, int \fItup_num\fP,
+.br
+           const char *\fIformat\fP, va_list ap);
+\fP
+.SH DESCRIPTION
+.LP
+The \fIPQgetf\fP() and \fIPQgetvf\fP() functions get one or more field
+values from a PGresult using a scanf style interface.  The \fItup_num\fP
+argument indicates which tuple to read values from; values can
+only be read from one tuple at a time.
+
+The \fIformat\fP argument is a data type specifier string
+indicating the values to retrieve, like %int4 or #timestamp.  Any
+number of fields, in any order, can be retrieved in a single call.
+Each data type specifier has a cooresponding \fBfield_num, type-args, [...]\fP
+contained within the function\'s variable argument list.  The
+\fBfield_num\fP either indicates tuple field number or tuple field
+name, depending on whether the data type in \fIformat\fP used a \'%\'
+or \'#\' specifer mark (\`man \fIpqt-specs(3)\fP\').  The \fBtype-args\fP can be one or more
+arguments required by the specific data type: for example, "%int4"
+would require a pointer to a PGint4.  All built-in PostgreSQL data
+types require a single pointer value.
+.SH RETURN VALUE
+.LP
+On success, a non-zero value is returned.  On error, zero is
+returned and \fIPQgeterror(3)\fP will contain an error message.
+
+If the retrieval of any field fails, the get operation is aborted and
+function will fail.  Eventhough some fields may have succeeded prior to
+the failure, their values should not be trusted.  Instead, make
+another \fIPQgetf\fP() call.  Getting an array or a composite can lead
+to memory leaks when getf fails.  This is because these types allocate
+a PGresult object that must be cleared.  To avoid leaks, it is recommended
+to perform cleanup even if getf fails, retrieve arrays and composites by
+themselves or make them the last field in a getf call.
+.SH EXAMPLES
+.LP
+.SS Using PQgetf on a PGresult
+The example uses the libpq PQexec function to execute a query and then uses
+\fIPQgetf\fP() to retrieve field values.  It is important to note that
+libpqtypes execution functions, like \fIPQparamExec(3)\fP, do not need to
+generate the PGresult provided to \fIPQgetf\fP().
+.RS
+.nf
+.LP
+\fBint success;
+PGint4 i4;
+PGtext text;
+PGbytea bytea;
+PGpoint pt;
+PGresult *res = PQexec(conn, "SELECT i,t,b,p FROM tbl");
+
+/* Get some field values from the result (order doesn\'t matter) */
+success = PQgetf(res,
+	0,            /* get field values from tuple 0 */
+	"%int4 #text %bytea %point",
+	              /* type format specifiers (get text by name \'#\') */
+	0,   &i4,     /* get an int4 from field num 0 */
+	"t", &text,   /* get a text from field name "t" */
+	2,   &bytea,  /* get a bytea from field num 2 */
+	3,   &pt);    /* get a point from field num 3 */
+
+/* Output an error message using PQgeterror(3). */
+if(!success)
+	fprintf(stderr, "*ERROR: %s\\n", PQgeterror());
+
+/* Output the values, do this before PQclear() */
+else
+	printf("int4=%d, text=%s, bytea=%d bytes, point=(%f,%f)\\n",
+		i4, text, bytea.len, pt.x, pt.y);
+
+PQclear(res);
+\fP
+.fi
+.RE
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-specs(3)\fP, \fIPQgeterror(3)\fP

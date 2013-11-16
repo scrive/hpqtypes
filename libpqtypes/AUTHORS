@@ -1,0 +1,32 @@
+
+LIBPQTYPES LIBRARY
+------------------
+
+Distributed by:
+
+  eSilo, LLC. (see LICENSE file)
+
+Maintainers:
+People who currently fix bugs and perform most of the forward development.
+
+  Andrew Chernow   ac (at) esilo (dot) com
+
+Written by:
+Original people behind the libpqtypes project core functionality and
+architecture (June 2007 - Apr 2008).  The wounded warriors who battled the
+PostgreSQL team trying to get libpqtypes into the main source tree.  That
+battle continues to be waged as we believe libpqtypes is a far more
+advanced and powerful client interface for PostgreSQL than the vanilla libpq.
+
+  Andrew Chernow   ac (at) esilo (dot) com
+  Merlin Moncure   mmoncure (at) gmail (dot) com
+
+Contributors:
+People who have proven to be helpful over the years with their critical
+thinking, design ideas and bug detection.
+
+  Jeremy Smith     jeremy (at) esilo (dot) com
+
+
+> Last updated 2011-04-10
+

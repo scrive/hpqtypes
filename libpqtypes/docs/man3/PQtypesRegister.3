@@ -1,0 +1,53 @@
+.TH PQtypesRegister 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQtypesRegister \- Registers libpqtypes with the libpq event system.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+int PQtypesRegister(PGconn *conn);
+\fP
+.SH DEPRECATED
+.LP
+THIS FUNCTION IS DEPRECATED.  New applications should use PQinitTypes.
+This function is now a wrapper to PQinitTypes.
+.SH DESCRIPTION
+.LP
+libpqtypes makes use of the libpq Event System.  Before using
+libpqtypes, you must register libpqtypes as a libpq EventProc.
+The function takes a PGconn that libpqtypes will be registered
+with; each PGconn requires its own registration.
+.SH RETURN VALUE
+.LP
+The function returns zero if it fails and non-zero if it succeeds.
+.SH EXAMPLES
+.LP
+.SS Registering libpqtypes
+The examples shows how to register libpqtypes with the libpq event system.
+.RS
+.nf
+.LP
+\fB/* call prior to any other libpqtypes functions that operate on conn. */
+PQtypesRegister(conn);
+\fP
+.fi
+.RE
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+None
+

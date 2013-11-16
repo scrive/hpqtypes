@@ -1,0 +1,598 @@
+.TH "pqt-handlers" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+pqt-handlers \- A manual for implementing libpqtypes type handlers.
+.SH DESCRIPTION
+.LP
+Type handlers are I/O routines used by libpqtypes for sending and receiving
+data for specific types.  Internally, libpqtypes uses type handlers to support
+PostgreSQL's builtin base types: such as point, int4, timestamp, etc...
+
+NOTE: Builtin types always serialize parameters being sent "put" to the backend
+in binary format; user-defined types may choose to use text format.  C data
+types are translated into the backend's external binary format.  Even if text
+results are used, C data types are still exposed when getting result data.
+
+\fBType handlers have the below three properties:\fP
+.LP
+.RS
+\fBType Specifier Name\fP
+.br
+A [schema].type name that will be used to reference your handler.
+\`man \fIpqt-specs\fP\' for complete documentation on syntax.
+
+\fBPut Routine\fP
+.br
+A PGtypeProc put routine takes a C data type and converts it into a valid backend
+external format.  The converted format is used with libpq's parameterized
+API.  For instance: a C int data type is used to put a postgresql int4.
+To convert this to a valid external format, libpqtypes swaps the bytes
+(when needed) so they are in network order.  A put routine returns the number
+of bytes being put.  On error, a put routine must return -1.
+
+\fBGet Routine\fP
+.br
+A PGtypeProc get routine does the opposite of a put routine.  It converts a
+type's text or binary external format to its native C type.  For instance:
+a postgresql int4 is converted to a C int.  For binary results, the 4 bytes
+are converted to host order and stored as a C int.  A get routine returns zero
+to indicate success.  On error, a get routine must return -1.
+.RE
+
+\fBPGregisterType\fP
+.br
+The \fIPGregisterType\fP structure is used by all PQregisterXXX functions.
+It contains a typname, put and get routine.  The typname can optionally
+contain the type's schema, like pg_catalog.int4.  When registering a
+sub class via PQregisterTypes, an inheritence operator must be used
+within typname to indicate what type is being extended: myint4=int4.  If the
+typput and typget routines are NULL during a sub class registration, the
+result is a direct sub class or alias of the base type: like "s=text"
+allowing one to use "%s" instead of "%text".  When registering a composite,
+typput and typget are ignored.
+.nf
+.RS
+\fB
+typedef struct
+{
+	const char *typname;
+	PGtypeProc typput;
+	PGtypeProc typget;
+} PGregisterType;\fP
+.RE
+.fi
+
+To implement a type handler, you need to be aware of 4 structures:
+PGtypeFormatInfo, PGrecordAttDesc, PGtypeHandler and PGtypeArgs.  All exist
+for use with type handlers.
+
+\fBPGtypeFormatInfo\fP
+.br
+The \fIPGtypeFormatInfo\fP structure provides useful connection-based information for
+type handlers.  For instance, your handler may have different implementations
+depending on the server version .. \fIsversion\fP.
+.nf
+.RS
+\fB
+typedef struct
+{
+	int sversion;          /* server version, e.g. 70401 for 7.4.1 */
+	int pversion;          /* FE/BE protocol version in use */
+	char datestyle[32];    /* server\'s datestyle: like "SQL, MDY" */
+
+	/* When non-zero, server uses int64 timestamps */
+	int integer_datetimes;
+} PGtypeFormatInfo;\fP
+.RE
+.fi
+
+\fBPGrecordAttDesc\fP
+.br
+The \fIPGrecordAttDesc\fP structure defines the attributes of a composite.
+Internally, libpqtypes keeps track of composite attributes using this structure.
+.nf
+.RS
+\fB
+typedef struct
+{
+	Oid attoid;    /* Oid of the attribute */
+	int attlen;    /* storage size of attribute.  -1 if not known */
+	int atttypmod; /* The typmod of attribute. */
+	char *attname; /* The name of the attribute. */
+} PGrecordAttDesc;\fP
+.RE
+.fi
+
+\fBPGtypeHandler\fP
+.br
+The \fIPGtypeHandler\fP structure represents all the properties of a
+type handler.  When a type is registered, this structure is used to catalog
+the type\'s information.
+.nf
+.RS
+\fB
+typedef struct pg_typhandler
+{
+	/* An internal libpqtypes assigned id for this type handler. */
+	int id;
+
+	/* The schema name of this type, which may be empty if not
+	 * provided during registration.
+	 */
+	char typschema[65];
+
+	/* The name of this type: like int2 or bytea, cannot be empty */
+	char typname[65];
+
+	/* The storage size of this type.  -1 if not known. */
+	int typlen;
+
+	/* The backend OID of the type. */
+	Oid typoid;
+
+	/* The backend array OID of the type. */
+	Oid typoid_array;
+
+	/* The put handler for this type. */
+	PGtypeProc typput;
+
+	/* The get handler for this type. */
+	PGtypeProc typget;
+
+	/* If this handler is a sub-class, this will be the \'id\' of
+	 * the super class type handler.  It is set to -1 if not
+	 * a sub-class.
+	 */
+	int base_id;
+
+	/* Indicates the number of composite attributes within the
+	 * \'attDescs\' array.  This is set to 0 for non-composites.
+	 */
+	int nattrs;
+
+	/* If non-zero, the 'attDescs' pointer must be freed. */
+	int freeAttDescs;
+
+	/* The memory behind the 'attDescs' pointer when the number of 
+	 * attrs is less than 16.  When greater than 16, heap memory
+	 * is used and 'freeAttDescs' is set to a non-zero value.
+	 */
+	PGrecordAttDesc attDescsBuf[16];
+
+	/* An array of PGrecordAttDesc, one element per record
+	 * attribute.  Must be freed if 'freeAttDescs' is non-zero.
+	 */
+	PGrecordAttDesc *attDescs;
+} PGtypeHandler;
+\fP
+.RE
+.fi
+
+\fBPGtypeArgs\fP
+.br
+The \fIPGtypeArgs\fP structure is passed to all put and get handlers.  It
+contains all values needed by type handlers.
+.nf
+.RS
+\fB
+struct pg_typeargs
+{
+	/* Indicates if this is a put or get operation. */
+	int is_put;
+
+	/* Formatting information. */
+	const PGtypeFormatInfo *fmtinfo;
+
+	/* Indicates if a request for a direct pointer was
+	 * made, %text*.
+	 */
+	int is_ptr;
+
+	/*
+	 * When \fIis_put\fP is non-zero, set this to 1 for binary and 0 for
+	 * text format.  It defaults to binary.  When \fIis_put\fP is 0, this
+	 * indicates the field type PQftype of \fIget.field_num\fP.
+	 */
+	int format;
+
+	/* An argument list.  Arguments should be retrieved with va_arg. */
+	va_list ap;
+
+	/* The position of this typname within a specifier
+	 * string, 1-based.
+	 */
+	int typpos;
+
+	/* Type handler for the specifier at typpos. */
+	PGtypeHandler *typhandler;
+
+	/*
+	 * Report an error from within a handler.  This error message
+	 * will show up in PQgeterror.
+	 *
+	 * This always returns -1 so one can report an error and return
+	 * -1 from a handler in a single statement:
+	 *
+	 *   return args->errorf(args, "ERROR: %s", strerror(errno));
+	 *
+	 * errorf always prepends a small header
+	 * "schema.typname[pos:num] - msg". For example, if the above
+	 * failed within the int4 handler and typpos was 5, the
+	 * resulting error message would be:
+	 *
+	 *   pg_catalog.int4[pos:5] - ERROR: Invalid argument
+	 *
+	 * errorf does not put any newlines in error message.
+	 */
+	int (*errorf)(PGtypeArgs *args, const char *format, ...);
+
+	/* Used by type sub-class handlers.  When \fIis_put\fP is
+	 * non-zero, a sub-class prepares type data and then calls
+	 * super.  When \fIis_put\fP is zero, a sub-class first
+	 * calls super to get the base class's deserialized value
+	 * and can then convert it.
+	 */
+	int (*super)(PGtypeArgs *args, ...);
+
+	/* This structure is used when \fIis_put\fP is non-zero. */
+	struct
+	{
+		/* The PGparam structure passed to \fIPQputf\fP(). */
+		PGparam *param;
+
+		/* A buffer used to store the type's output format.  If
+		 * more than 'outl' bytes are needed, see 'expandBuffer'.
+		 * Normally data is copied to the out buffer, but it can
+		 * also be pointed elsewhere: like a const string or static
+		 * memory.  When repointing the out buffer, DO NOT use
+		 * 'expandBuffer'.  Never use realloc on this buffer.
+		 */
+		char *out;
+
+		/* The size in bytes of the 'out' buffer. If expandBuffer
+		 * is used, this will reflect the new buffer length.
+		 */
+		int outl;
+
+		/* Expands the 'out' buffer to 'new_len'.  If new_len is
+		 * less than or equal to the current length 'outl', the
+		 * expand request is ignored.  This behaves just like a
+		 * realloc, existing data is copied to the new memory.
+		 * You should never use realloc on the out buffer.
+		 * Returns -1 on error and 0 for success.
+		 */
+		int (*expandBuffer)(PGtypeArgs *args, int new_len);
+
+		/* internal use only. */
+		char *__allocated_out;
+	} put;
+
+	/* This structure is used when \fIis_put\fP is zero. */
+	struct
+	{
+		/* The PGresult passed to \fIPQgetf\fP().
+		PGresult *result;
+
+		/* The tuple number */
+		int tup_num;
+
+		/* the tuple field number. */
+		int field_num;
+	} get;
+};\fP
+.RE
+.fi
+
+.SH USER-DEFINED TYPES
+.LP
+User-defined types are extended base types in the backend.  They are not domains
+or composites.  These types have their own input/output and send/recv functions
+(normally written in C).  They normally include their own operator functions and
+have an array oid.  For libpqtypes to make use of these types, especially for binary
+puts and gets, a type handler must be registered.  This provides libpqtypes with a type
+specifer, put and get routines for handling this type.
+
+User-defined types are registered on a per connection basis and must exist on the
+server.  If the type does not exist, the registration fails.  If no schema name is
+provided during registration, the server's search path is used to resolve the
+type's existence and fetch its oid.  If a schema name is provided during
+registration, the search path is not used.
+
+.SS User-defined type example
+.LP
+Assume there is a user-defined type named \'rgb\' in the \'graphics\' schema.  The
+text output format is always in hex: \'#ff0000\' with a leading pound sign and
+lowercase hex digits.  The external binary format is a sequence of three unsigned
+bytes: r, g and b.  To use this type with libpqtypes, it must be registered.
+.nf
+.RS
+\fB
+/* register the rgb type */
+PGregisterType type = {"graphics.rgb", rgb_put, rgb_get};
+PQregisterTypes(conn, PQT_USERDEFINED, &type, 1, 0);
+
+/* put an rgb */
+rgb_t rgb = {218, 218, 218};
+PGparam *param = PQparamCreate(conn);
+PQputf(param, "%rgb", &rgb);
+
+/* get an rgb from tuple 0 field 4 */
+rgb_t rgb;
+PQgetf(result, 0, "%graphics.rgb", 4, &rgb);
+
+/* -------------------------------
+ * EXAMPLE RGB IMPLEMENTATION
+ */
+
+#define hex2dec(v) (unsigned char)(((v) > '9') ? \
+	((v) - 'a') + 10 : (v) - '0')
+
+/* example rgb struct */
+typedef struct
+{
+  unsigned char r;
+  unsigned char b;
+  unsigned char g;
+} rgb_t;
+
+/* RGB PGtypeProc handler - always puts in binary format */
+int rgb_put(PGtypeArgs *args)
+{
+  unsigned char *out;
+  rgb_t *rgb = va_arg(args->ap, rgb_t *);
+
+  /* If rgb is NULL, put an SQL NULL value */
+  if(!rgb)
+  {
+    args->put.out = NULL;
+    return 0;
+  }
+
+  /* write the 3 bytes to the args out buffer */
+  out = (unsigned char *)args->put.out;
+  *out++ = rgb->r;
+  *out++ = rgb->g;
+  *out   = rgb->b;
+  return 3; /* number of bytes the server should expect */
+}
+
+/* RGB PGtypeProc handler */
+int rgb_get(PGtypeArgs *args)
+{
+  rgb_t *rgb = va_arg(args->ap, rgb_t *);
+  char *value = PQgetvalue(args->get.result,
+		args->get.tup_num, args->get.field_num);
+
+  if(!rgb)
+    return args->errorf(args, "rgb* cannot be NULL");
+
+  /* text format: ex. \'#ff9966\' */
+  if(PQfformat(args->format) == 0)
+  {
+    value++; /* skip the \'#\' sign */
+    rgb->r = (hex2dec(value[0]) << 4) | hex2dec(value[1]);
+    rgb->g = (hex2dec(value[2]) << 4) | hex2dec(value[3]);
+    rgb->b = (hex2dec(value[4]) << 4) | hex2dec(value[5]);
+    return 0;
+  }
+
+  /* binary format */
+  rgb->r = (unsigned char)value[0];
+  rgb->g = (unsigned char)value[1];
+  rgb->b = (unsigned char)value[2];
+  return 0;
+}\fP
+.RE
+.fi
+
+.SH TYPE SUB-CLASSING
+.LP
+Sub-classing a type means extending the put or get routines of a registered
+type handler.  The idea came about from trying to provide a convention for
+registering domains; which amounts to simple aliases to libpqtypes.
+Domain/alias registration would look like this:
+.nf
+.RS
+\fBPGregisterType type = {"myint4=pg_catalog.int4", NULL, NULL};
+PQregisterTypes(conn, PQT_SUBCLASS, &type, 1, 0);\fP
+.RE
+.fi
+
+The 'typname' member syntax is: [schema].type=[base_schema].base_type
+(schema is optional).  No spaces are allowed unless contained within the schema
+or type name, which would require double quoting the identifer.  By passing NULL
+for both the put and get handlers, the base type's handlers are used.  Thus,
+the result of the above is that "%myint4" and "%int4" behave identically.  But
+what happens if a put or get handler is provided during an alias registration?
+Is this useful functionality to applications?  The answer is sub-classing and
+yes its useful.
+
+By providing a put and get handler during alias registration, one has
+effectively sub-classed the base type.  This is called sub-class registration.
+
+By sub-classing a registered type, applications can now put and get data
+using their own data structures.  The sub-class put and get routines handle
+the dirty work of converting application structures to the base type's
+structure.  When sub-classing, no oid lookup occurs with the server.  The
+sub-class type is assumed to be application specific.  Sub-classes are
+registered on a per connection basis, just like user-defined types.  The
+reason for this is because the base type can be server-specific.
+
+\fBBENEFITS\fP
+
+1. Centralizes conversions from application data types to libpq data types
+.br
+2. Provides an easy all-inclusive interface for putting and getting values
+.br
+3. Allows applications to piggy-back off libpqtypes internal binary and text convertors
+.br
+4. Adds enormous flexiblity: (a few interesting ideas)
+.br
+  -- %socket: sub-class the inet get routine and return a connected sockfd.
+.br
+  -- %file: sub-class the text get routine and return a FILE* (text being a pathname)
+.br
+  -- %filemd5: sub-class the bytea put routine and supply a pathname that is used to
+     md5 a file's contents, utlimately putting a 16 byte bytea.
+
+It is impossible to consider all of the uses for type sub-classing.  The above
+ideas are probably more extreme than common cases, such as taking an application
+struct and converting it to what the base type expects.  But, the extreme cases
+are possible when desired.
+
+.SS Sub-class example
+.LP
+Assume you have an application that works with time_t epoch values a lot.  It
+would be useful if you could define a %epoch type handler.  This avoids having
+to convert a time_t to either a string or to a PGtimestamp (used by the timestamp &
+timestamptz type handlers).  The problem is, to use the binary interface you would
+have to know how to serialize a timestamp to send/recv it from the server.  If you
+sub-class timestamptz, you can use PGtypeArgs.super to handle the dirty work.
+
+\fB**NOTE:\fP %epoch is only an example, it is not part of libpqtypes nor being proposed.
+The goal here is to demonstrate how to implement a type sub-class handler.  It is important
+to note that %epoch will announce itself as a timestamptz to the backend.  So when using
+%epoch, make sure the context allows a timestamptz.
+.nf
+.RS
+\fB
+/* we are going to register this under the \'pqt\' schema */
+PGregisterType type = {"pqt.epoch=pg_catalog.timestamptz", epoch_put, epoch_get};
+PQregisterTypes(conn, PQT_SUBCLASS, &type, 1, 0))
+
+/* putting an epoch */
+struct stat st;
+if(stat("/home/foobar/archive.tgz", &st) == 0)
+{
+	PGparam *param = PQparamCreate(conn);
+	PQputf(param, "%epoch", st.st_mtime);
+	//....
+}
+
+/* getting an epoch value, using fully qualified type name */
+struct utimbuf ut = {0, 0};
+PQgetf(result, tup_num, "%pqt.epoch", field_num, &ut.modtime);
+
+/* -------------------------------
+ * EXAMPLE EPOCH SUB-CLASS IMPLEMENTATION
+ */
+
+/* convert a time_t to a PGtimestamp and call args->super() */
+int epoch_put(PGtypeArgs *args)
+{
+	struct tm *tm;
+	PGtimestamp ts;
+	time_t t = va_arg(args->ap, time_t);
+
+	tm = localtime(&t);
+	ts.date.isbc   = 0;
+	ts.date.year   = tm->tm_year + 1900; /* always 4-digit year */
+	ts.date.mon    = tm->tm_mon;
+	ts.date.mday   = tm->tm_mday;
+	ts.time.hour   = tm->tm_hour;
+	ts.time.min    = tm->tm_min;
+	ts.time.sec    = tm->tm_sec;
+	ts.time.usec   = 0;
+	ts.time.gmtoff = tm->tm_gmtoff;
+
+	/* Internally, this calls the base type\'s put routine
+	 * (the super class).  In this case, the super class
+	 * expects a PGtimestamp as input.  The super function
+	 * returns whatever the base type\'s put routine returns
+	 * (which for all puts is the byte count or -1 on error).
+	 */
+	return args->super(args, &ts);
+}
+
+/* Calls args->super() to get a PGtimestamp and then converts
+ * it to a time_t value.
+ */
+int epoch_get(PGtypeArgs *args)
+{
+	PGtimestamp ts;
+	time_t *t = va_arg(args->ap, time_t *);
+
+	if(!t)
+		return args->errorf(args, "time_t* cannot be NULL");
+
+	/* zero user bits */
+	*t = 0;
+
+	/* Internally, this calls the base type\'s get routine,
+	 * which returns 0 or -1 on error.
+	 */
+	if(args->super(args, &ts) == -1)
+		return -1; /* args->errorf called by super already */
+
+	/* Since PGtimestamp contains an epoch member, we can
+	 * just copy that value rather than calling mktime().
+	 */
+	*t = (time_t)ts.epoch;
+	return 0;
+}
+\fP
+.RE
+.fi
+
+.SH COMPOSITES
+.LP
+To get and put composites, they must be registered.  During registration,
+information about the composite type, likes its OID and attributes, are looked
+up in the backend.  The composite must exist or the registration fails.
+Do a \`man \fIpqt-composites(3)\fP\' for a more information about composites.
+
+Registering a composite type:
+.nf
+.RS
+\fB
+CREATE TYPE simple AS (a int4, t text);
+PGregisterType type = {"simple", NULL, NULL};
+PQregisterTypes(conn, PQT_COMPOSITE, &type, 1, 0);\fP
+.RE
+.fi
+
+*) The put and get routines must be NULL, composites cannot be sub-classed
+.br
+*) The provided name cannot resolve to the backend\'s RECORDOID
+.br
+*) The composite must exist at "conn"
+.br
+*) If no schema name is provided, the composite must be within the backend\'s search path.
+
+During registration of a composite, the below information is retreived from the backend:
+
+*) Oid of the composite type
+.br
+*) Array Oid of the composite type
+.br
+*) Type len of the compsoite type, PQfsize
+
+For each composite attribute:
+
+*) Oid of the attribute
+.br
+*) Name of the attribute
+.br
+*) Type len of the attribute, PQfsize
+.br
+*) The typmod of the attribute, PQfmod
+
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIPQregisterTypes\fP(), \fIPQregisterResult\fP()

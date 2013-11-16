@@ -1,0 +1,109 @@
+#!/bin/bash
+
+########################################################################
+# Converts a man page to very simple html, basically a page with 
+# A and PRE tags.  Takes 1 arguments: path to the non-compressed man
+# page.  This expects the man page to be named PAGE_NAME.SECTION_NUMBER;
+# like `PQgetf.3' or `printf.1'.
+#
+# FEATURES
+# 1. Any some_man(3), no spaces before '(', is substituted for an
+#    A tag linking to http://libpqtypes.esilo.com/man3/$man.html
+#
+# 2. All '<' and '>' are replaced with HTML codes
+#
+# 3. Mans referencing other mans, via .so macro, are converted
+#    to symlinks in the output directory.
+#
+# ISSUES
+# Hyperlinks are not 100% substitued into resulting html page. 
+# The only time there are issues is when the link text in the
+# man page was broken across lines.  No work-around at this time
+# for this issue other than manually ensuring line breaks don't 
+# occur on `some_man(3)'.
+#
+# Man pages that reference other man pages, using the .so macro,
+# must have the .so command in the first 'head' lines.  The
+# .so 'path_to_man' cannot include spaces. 
+######################################################################
+
+DOCTYPE="<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
+
+# adjust these to your web server
+BASEURL="http:\/\/libpqtypes.esilo.com"
+INC_BASEURL="$BASEURL\/include"
+MAN_BASEURL="$BASEURL\/man"
+OUTDIR=/esilo/www/libpqtypes.esilo.com/man
+HEAD_SECTION="<link rel=\"stylesheet\" href=\"/libpqtypes.css\" type=\"text/css\">"
+HEADER="<a href='/'>libpqtypes home page</a><p>"
+FOOTER="<p><a href='/'>libpqtypes home page</a>"
+
+if [ $# = 0 ] ; then
+	echo "Must supply man page to convert"
+	exit
+fi
+
+# ignore non-existent files
+if test ! -f $1 ; then
+	exit
+fi
+
+manpage=`basename $1`
+section=`echo "$manpage" | awk -F . '{print $NF}'`
+manpage=${manpage%.[^.]*}
+
+OUTDIR="${OUTDIR}${section}"
+mkdir -p $OUTDIR
+
+# If a .so reference, create a symlink
+solink=`head $1 | grep '.so .*' | cut -d ' ' -f 2`
+if test ! -z $solink ; then
+	target=`basename $solink` 
+	target=${target%.[^.]*} 
+	echo "$OUTDIR/$manpage.html => $OUTDIR/$target.html"
+
+	# remove existing symlink
+	rm -f $OUTDIR/$manpage.html
+	ln -s $OUTDIR/$target.html $OUTDIR/$manpage.html
+	exit
+fi
+
+echo $OUTDIR/$manpage.html
+
+>$OUTDIR/$manpage.html
+
+# doctype
+if test ! -z "$DOCTYPE" ; then
+	echo $DOCTYPE >>$OUTDIR/$manpage.html
+fi
+
+# add stadard html tags, include a title
+echo -e "<html>\n<head>\n$HEAD_SECTION\n<title>man $manpage</title>\n</head>\n<body>" >>$OUTDIR/$manpage.html
+
+if test ! -z "$HEADER" ; then
+	echo $HEADER >>$OUTDIR/$manpage.html
+fi
+
+echo "<pre>" >>$OUTDIR/$manpage.html
+
+# 1. output man in ascii
+# 2. post-process with col removing backspaces and tabs
+# 3. do some html code replacement 
+# 4. replace some_man(3) with A tags
+groff -t -e -mandoc -Tascii $1 2>/dev/null | col -bx | \
+sed 's/</\&lt;/g' | sed 's/>/\&gt;/g' | \
+sed "s/\&lt;\([a-ZA-Z0-9_\-]*\.h\)\&gt;/\&lt;<a href='$BASEURL\/browse_source\.html\?file=\1'>\1<\/a>\&gt;/g" | \
+sed "s/\b\([a-zA-Z0-9_\-]\+\)(\([0-9]\))/<a href='$MAN_BASEURL\2\/\1\.html'>\1(\2)<\/a>/g" \
+>>$OUTDIR/$manpage.html
+
+echo -e "</pre>\n" >>$OUTDIR/$manpage.html
+
+if test ! -z "$FOOTER" ; then
+	echo $FOOTER >>$OUTDIR/$manpage.html
+fi
+
+# html closing tags
+echo -e "</body>\n</html>" >>$OUTDIR/$manpage.html
+
+chown apache:apache $OUTDIR/$manpage.html
+

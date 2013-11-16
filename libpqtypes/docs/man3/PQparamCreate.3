@@ -1,0 +1,76 @@
+.TH "PQparamCreate" 3 2011 "libpqtypes" "libpqtypes Manual"
+.SH NAME
+PQparamCreate, PQparamCount PQparamReset, PQparamClear \- PGparam management functions.
+.SH SYNOPSIS
+.LP
+\fB#include <libpqtypes.h>
+.br
+.sp
+PGparam *PQparamCreate(const PGconn *\fIconn\fP);
+.br
+PGparam *PQparamDup(PGparam *\fIparam\fP);
+.br
+int PQparamCount(PGparam *\fIparam\fP);
+.br
+void PQparamReset(PGparam *\fIparam\fP);
+.br
+void PQparamClear(PGparam *\fIparam\fP);
+\fP
+.SH DESCRIPTION
+.LP
+These functions manage the opaque PGparam object.
+
+\fIPQparamCreate\fP() will allocate and initialize a new PGparam object.
+After the create call, the PGparam object is ready for use.  WARNING: Only
+types that have been registered via PQregisterXXX, will be available
+to the param.  Meaning, the param is not updated with types registered
+after the param is created.
+
+\fIPQparamDup\fP() will duplicate a given PGparam, including any internal
+values that have already been put. This is useful in cases where you want
+to queue qeuries to execute at a later time, like a connection pooler.  The
+problem is PGparamCreate requires a connection object, which may not be
+available when attempting to enqueue a query with its PGparam object.
+Instead, a PGparam object can used for the sole purpose of creating
+duplicates while there are no available PGconn objects.
+
+\fIPQparamCount\fP() gets the number of parameters in a PGparam object.
+
+\fIPQparamReset\fP() will clear out any previously put parameters, but will
+not free any memory.  This is useful for application looking to "reuse" a
+PGparam object.
+
+\fIPQparamClear\fP() releases all resources being used by a PGparam object,
+the object should not be used after a clear.
+
+It is very important to call \fIPQparamReset\fP() if you plan on reusing a
+PGparam object.
+.SH RETURN VALUE
+.LP
+\fIPQparamCreate\fP() returns a pointer to a PGparam object on success and NULL
+if something failed (check \fIPQgeterror(3)\fP for more information).
+
+\fIPQparamCount\fP() returns the number of parameters in a PGparam object.
+
+\fIPQparamReset\fP() and \fIPQparamClear\fP() have no return values.  If
+either function is provided a NULL PGparam pointer, it will silently fail.
+.SH EXAMPLES
+.LP
+None.
+.SH AUTHOR
+.LP
+A contribution of eSilo, LLC. for the PostgreSQL Database Management System.
+Written by Andrew Chernow and Merlin Moncure.
+.SH REPORTING BUGS
+.LP
+Report bugs to <libpqtypes@esilo.com>.
+.SH COPYRIGHT
+.LP
+Copyright (c) 2011 eSilo, LLC. All rights reserved.
+.br
+This is free software; see the source for copying conditions.
+There is NO warranty; not even for MERCHANTABILITY or  FITNESS
+FOR A PARTICULAR PURPOSE.
+.SH SEE ALSO
+.LP
+\fIpqt-specs(3)\fP, \fIPQputf(3)\fP, \fIPQgeterror(3)\fP, \fIPQparamExec(3)\fP
