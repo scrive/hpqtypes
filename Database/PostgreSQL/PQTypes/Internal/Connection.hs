@@ -34,7 +34,7 @@ data ConnectionSettings = ConnectionSettings {
   csConnInfo       :: !BS.ByteString
 , csClientEncoding :: !(Maybe BS.ByteString)
 , csComposites     :: ![BS.ByteString]
-}
+} deriving (Eq, Ord, Show)
 
 ----------------------------------------
 

@@ -26,13 +26,13 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 newtype QueryError = QueryError String
-  deriving (Show, Typeable)
+  deriving (Eq, Ord, Show, Typeable)
 
 newtype InternalError = InternalError String
-  deriving (Show, Typeable)
+  deriving (Eq, Ord, Show, Typeable)
 
 newtype LibPQError = LibPQError String
-  deriving (Show, Typeable)
+  deriving (Eq, Ord, Show, Typeable)
 
 data ConversionError = forall e. E.Exception e => ConversionError {
   convColumn     :: !Int
@@ -53,17 +53,17 @@ deriving instance Show ArrayItemError
 data ArrayDimensionMismatch = ArrayDimensionMismatch {
   arrDimExpected  :: !Int
 , arrDimDelivered :: !Int
-} deriving (Show, Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 data RowLengthMismatch = RowLengthMismatch {
   lengthExpected  :: !Int
 , lengthDelivered :: !Int
-} deriving (Show, Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 data AffectedRowsMismatch = AffectedRowsMismatch {
   rowsExpected  :: ![(Int, Int)]
 , rowsDelivered :: !Int
-} deriving (Show, Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 instance E.Exception QueryError
 instance E.Exception InternalError

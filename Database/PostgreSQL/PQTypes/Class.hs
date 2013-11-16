@@ -3,6 +3,7 @@ module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
+import Control.Applicative
 import Control.Exception (Exception)
 
 import Database.PostgreSQL.PQTypes.FromRow
@@ -11,7 +12,7 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.SQL.Class
 
-class (Functor m, Monad m) => MonadDB m where
+class (Applicative m, Functor m, Monad m) => MonadDB m where
   runQuery     :: IsSQL sql => sql -> m Int
   getLastQuery :: m SomeSQL
 
