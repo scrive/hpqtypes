@@ -1,4 +1,4 @@
-name:                PQTypes
+name:                pqtypes
 version:             1.0.0
 synopsis:            Haskell bindings to libpqtypes (libpq extension)
 
@@ -10,7 +10,11 @@ author:              Scrive
 maintainer:          andrzej@scrive.com
 category:            Database
 build-type:          Custom
-cabal-version:       >=1.16
+cabal-version:       >= 1.16
+
+Flag tests
+  description: Build test suite
+  default: False
 
 library
   exposed-modules:     Data.Monoid.Space
@@ -47,17 +51,17 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Get
 
-  build-depends:       base >=4.5 && <4.6
-                     , text >=0.11 && <0.12
-                     , bytestring >=0.9 && <0.10
-                     , time >=1.4 && <1.5
-                     , vector >=0.10 && <0.11
-                     , transformers-base >=0.4 && <0.5
-                     , monad-control >=0.3 && <0.4
-                     , lifted-base >=0.2 && <0.3
-                     , resource-pool >=0.2 && <0.3
-                     , mtl >=2.1 && <2.2
-                     , transformers >=0.2.2 && <0.4
+  build-depends:       base >= 4.5
+                     , text >= 0.11
+                     , bytestring >= 0.9
+                     , time >= 1.4
+                     , vector >= 0.10
+                     , transformers-base >= 0.4
+                     , monad-control >= 0.3
+                     , lifted-base >= 0.2
+                     , resource-pool >= 0.2
+                     , mtl >= 2.1
+                     , transformers >= 0.2.2
 
   hs-source-dirs:    src
 
@@ -87,3 +91,30 @@ library
                      , libpqtypes/src/varlena.c
 
   default-language:  Haskell2010
+
+Executable tests
+  if flag(tests)
+    Buildable:       True
+  else
+    Buildable:       False
+
+  ghc-options:       -O2 -funbox-strict-fields -threaded
+
+  hs-source-dirs:    test
+
+  build-depends:       pqtypes == 1.0.0
+                     , base >= 4.5
+                     , text >= 0.11
+                     , bytestring >= 0.9
+                     , time >= 1.4
+                     , transformers-base >= 0.4
+                     , monad-control >= 0.3
+                     , lifted-base >= 0.2
+                     , mtl >= 2.1
+                     , QuickCheck >= 2.5
+                     , HUnit >= 1.2
+                     , test-framework >= 0.8
+                     , test-framework-hunit >= 0.3
+                     , random >= 1.0
+
+  main-is:           Main.hs

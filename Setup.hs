@@ -25,6 +25,9 @@ main = defaultMainWithHooks simpleUserHooks {
   return lbi {
     localPkgDescr = updatePackageDescription (Just bi, []) (localPkgDescr lbi)
   }
+, cleanHook = \desc unit userHooks flags -> do
+  cleanHook simpleUserHooks desc unit userHooks flags
+  pqTypesDistclean (fromFlag $ cleanVerbosity flags)
 }
 
 pgconfigProgram :: Program
@@ -59,6 +62,10 @@ pqTypesConfigure verbosity = do
   case res of
     ExitFailure _ -> error "libpqtypes configure failed"
     _             -> setCurrentDirectory dir
+
+pqTypesDistclean :: Verbosity -> IO ()
+pqTypesDistclean verbosity =
+  rawSystemExit verbosity "env" ["make", "--directory=libpqtypes", "distclean"]
 
 --------------------
 
