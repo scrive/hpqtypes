@@ -262,8 +262,8 @@ readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dt
   n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
   assertEqual "SELECT works in read only mode" n 0 (==)
 
-transactionTest :: TestData -> TransactionSettings -> Test
-transactionTest td ts = testCase ("Auto transaction works by default with isolation level" <+> show (tsIsolationLevel ts)) . runTestEnv td ts $ do
+transactionTest :: TestData -> IsolationLevel -> Test
+transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td dts{tsIsolationLevel = lvl} $ do
   let sint = Single (123::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
@@ -303,9 +303,9 @@ tests td = [
     autocommitTest td
   , readOnlyTest td
   ----------------------------------------
-  , transactionTest td $ dts { tsIsolationLevel = ReadCommitted }
-  , transactionTest td $ dts { tsIsolationLevel = RepeatableRead }
-  , transactionTest td $ dts { tsIsolationLevel = Serializable }
+  , transactionTest td ReadCommitted
+  , transactionTest td RepeatableRead
+  , transactionTest td Serializable
   ----------------------------------------
   , nullTest td (u::Int16)
   , nullTest td (u::Int32)
