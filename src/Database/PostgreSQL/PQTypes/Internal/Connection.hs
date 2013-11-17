@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionStats(..)
   , ConnectionSettings(..)
+  , defaultSettings
   , ConnectionSource(..)
   , defaultSource
   , poolSource
@@ -35,6 +36,13 @@ data ConnectionSettings = ConnectionSettings {
 , csClientEncoding :: !(Maybe BS.ByteString)
 , csComposites     :: ![BS.ByteString]
 } deriving (Eq, Ord, Show)
+
+defaultSettings :: ConnectionSettings
+defaultSettings = ConnectionSettings {
+  csConnInfo = BS.empty
+, csClientEncoding = Nothing
+, csComposites = []
+}
 
 ----------------------------------------
 

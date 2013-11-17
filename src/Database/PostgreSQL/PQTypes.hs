@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes (
     Connection
   , ConnectionStats(..)
   , ConnectionSettings(..)
+  , defaultSettings
   , ConnectionSource(..)
   , defaultSource
   , poolSource
