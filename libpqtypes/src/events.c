@@ -27,6 +27,8 @@ PQtypesRegister(PGconn *conn)
 int
 pqt_eventproc(PGEventId id, void *info, void *passThrough)
 {
+	/* supress warning about this variable being unused */
+	(void)passThrough;
 	switch (id)
 	{
 		case PGEVT_REGISTER:
