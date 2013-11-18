@@ -1,6 +1,6 @@
-name:                pqtypes
+name:                hpqtypes
 version:             1.0.0
-synopsis:            Haskell bindings to libpqtypes (libpq extension)
+synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
                      libpqtypes, lipq extension that adds support for binary
@@ -115,7 +115,7 @@ Executable tests
 
   hs-source-dirs:    test
 
-  build-depends:       pqtypes == 1.0.0
+  build-depends:       hpqtypes == 1.0.0
                      , base >= 4.5
                      , text >= 0.11
                      , bytestring >= 0.9
