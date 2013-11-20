@@ -44,7 +44,7 @@ data PGresult
 data PGtypeArgs
 
 #include <libpqtypes.h>
-#include <postgresql/libpq-fe.h>
+#include <libpq-fe.h>
 
 ----------------------------------------
 
