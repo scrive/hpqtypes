@@ -244,16 +244,16 @@ assertEqual preface expected actual eq =
 
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works" . runTestEnv td dts{tsAutoTransaction = False} $ do
-  let sint = Single (456::Int32)
+  let sint = Single (1::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
-    n <- runSQL "SELECT a FROM test1_"
+    n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
     assertEqual "Other connection sees autocommited data" n 1 (==)
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dts{tsPermissions = ReadOnly} $ do
-  let sint = Single (789::Int32)
+  let sint = Single (2::Int32)
   eres <- E.try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   case eres :: Either DBException () of
     Left _ -> return ()
@@ -262,9 +262,33 @@ readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dt
   n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
   assertEqual "SELECT works in read only mode" n 0 (==)
 
+savepointTest :: TestData -> Test
+savepointTest td = testCase "Savepoint support works" . runTestEnv td dts $ do
+  let int1 = 3 :: Int32
+      int2 = 4 :: Int32
+
+  -- action executed within withSavepoint throws
+  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
+  _ :: Either DBException () <- E.try . withSavepoint (Savepoint "test") $ do
+    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
+    throwDB $ E.ErrorCall "oops"
+  runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2)" (int1, int2)
+  res1 <- fetchMany unSingle
+  assertEqual "Part of transaction was rolled back" res1 [int1] (==)
+
+  rollback
+
+  -- action executed within withSavepoint doesn't throw
+  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
+  withSavepoint (Savepoint "test") $ do
+    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
+  runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
+  res2 <- fetchMany unSingle
+  assertEqual "Result of all queries is visible" res2 [int1, int2] (==)
+
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td dts{tsIsolationLevel = lvl} $ do
-  let sint = Single (123::Int32)
+  let sint = Single (5::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
@@ -302,6 +326,7 @@ tests :: TestData -> [Test]
 tests td = [
     autocommitTest td
   , readOnlyTest td
+  , savepointTest td
   ----------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead

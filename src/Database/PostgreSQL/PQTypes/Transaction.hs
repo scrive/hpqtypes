@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Transaction (
-    withTransaction
+    Savepoint(..)
+  , withSavepoint
+  , withTransaction
   , begin
   , commit
   , rollback
@@ -15,10 +17,28 @@ import Control.Monad
 import Control.Monad.Trans.Control
 import qualified Control.Exception.Lifted as LE
 
+import Data.Monoid.Space
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
+
+newtype Savepoint = Savepoint (RawSQL ())
+
+withSavepoint :: (MonadBaseControl IO m, MonadDB m) => Savepoint -> m a -> m a
+withSavepoint (Savepoint savepoint) m = LE.mask $ \restore -> do
+  runQuery_ $ "SAVEPOINT" <+> savepoint
+  res <- restore m `LE.onException` rollbackAndReleaseSavepoint
+  runQuery_ sqlReleaseSavepoint
+  return res
+  where
+    sqlReleaseSavepoint = "RELEASE SAVEPOINT" <+> savepoint
+    rollbackAndReleaseSavepoint = do
+      runQuery_ $ "ROLLBACK TO SAVEPOINT" <+> savepoint
+      runQuery_ sqlReleaseSavepoint
+
+----------------------------------------
 
 withTransaction :: (MonadBaseControl IO m, MonadDB m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m
