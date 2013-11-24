@@ -16,7 +16,10 @@ u = undefined
 ----------------------------------------
 
 class PQFormat t where
+  -- | Map type to its libpqtypes format. Note that it should
+  -- ignore its argument so that passing 'undefined' is safe.
   pqFormat    :: t -> BS.ByteString
+  -- | Map type to number of type formats it contains.
   pqVariables :: t -> Int
   pqVariables _ = 1
 

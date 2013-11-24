@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+-- | Exports a set of FFI-imported libpq/libpqtypes functions.
 module Database.PostgreSQL.PQTypes.Internal.C.Interface (
+  -- * libpq imports
     c_PQstatus
   , c_PQerrorMessage
   , c_PQsetClientEncoding
@@ -11,6 +13,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQgetisnull
   , c_PQfname
   , c_PQclear
+  -- * libpqtypes imports
   , c_PQconnectdb
   , c_PQinitTypes
   , c_PQregisterTypes
@@ -61,13 +64,15 @@ foreign import ccall unsafe "PQclear"
 
 ----------------------------------------
 
--- it may block in case of network problem, make it safe
+-- | May block in case of network problems, hence marked 'safe'.
 foreign import ccall safe "PQconnectdb"
   c_rawPQconnectdb :: CString -> IO (Ptr PGconn)
 
 foreign import ccall unsafe "&PQfinish"
   c_ptr_PQfinish :: FunPtr (Ptr PGconn -> IO ())
 
+-- | Safe wrapper for 'c_rawPQconnectdb', returns
+-- 'ForeignPtr' instead of 'Ptr'.
 c_PQconnectdb :: CString -> IO (ForeignPtr PGconn)
 c_PQconnectdb conninfo = E.mask_ $ do
   conn <- c_rawPQconnectdb conninfo
@@ -94,13 +99,16 @@ foreign import ccall unsafe "PQparamCount"
 
 ----------------------------------------
 
--- it may run for a long time, make it safe
+-- | May run for a long time, hence marked 'safe'.
 foreign import ccall safe "PQparamExec"
   c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (Ptr PGresult)
 
 foreign import ccall unsafe "&PQclear"
   c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
 
+-- | Safe wrapper for 'c_rawPQparamExec'. Wraps result returned by
+-- 'c_rawPQparamExec' in 'ForeignPtr' with asynchronous exceptions
+-- masked to prevent memory leaks.
 c_PQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (ForeignPtr PGresult)
 c_PQparamExec conn err param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear
   =<< c_rawPQparamExec conn err param fmt mode

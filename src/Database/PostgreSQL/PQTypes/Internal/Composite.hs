@@ -14,6 +14,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
+-- | Register a list of composite types.
 registerComposites :: Ptr PGconn -> [BS.ByteString] -> IO ()
 registerComposites _ [] = return ()
 registerComposites conn names = do

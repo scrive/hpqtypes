@@ -24,8 +24,14 @@ import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
 
+-- | Wrapper that represents savepoint name.
 newtype Savepoint = Savepoint (RawSQL ())
 
+-- | Create a savepoint and roll back to it if given monadic action throws.
+-- This may only be used if a transaction is already active. Note that it
+-- provides something like \"nested transaction\".
+--
+-- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
 withSavepoint :: (MonadBaseControl IO m, MonadDB m) => Savepoint -> m a -> m a
 withSavepoint (Savepoint savepoint) m = LE.mask $ \restore -> do
   runQuery_ $ "SAVEPOINT" <+> savepoint
@@ -40,20 +46,28 @@ withSavepoint (Savepoint savepoint) m = LE.mask $ \restore -> do
 
 ----------------------------------------
 
+-- | Same as 'withTransaction'' except that it uses
+-- current transaction settings instead of custom ones.
 withTransaction :: (MonadBaseControl IO m, MonadDB m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m
 
+-- | Begin transaction using current transaction settings.
 begin :: MonadDB m => m ()
 begin = getTransactionSettings >>= begin'
 
+-- | Commit active transaction using current transaction settings.
 commit :: MonadDB m => m ()
 commit = getTransactionSettings >>= commit'
 
+-- | Rollback active transaction using current transaction settings.
 rollback :: MonadDB m => m ()
 rollback = getTransactionSettings >>= rollback'
 
 ----------------------------------------
 
+-- | Execute monadic action within a transaction using given transaction
+-- settings. Note that it won't work as expected if a transaction is already
+-- active (in such case 'withSavepoint' should be used instead).
 withTransaction' :: (MonadBaseControl IO m, MonadDB m)
                  => TransactionSettings -> m a -> m a
 withTransaction' ts m = LE.mask $ \restore -> do
@@ -62,6 +76,7 @@ withTransaction' ts m = LE.mask $ \restore -> do
   commit' ts
   return res
 
+-- | Begin transaction using given transaction settings.
 begin' :: MonadDB m => TransactionSettings -> m ()
 begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
   where
@@ -75,12 +90,14 @@ begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
       ReadOnly           -> "READ ONLY"
       ReadWrite          -> "READ WRITE"
 
+-- | Commit active transaction using given transaction settings.
 commit' :: MonadDB m => TransactionSettings -> m ()
 commit' ts = do
   runSQL_ "COMMIT"
   when (tsAutoTransaction ts) $
     begin' ts
 
+-- | Rollback active transaction using given transaction settings.
 rollback' :: MonadDB m => TransactionSettings -> m ()
 rollback' ts = do
   runSQL_ "ROLLBACK"

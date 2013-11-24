@@ -1,5 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+-- | Exports a set of FFI-imported PQputf functions with different arities
+-- (PQputf is a variadic function and there is no way to import such
+-- functions with FFI in their most generic form).
 module Database.PostgreSQL.PQTypes.Internal.C.Put where
 
 import Foreign.C

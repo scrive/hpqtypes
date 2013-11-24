@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE EmptyDataDecls, RecordWildCards #-}
+-- | Mappings of types used by libpq/libpqtypes to Haskell ADTs.
 module Database.PostgreSQL.PQTypes.Internal.C.Types (
     PGconn
   , PGparam

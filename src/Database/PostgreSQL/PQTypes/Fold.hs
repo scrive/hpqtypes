@@ -22,6 +22,7 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 
+-- | Fold the result set of rows from left to right.
 foldLeftM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
           => (acc -> row -> m acc) -> acc -> m acc
 foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
@@ -39,6 +40,7 @@ foldLeftM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
         acc' <- f acc obj
         worker ctx fres ferr ffmt acc' (i+1) n
 
+-- | Fold the result set of rows from right to left.
 foldRightM :: forall m row acc. (MonadBase IO m, MonadDB m, FromRow row)
            => (row -> acc -> m acc) -> acc -> m acc
 foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
@@ -58,6 +60,7 @@ foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
 
 ----------------------------------------
 
+-- | Helper for abstracting away shared elements of both folds.
 withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
                 => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r) -> m r
 withQueryResult f = do

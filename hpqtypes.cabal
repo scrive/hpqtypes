@@ -9,20 +9,22 @@ description:         Efficient and easy-to-use bindings to (slightly modified)
                      Since modified libpqtypes is used, its source code is bundled
                      along with the bindings. The differences between verbatim
                      libpqtypes and the one used by this package:
+                     .
                      * per-thread global error structures were replaced by explicit
                        passing of these structures around so that there is no need
-                       to use bound threads
+                       to use bound threads.
+                     .
                      * handlers that take values to be put into the database were
                        modified to always expect pointers to objects, as opposed
                        to previous situation where primitives were being taken by
                        value (which was convenient if the library was used directly
                        from C, but created inconsistency problems while trying to
-                       define bindings in a sensible way)
+                       define bindings in a sensible way).
 
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive
-maintainer:          andrzej@scrive.com
+maintainer:          Andrzej Rybczak <andrzej@scrive.com>
 category:            Database
 build-type:          Custom
 cabal-version:       >= 1.8

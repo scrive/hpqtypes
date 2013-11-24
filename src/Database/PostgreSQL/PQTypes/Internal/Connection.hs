@@ -32,11 +32,16 @@ import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.SQL
 
 data ConnectionSettings = ConnectionSettings {
+-- | Connection info string.
   csConnInfo       :: !BS.ByteString
+-- | Client-side encoding. If set to 'Nothing', database encoding is used.
 , csClientEncoding :: !(Maybe BS.ByteString)
+-- | A list of composite types to register. In order to be able to
+-- (de)serialize specific composite types, you need to register them.
 , csComposites     :: ![BS.ByteString]
 } deriving (Eq, Ord, Show)
 
+-- | Default connection settings.
 defaultSettings :: ConnectionSettings
 defaultSettings = ConnectionSettings {
   csConnInfo = BS.empty
@@ -46,35 +51,63 @@ defaultSettings = ConnectionSettings {
 
 ----------------------------------------
 
+-- | Simple connection statistics.
 data ConnectionStats = ConnectionStats {
+-- | Number of queries executed so far.
   statsQueries :: !Int
+-- | Number of rows fetched from the database.
 , statsRows    :: !Int
+-- | Number of values fetched from the database.
 , statsValues  :: !Int
+-- | Number of parameters sent to the database.
 , statsParams  :: !Int
 } deriving (Eq, Ord, Show)
 
-emptyStats :: ConnectionStats
-emptyStats = ConnectionStats {
+-- | Initial connection statistics.
+initialStats :: ConnectionStats
+initialStats = ConnectionStats {
   statsQueries = 0
 , statsRows    = 0
 , statsValues  = 0
 , statsParams  = 0
 }
 
+-- | Wrapper for hiding representation of a connection object.
 newtype Connection = Connection {
   unConnection :: MVar (Maybe (ForeignPtr PGconn, ConnectionStats))
 }
 
+-- | Database connection supplier.
 newtype ConnectionSource = ConnectionSource {
   withConnection :: MonadBaseControl IO m => (Connection -> m a) -> m a
 }
 
+-- | Default connection supplier. It estabilishes new
+-- database connection each time 'withConnection' is called.
 defaultSource :: ConnectionSettings -> ConnectionSource
 defaultSource cs = ConnectionSource {
   withConnection = liftBaseOp $ E.bracket (connect cs) disconnect
 }
 
-poolSource :: ConnectionSettings -> Int -> NominalDiffTime -> Int -> IO ConnectionSource
+-- | Pooled source. It uses striped pool from resource-pool
+-- package to cache estabilished connections and reuse them.
+poolSource :: ConnectionSettings
+           -> Int -- ^ Stripe count. The number of distinct sub-pools
+           -- to maintain. The smallest acceptable value is 1.
+           -> NominalDiffTime -- ^ Amount of time for which an unused database
+           -- connection is kept open. The smallest acceptable value is 0.5
+           -- seconds.
+           --
+           -- The elapsed time before closing database connection may be
+           -- a little longer than requested, as the reaper thread wakes
+           -- at 1-second intervals.
+           -> Int -- ^ Maximum number of database connections to keep open
+           -- per stripe. The smallest acceptable value is 1.
+           --
+           -- Requests for database connections will block if this limit is
+           -- reached on a single stripe, even if other stripes have idle
+           -- connections available.
+           -> IO ConnectionSource
 poolSource cs numStripes idleTime maxResources = do
   pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
   return ConnectionSource {
@@ -83,7 +116,7 @@ poolSource cs numStripes idleTime maxResources = do
   where
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
-        return $ second (const emptyStats) <$> mconn
+        return $ second (const initialStats) <$> mconn
       return conn
 
 ----------------------------------------
@@ -101,7 +134,7 @@ connect ConnectionSettings{..} = wrapException $ do
         throwLibPQError conn "connect"
     c_PQinitTypes conn
     registerComposites conn csComposites
-  Connection <$> newMVar (Just (fconn, emptyStats))
+  Connection <$> newMVar (Just (fconn, initialStats))
 
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do

@@ -22,9 +22,14 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
+-- | Class which represents \"from SQL (libpqtypes)
+-- type to Haskell type\" transformation.
 class (PQFormat t, Storable (PQBase t)) => FromSQL t where
+  -- | Base type (used by libpqtypes).
   type PQBase t :: *
-  fromSQL :: Maybe (PQBase t) -> IO t
+  -- | Convert value of base type to target one.
+  fromSQL :: Maybe (PQBase t) -- ^ base value (Nothing if NULL was delivered)
+          -> IO t
 
 -- NULLables
 
@@ -134,15 +139,23 @@ instance FromSQL Bool where
 
 ----------------------------------------
 
+-- | Convert PGtime to Day.
 pgDateToDay :: PGdate -> Day
 pgDateToDay PGdate{..} = fromGregorian year mon mday
   where
     year = adjustBC $ fromIntegral pgDateYear
+    -- Note: libpqtypes represents months as numbers in range
+    -- [0, 11], whereas Haskell uses [1, 12], hence plus one.
     mon  = fromIntegral $ pgDateMon + 1
     mday = fromIntegral pgDateMDay
-
+    -- Note: PostgreSQL has no notion of '0th year', it's 1 AD
+    -- and then before that 1 BC for it. Since Haskell represents
+    -- date according to ISO-8601, where 0th year means 1 BC, we
+    -- want to change the sign and adjust the year by one here,
+    -- if appropriate.
     adjustBC = if pgDateIsBC == 1 then negate . pred else id
 
+-- | Convert PGtime to TimeOfDay.
 pgTimeToTimeOfDay :: PGtime -> TimeOfDay
 pgTimeToTimeOfDay PGtime{..} = TimeOfDay hour mins $ sec + fromRational (usec % 1000000)
   where
@@ -151,6 +164,7 @@ pgTimeToTimeOfDay PGtime{..} = TimeOfDay hour mins $ sec + fromRational (usec % 
     sec  = fromIntegral pgTimeSec
     usec = fromIntegral pgTimeUSec
 
+-- | Helper for converting local time to either 'ZonedTime' or 'UTCTime'.
 localToZoned :: (TimeZone -> LocalTime -> a) -> Maybe PGtimestamp -> IO a
 localToZoned _ Nothing = unexpectedNULL
 localToZoned construct jts@(Just PGtimestamp{..}) = do

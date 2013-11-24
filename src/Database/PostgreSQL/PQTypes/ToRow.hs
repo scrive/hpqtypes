@@ -17,17 +17,27 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.Single
 import Database.PostgreSQL.PQTypes.ToSQL
 
+-- | 'verifyPQTRes' specialized for usage in 'toRow'.
 verify :: Ptr PGerror -> CInt -> IO ()
 verify err = verifyPQTRes err "toRow"
 
 ----------------------------------------
 
+-- | More convenient version of 'toRow' that
+-- allocates 'PGerror' and format string by itself.
 toRow' :: forall row. ToRow row => row -> ParamAllocator -> Ptr PGparam -> IO ()
 toRow' row pa param = alloca $ \err ->
   BS.useAsCString (pqFormat row) (toRow row pa param err)
 
+-- | Class which represents \"from Haskell tuple to SQL row\" transformation.
 class PQFormat row => ToRow row where
-  toRow :: row -> ParamAllocator -> Ptr PGparam -> Ptr PGerror -> CString -> IO ()
+  -- | Put supplied tuple into 'PGparam' using given format string.
+  toRow :: row            -- ^ Tuple to be put into 'PGparam'.
+        -> ParamAllocator -- ^ 'PGparam' allocator for 'toSQL'.
+        -> Ptr PGparam    -- ^ 'PGparam' to put tuple into.
+        -> Ptr PGerror    -- ^ Local error info.
+        -> CString        -- ^ Format of a tuple to be put.
+        -> IO ()
 
 instance ToRow () where
   toRow _ _ _ _ _ = return ()

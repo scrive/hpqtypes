@@ -17,9 +17,11 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
+-- | Wrapper for (de)serializing underlying type as 'bytea'.
 newtype Binary b = Binary b
   deriving (Eq, Functor, Ord, Show, Typeable)
 
+-- | Extract underlying value.
 unBinary :: Binary b -> b
 unBinary (Binary b) = b
 

@@ -27,6 +27,8 @@ data SqlChunk where
   SqlString :: !BS.ByteString -> SqlChunk
   SqlValue  :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
 
+-- | Primary SQL type that supports efficient
+-- concatenation and variable number of parameters.
 newtype SQL = SQL ([SqlChunk] -> [SqlChunk])
 
 unSQL :: SQL -> [SqlChunk]
@@ -34,6 +36,9 @@ unSQL (SQL dlist) = dlist []
 
 ----------------------------------------
 
+-- | Construct 'SQL' from 'String'. The underlying 'ByteString'
+-- will be encoded as UTF-8, so if you are working with
+-- a different encoding, you should not rely on this instance.
 instance IsString SQL where
   fromString = mkSQL . T.encodeUtf8 . T.pack
 
@@ -66,12 +71,19 @@ instance Show SQL where
 
 ----------------------------------------
 
+-- | Convert 'ByteString' to 'SQL'.
 mkSQL :: BS.ByteString -> SQL
 mkSQL = SQL . (:) . SqlString
 
+-- | Embed parameter value inside 'SQL'.
 value :: (Show t, ToSQL t) => t -> SQL
 value = SQL . (:) . SqlValue
 
+-- | Embed parameter value inside existing 'SQL'. Example:
+--
+-- > f :: Int32 -> String -> SQL
+-- > f idx name = "SELECT foo FROM bar WHERE id =" <?> idx <+> "AND name =" <?> name
+--
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
 s <?> v = s <+> value v
 infixr 7 <?>

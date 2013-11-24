@@ -30,9 +30,13 @@ import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 type InnerDBT = StateT DBState
 
+-- | Monad transformer for adding database
+-- interaction capabilities to the underlying monad.
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
   deriving (Applicative, Functor, Monad, MonadBase b, MonadIO, MonadTrans)
 
+-- | Evaluate monadic action with supplied
+-- connection source and transaction settings.
 runDBT :: MonadBaseControl IO m
        => ConnectionSource -> TransactionSettings -> DBT m a -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
@@ -48,6 +52,7 @@ runDBT cs ts m = withConnection cs $ \conn -> do
       then withTransaction' (ts { tsAutoTransaction = False }) m
       else m
 
+-- | Transform underlying monad.
 mapDBT :: (Monad m, Monad n) => (m a -> n b) -> DBT m a -> DBT n b
 mapDBT f m = DBT . StateT $ \st -> do
   res <- f $ evalStateT (unDBT m) st

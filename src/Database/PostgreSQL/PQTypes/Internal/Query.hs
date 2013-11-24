@@ -23,6 +23,7 @@ import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
+-- | Run SQL query.
 runSQLQuery :: (IsSQL sql, MonadBase IO m)
             => (StateT DBState m Int -> r) -> sql -> r
 runSQLQuery dbT sql = dbT $ do

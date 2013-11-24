@@ -25,6 +25,7 @@ import Database.PostgreSQL.PQTypes.Single
 u :: a
 u = undefined
 
+-- | Convert base (libpqtypes) type to destination type.
 convert :: FromSQL t => Ptr PGresult -> CInt -> CInt -> PQBase t -> IO t
 convert res tuple column base = do
   isNull <- c_PQgetisnull res tuple column
@@ -40,17 +41,26 @@ convert res tuple column base = do
       , convError = e
       }
 
+-- | 'verifyPQTRes' specialized for usage in 'fromRow'.
 verify :: Ptr PGerror -> CInt -> IO ()
 verify err = verifyPQTRes err "fromRow"
 
 ----------------------------------------
 
+-- | More convenient version of 'fromRow' that
+-- allocates PGerror and format string by itself.
 fromRow' :: forall row. FromRow row => Ptr PGresult -> CInt -> IO row
 fromRow' res i = alloca $ \err ->
   BS.useAsCString (pqFormat (u::row)) (fromRow res err i)
 
+-- | Class which represents \"from SQL row to Haskell tuple\" transformation.
 class PQFormat row => FromRow row where
-  fromRow  :: Ptr PGresult -> Ptr PGerror -> CInt -> CString -> IO row
+  -- | Extract SQL row from PGresult and convert it into a tuple.
+  fromRow  :: Ptr PGresult -- ^ Source result.
+           -> Ptr PGerror  -- ^ Local error info.
+           -> CInt         -- ^ Index of row to be extracted.
+           -> CString      -- ^ Format of row to be extracted.
+           -> IO row
 
 instance FromRow () where
   fromRow _ _ _ _ = return ()

@@ -3,12 +3,16 @@
   , FlexibleInstances, RecordWildCards, ScopedTypeVariables
   , TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Array (
+    -- * Array1
     Array1(..)
   , unArray1
+  -- * CompositeArray1
   , CompositeArray1(..)
   , unCompositeArray1
+  -- * Array2
   , Array2(..)
   , unArray2
+  -- * CompositeArray2
   , CompositeArray2(..)
   , unCompositeArray2
   ) where
@@ -36,9 +40,11 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
+-- | One dimensional array of non-composite elements.
 newtype Array1 a = Array1 [a]
   deriving (Eq, Functor, Ord, Show, Typeable)
 
+-- | Extract list of elements from 'Array1'.
 unArray1 :: Array1 a -> [a]
 unArray1 (Array1 a) = a
 
@@ -66,9 +72,11 @@ instance ToSQL t => ToSQL (Array1 t) where
 
 ----------------------------------------
 
+-- | One dimensional array of composite elements.
 newtype CompositeArray1 a = CompositeArray1 [a]
   deriving (Eq, Functor, Ord, Show, Typeable)
 
+-- | Extract list of elements from 'CompositeArray1'.
 unCompositeArray1 :: CompositeArray1 a -> [a]
 unCompositeArray1 (CompositeArray1 a) = a
 
@@ -92,10 +100,15 @@ instance CompositeToSQL t => ToSQL (CompositeArray1 t) where
 
 ----------------------------------------
 
+-- | Helper function for putting elements of
+-- 'Array1' / 'CompositeArray1' into 'PGparam'.
 putArray1 :: forall t r. PQFormat t
-          => [t] -> Ptr PGparam
-          -> (Ptr PGarray -> IO r)
-          -> (CString -> t -> IO ())
+          => [t] -- ^ List of items to be put.
+          -> Ptr PGparam -- ^ Inner 'PGparam' to put items into.
+          -> (Ptr PGarray -> IO r) -- ^ Continuation that puts
+          -- 'PGarray' into outer 'PGparam'.
+          -> (CString -> t -> IO ()) -- ^ Function that takes item
+          -- along with its format and puts it into inner 'PGparam'.
           -> IO r
 putArray1 arr param conv putItem = do
   BS.useAsCString (pqFormat (undefined::t)) $ forM_ arr . putItem
@@ -107,10 +120,15 @@ putArray1 arr param conv putItem = do
   , pgArrayRes = nullPtr
   }) conv
 
+-- | Helper function for getting elements of
+-- 'Array1' / 'CompositeArray1' out of 'PGarray'.
 getArray1 :: forall a array t. Storable a
-          => ([t] -> array)
-          -> PGarray -> BS.ByteString
-          -> (Ptr PGresult -> Ptr PGerror -> CInt -> Ptr a -> CString -> IO t)
+          => ([t] -> array) -- ^ Array constructor.
+          -> PGarray -- ^ Source 'PGarray'.
+          -> BS.ByteString -- ^ Format for getting an item from 'PGarray'.
+          -> (Ptr PGresult -> Ptr PGerror -> CInt -> Ptr a -> CString -> IO t) -- ^
+          -- Function that takes an item with a given index
+          -- out of 'PGresult' and stores it in provided 'Ptr'.
           -> IO array
 getArray1 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $
   if pgArrayNDims > 1
@@ -132,9 +150,11 @@ getArray1 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $
 
 ----------------------------------------
 
+-- | Two dimensional array of non-composite elements.
 newtype Array2 a = Array2 [[a]]
   deriving (Eq, Functor, Ord, Show, Typeable)
 
+-- | Extract list of elements from 'Array2'.
 unArray2 :: Array2 a -> [[a]]
 unArray2 (Array2 a) = a
 
@@ -162,9 +182,11 @@ instance ToSQL t => ToSQL (Array2 t) where
 
 ----------------------------------------
 
+-- | Two dimensional array of composite elements.
 newtype CompositeArray2 a = CompositeArray2 [[a]]
   deriving (Eq, Functor, Ord, Show, Typeable)
 
+-- | Extract list of elements from 'CompositeArray2'.
 unCompositeArray2 :: CompositeArray2 a -> [[a]]
 unCompositeArray2 (CompositeArray2 a) = a
 
@@ -188,43 +210,15 @@ instance CompositeToSQL t => ToSQL (CompositeArray2 t) where
 
 ----------------------------------------
 
-getArray2 :: forall a array t. Storable a
-          => ([[t]] -> array)
-          -> PGarray -> BS.ByteString
-          -> (Ptr PGresult -> Ptr PGerror -> CInt -> Ptr a -> CString -> IO t)
-          -> IO array
-getArray2 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $ do
-  if pgArrayNDims /= 0 && pgArrayNDims /= 2
-    then E.throwIO ArrayDimensionMismatch {
-        arrDimExpected = 2
-      , arrDimDelivered = fromIntegral pgArrayNDims
-      }
-    else do
-      let dim2 = pgArrayDims V.! 1
-      size <- c_PQntuples pgArrayRes
-      alloca $ \ptr -> alloca $ \err ->
-        BS.useAsCString ffmt $ loop [] dim2 size err ptr
-  where
-    loop :: [[t]] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
-    loop acc dim2 !i err ptr fmt = case i of
-      0 -> return . con $ acc
-      _ -> do
-        let i' = i - dim2
-        arr <- innLoop [] (dim2 - 1) i' err ptr fmt
-        loop (arr:acc) dim2 i' err ptr fmt
-
-    innLoop :: [t] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO [t]
-    innLoop acc !i baseIdx err ptr fmt = case i of
-      -1 -> return acc
-      _  -> do
-        let i' = baseIdx + i
-        item <- getItem pgArrayRes err i' ptr fmt `E.catch` rethrowWithArrayError i'
-        innLoop (item : acc) (i - 1) baseIdx err ptr fmt
-
+-- | Helper function for putting elements of
+-- 'Array2' / 'CompositeArray2' into 'PGparam'.
 putArray2 :: forall t r. PQFormat t
-          => [[t]] -> Ptr PGparam
-          -> (Ptr PGarray -> IO r)
-          -> (CString -> t -> IO ())
+          => [[t]] -- ^ List of items to be put.
+          -> Ptr PGparam -- ^ Inner 'PGparam' to put items into.
+          -> (Ptr PGarray -> IO r) -- ^ Continuation
+          -- that puts 'PGarray' into outer 'PGparam'.
+          -> (CString -> t -> IO ()) -- ^ Function that takes item
+          -- along with its format and puts it into inner 'PGparam'.
           -> IO r
 putArray2 arr param conv putItem = do
   dims <- BS.useAsCString (pqFormat (undefined::t)) $ loop arr 0 0
@@ -250,4 +244,42 @@ putArray2 arr param conv putItem = do
       []            -> return size
       (item : rest) -> do
         putItem fmt item
-        innLoop rest (size+1) fmt
+        innLoop rest (size + 1) fmt
+
+-- | Helper function for getting elements of
+-- 'Array2' / 'CompositeArray2' out of 'PGarray'.
+getArray2 :: forall a array t. Storable a
+          => ([[t]] -> array) -- ^ Array constructor.
+          -> PGarray -- ^ Source 'PGarray'.
+          -> BS.ByteString -- ^ Format for getting an item from 'PGarray'.
+          -> (Ptr PGresult -> Ptr PGerror -> CInt -> Ptr a -> CString -> IO t) -- ^
+          -- Function that takes an item with a given index
+          -- out of 'PGresult' and stores it in provided 'Ptr'.
+          -> IO array
+getArray2 con PGarray{..} ffmt getItem = flip E.finally (c_PQclear pgArrayRes) $ do
+  if pgArrayNDims /= 0 && pgArrayNDims /= 2
+    then E.throwIO ArrayDimensionMismatch {
+        arrDimExpected = 2
+      , arrDimDelivered = fromIntegral pgArrayNDims
+      }
+    else do
+      let dim2 = pgArrayDims V.! 1
+      size <- c_PQntuples pgArrayRes
+      alloca $ \ptr -> alloca $ \err ->
+        BS.useAsCString ffmt $ loop [] dim2 size err ptr
+  where
+    loop :: [[t]] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
+    loop acc dim2 !i err ptr fmt = case i of
+      0 -> return . con $ acc
+      _ -> do
+        let i' = i - dim2
+        arr <- innLoop [] (dim2 - 1) i' err ptr fmt
+        loop (arr : acc) dim2 i' err ptr fmt
+
+    innLoop :: [t] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO [t]
+    innLoop acc !i baseIdx err ptr fmt = case i of
+      -1 -> return acc
+      _  -> do
+        let i' = baseIdx + i
+        item <- getItem pgArrayRes err i' ptr fmt `E.catch` rethrowWithArrayError i'
+        innLoop (item : acc) (i - 1) baseIdx err ptr fmt

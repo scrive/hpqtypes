@@ -25,12 +25,23 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
+-- | 'alloca'-like producer of 'PGparam' objects.
 type ParamAllocator = forall r. (Ptr PGparam -> IO r) -> IO r
 
+-- | Class which represents \"from Haskell type
+-- to SQL (libpqtypes) type\" transformation.
 class PQFormat t => ToSQL t where
+  -- | Destination type (used by libpqtypes).
   type PQDest t :: *
-  toSQL :: t -> ParamAllocator -> (Ptr (PQDest t) -> IO r) -> IO r
+  -- | Put supplied value into inner 'PGparam'.
+  toSQL :: t -- ^ Value to be put.
+        -> ParamAllocator -- ^ 'PGparam' allocator.
+        -> (Ptr (PQDest t) -> IO r) -- ^ Continuation that puts
+        -- converted value into inner 'PGparam'.
+        -> IO r
 
+-- | Function that abstracts away common elements of most 'ToSQL'
+-- instance definitions to make them easier to write and less verbose.
 put :: Storable t => t -> (Ptr t -> IO r) -> IO r
 put x conv = alloca $ \ptr -> poke ptr x >> conv ptr
 
@@ -170,5 +181,7 @@ dayToPGdate day = PGdate {
   where
     (year, mon, mday) = toGregorian day
 
+    -- Note: inverses of appropriate functions
+    -- in pgDateToDay defined in FromSQL module
     isBC = if year <= 0 then 1 else 0
     adjustBC = if isBC == 1 then succ . negate else id

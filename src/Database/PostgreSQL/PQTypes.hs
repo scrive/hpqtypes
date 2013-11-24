@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
+-- | Set of definitions exposed to the end user.
 module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.Connection
+  -- * Connection
     Connection
   , ConnectionStats(..)
   , ConnectionSettings(..)
@@ -9,6 +11,7 @@ module Database.PostgreSQL.PQTypes (
   , defaultSource
   , poolSource
   -- Database.PostgreSQL.PQTypes.Internal.Error
+  -- * Exceptions
   , QueryError(..)
   , InternalError(..)
   , LibPQError(..)
@@ -20,13 +23,16 @@ module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.Exception
   , DBException(..)
   -- Database.PostgreSQL.PQTypes.Internal.Monad
+  -- * Monad transformer
   , DBT
   , runDBT
   , mapDBT
   -- Database.PostgreSQL.PQTypes.Internal.QueryResult
+  -- * Query result
   , QueryResult
   , ntuples
   , nfields
+  -- * Other modules
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class
