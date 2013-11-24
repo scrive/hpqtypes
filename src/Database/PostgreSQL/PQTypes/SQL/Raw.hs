@@ -19,7 +19,7 @@ import Database.PostgreSQL.PQTypes.ToRow
 
 -- | Form of SQL query which is very close to libpqtypes specific
 -- representation. Note that, in particular, 'RawSQL' () is
--- isomorphic to 'ByteString'.
+-- isomorphic (modulo bottom) to 'ByteString'.
 data RawSQL row = RawSQL !BS.ByteString !row
   deriving (Eq, Ord, Show)
 
@@ -39,6 +39,7 @@ instance IsString (RawSQL ()) where
 instance Monoid (RawSQL ()) where
   mempty = rawSQL BS.empty ()
   RawSQL a () `mappend` RawSQL b () = RawSQL (a `mappend` b) ()
+  mconcat xs = RawSQL (BS.concat $ map (\(RawSQL s ()) -> s) xs) ()
 
 instance SpaceMonoid (RawSQL ()) where
   mspace = RawSQL mspace ()
