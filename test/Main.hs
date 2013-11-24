@@ -271,7 +271,7 @@ savepointTest td = testCase "Savepoint support works" . runTestEnv td dts $ do
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
   _ :: Either DBException () <- E.try . withSavepoint (Savepoint "test") $ do
     runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
-    throwDB $ E.ErrorCall "oops"
+    runSQL_ "SELECT * FROM table_that_is_not_there"
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2)" (int1, int2)
   res1 <- fetchMany unSingle
   assertEqual "Part of transaction was rolled back" res1 [int1] (==)
