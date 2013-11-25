@@ -62,7 +62,8 @@ foldRightM f initAcc = withQueryResult $ \(_::row) ctx fres ferr ffmt ->
 
 -- | Helper for abstracting away shared elements of both folds.
 withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
-                => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r) -> m r
+                => (forall sql. IsSQL sql => row -> sql -> ForeignPtr PGresult -> ForeignPtr PGerror -> ForeignPtr CChar -> m r)
+                -> m r
 withQueryResult f = do
   mres <- getQueryResult
   case mres of
