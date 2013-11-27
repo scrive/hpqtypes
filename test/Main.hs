@@ -33,7 +33,7 @@ import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
 import Test.QuickCheck.Arbitrary.Instances ()
 
-type InnerTestEnv = DBT (StateT StdGen IO)
+type InnerTestEnv = StateT StdGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
   deriving (Applicative, Functor, Monad, MonadBase IO, MonadDB)
@@ -46,8 +46,8 @@ instance MonadBaseControl IO TestEnv where
 
 withStdGen :: (StdGen -> r) -> TestEnv r
 withStdGen f = do
-  gen <- TestEnv . lift $ get
-  TestEnv . lift . modify $ snd . next
+  gen <- TestEnv get
+  TestEnv . modify $ snd . next
   return (f gen)
 
 ----------------------------------------
@@ -55,7 +55,7 @@ withStdGen f = do
 type TestData = (StdGen, ConnectionSource)
 
 runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
-runTestEnv (env, cs) ts m = evalStateT (runDBT cs ts $ unTestEnv m) env
+runTestEnv (env, cs) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
 
 runTimes :: Monad m => Int -> m () -> m ()
 runTimes !n m = case n of

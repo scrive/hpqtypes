@@ -20,8 +20,6 @@ import qualified Control.Monad.Trans.Writer.Strict as S
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Fold
 
--- We all love boilerplate, don't we?
-
 instance (MonadBaseControl IO m, MonadDB m) => MonadDB (ContT e m) where
   runQuery = lift . runQuery
   getLastQuery = lift getLastQuery

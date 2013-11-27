@@ -47,6 +47,8 @@ library
                      , Database.PostgreSQL.PQTypes.ToSQL
                      , Database.PostgreSQL.PQTypes.Transaction
                      , Database.PostgreSQL.PQTypes.Class
+                     , Database.PostgreSQL.PQTypes.Class.Instances
+                     , Database.PostgreSQL.PQTypes.Class.Instances.Overlapping
                      , Database.PostgreSQL.PQTypes.Format
                      , Database.PostgreSQL.PQTypes.Binary
                      , Database.PostgreSQL.PQTypes.SQL
