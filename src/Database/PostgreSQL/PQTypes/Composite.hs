@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleContexts
   , ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Composite (

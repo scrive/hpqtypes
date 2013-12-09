@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Database.PostgreSQL.PQTypes.Utils where
 
 import Control.Monad

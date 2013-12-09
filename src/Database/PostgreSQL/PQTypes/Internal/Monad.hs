@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
   , MultiParamTypeClasses, TypeFamilies, UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (

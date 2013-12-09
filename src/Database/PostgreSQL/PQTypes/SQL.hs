@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs, Rank2Types, TupleSections #-}
 module Database.PostgreSQL.PQTypes.SQL (
     SQL

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 module Database.PostgreSQL.PQTypes.Transaction.Settings (
     TransactionSettings(..)

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, Rank2Types, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)

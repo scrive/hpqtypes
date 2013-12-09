@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
     runSQLQuery

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, OverlappingInstances
   , UndecidableInstances #-}
 -- | Definition of generic 'MonadDB' instance which works for

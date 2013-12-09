@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleInstances
   , RecordWildCards, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Binary (

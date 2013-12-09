@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Data.Monoid.Utils (
     mintercalate
   ) where

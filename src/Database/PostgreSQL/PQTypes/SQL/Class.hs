@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ExistentialQuantification, Rank2Types #-}
 module Database.PostgreSQL.PQTypes.SQL.Class (
     SomeSQL(..)

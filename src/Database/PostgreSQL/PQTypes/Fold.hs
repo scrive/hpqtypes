@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, Rank2Types, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Fold (
     foldLeftM

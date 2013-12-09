@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveFunctor
   , FlexibleInstances, RecordWildCards, ScopedTypeVariables
   , TypeFamilies #-}

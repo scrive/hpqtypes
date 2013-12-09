@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 -- | Definition of internal DBT state.
 module Database.PostgreSQL.PQTypes.Internal.State (
     DBState(..)

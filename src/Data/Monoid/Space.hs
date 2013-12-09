@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Data.Monoid.Space (
     SpaceMonoid(..)

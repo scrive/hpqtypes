@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.FromRow (
     FromRow(..)

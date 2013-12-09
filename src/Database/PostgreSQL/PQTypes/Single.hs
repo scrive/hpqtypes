@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Single (
     Single(..)

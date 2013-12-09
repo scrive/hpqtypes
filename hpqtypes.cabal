@@ -84,7 +84,7 @@ library
 
   hs-source-dirs:    src
 
-  ghc-options:       -O2 -funbox-strict-fields
+  ghc-options:       -O2 -Wall -funbox-strict-fields
 
   build-tools:       hsc2hs
   include-dirs:      libpqtypes/src
@@ -115,7 +115,7 @@ Executable tests
   else
     buildable:       False
 
-  ghc-options:       -O2 -funbox-strict-fields -threaded
+  ghc-options:       -O2 -Wall -funbox-strict-fields -threaded
 
   hs-source-dirs:    test
 

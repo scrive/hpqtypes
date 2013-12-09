@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Utils (
     cStringLenToBytea

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Transaction (
     Savepoint(..)

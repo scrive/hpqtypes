@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 -- | Set of definitions exposed to the end user.
 module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.Connection
