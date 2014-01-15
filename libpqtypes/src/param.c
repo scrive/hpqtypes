@@ -422,7 +422,12 @@ pqt_putparam(PGparam *param, PGerror *err, const void *data, int datal,
 		 */
 		if (v->ptrl < datal || v->ptr == NULL)
 		{
-			char *ptr = (char *) pqt_realloc(v->ptr, datal);
+			/* prevent malloc(0) call which is implementation
+			 * defined and may either return NULL or unique
+			 * pointer (the latter is expected here).
+			 */
+			int alloc_size = datal == 0 ? 1 : datal;
+			char *ptr = (char *) pqt_realloc(v->ptr, alloc_size);
 
 			if (!ptr)
 			{
