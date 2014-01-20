@@ -8,6 +8,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Identity
 import Control.Monad.Trans.List
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
 import Data.Monoid
 import qualified Control.Monad.Trans.RWS.Lazy as L
@@ -71,6 +72,19 @@ instance (MonadBaseControl IO m, MonadDB m) => MonadDB (ListT m) where
   foldrM = foldRightM
   throwDB = lift . throwDB
   withNewConnection = mapListT withNewConnection
+
+instance (MonadBaseControl IO m, MonadDB m) => MonadDB (MaybeT m) where
+  runQuery = lift . runQuery
+  getLastQuery = lift getLastQuery
+  getConnectionStats = lift getConnectionStats
+  getQueryResult = lift getQueryResult
+  clearQueryResult = lift clearQueryResult
+  getTransactionSettings = lift getTransactionSettings
+  setTransactionSettings = lift . setTransactionSettings
+  foldlM = foldLeftM
+  foldrM = foldRightM
+  throwDB = lift . throwDB
+  withNewConnection = mapMaybeT withNewConnection
 
 instance (Monoid w, MonadBaseControl IO m, MonadDB m) => MonadDB (L.RWST r w s m) where
   runQuery = lift . runQuery
