@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.SQL (
   , mkSQL
   , value
   , (<?>)
+  , isEmpty
   ) where
 
 import Control.Applicative
@@ -12,6 +13,8 @@ import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Foldable as F
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
@@ -28,10 +31,10 @@ data SqlChunk where
 
 -- | Primary SQL type that supports efficient
 -- concatenation and variable number of parameters.
-newtype SQL = SQL ([SqlChunk] -> [SqlChunk])
+newtype SQL = SQL (S.Seq SqlChunk)
 
 unSQL :: SQL -> [SqlChunk]
-unSQL (SQL dlist) = dlist []
+unSQL (SQL chunks) = F.toList chunks
 
 ----------------------------------------
 
@@ -56,8 +59,8 @@ instance IsSQL SQL where
             modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
 
 instance Monoid SQL where
-  mempty = SQL id
-  SQL a `mappend` SQL b = SQL (a . b)
+  mempty = mkSQL BS.empty
+  SQL a `mappend` SQL b = SQL (a S.>< b)
 
 instance SpaceMonoid SQL where
   mspace = mkSQL mspace
@@ -72,11 +75,11 @@ instance Show SQL where
 
 -- | Convert 'ByteString' to 'SQL'.
 mkSQL :: BS.ByteString -> SQL
-mkSQL = SQL . (:) . SqlString
+mkSQL = SQL . S.singleton . SqlString
 
 -- | Embed parameter value inside 'SQL'.
 value :: (Show t, ToSQL t) => t -> SQL
-value = SQL . (:) . SqlValue
+value = SQL . S.singleton . SqlValue
 
 -- | Embed parameter value inside existing 'SQL'. Example:
 --
@@ -86,3 +89,12 @@ value = SQL . (:) . SqlValue
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
 s <?> v = s <+> value v
 infixr 7 <?>
+
+----------------------------------------
+
+-- | Test whether an 'SQL' is empty.
+isEmpty :: SQL -> Bool
+isEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
+  where
+    cmp (SqlString s) = s == BS.empty
+    cmp (SqlValue _)  = False
