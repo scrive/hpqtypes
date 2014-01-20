@@ -42,12 +42,12 @@ type family CompositeRow t :: *
 -- | Class which represents \"from SQL to composite\" transformation.
 class (PQFormat t, FromRow (CompositeRow t)) => CompositeFromSQL t where
   -- | Convert composite row to destination type.
-  toComposite :: CompositeRow t -> t
+  toComposite :: CompositeRow t -> IO t
 
 -- | Class which represents \"from composite to SQL\" transformation.
 class (PQFormat t, ToRow (CompositeRow t)) => CompositeToSQL t where
   -- | Convert composite type to its intermediate representation.
-  fromComposite :: t -> CompositeRow t
+  fromComposite :: t -> IO (CompositeRow t)
 
 instance PQFormat t => PQFormat (Composite t) where
   pqFormat _ = pqFormat (undefined::t)
@@ -56,10 +56,11 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just res) = Composite
-    <$> E.finally (toComposite <$> fromRow' res 0) (c_PQclear res)
+    <$> E.finally (fromRow' res 0 >>= toComposite) (c_PQclear res)
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = PGparam
   toSQL (Composite comp) allocParam conv = allocParam $ \param -> do
-    toRow' (fromComposite comp) allocParam param
+    row <- fromComposite comp
+    toRow' row allocParam param
     conv param
