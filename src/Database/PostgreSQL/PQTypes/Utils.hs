@@ -8,6 +8,13 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
+import Database.PostgreSQL.PQTypes.SQL.Raw
+
+-- | Convert 'RawSQL' () to 'SQL'.
+raw :: RawSQL () -> SQL
+raw = mkSQL . unRawSQL
+
+----------------------------------------
 
 -- | Specialization of 'runQuery' that discards the result.
 runQuery_ :: (IsSQL sql, MonadDB m) => sql -> m ()
