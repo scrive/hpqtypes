@@ -6,6 +6,7 @@ module Database.PostgreSQL.PQTypes.Internal.Error (
   , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)
+  , RangeError(..)
   , ArrayDimensionMismatch(..)
   , RowLengthMismatch(..)
   , AffectedRowsMismatch(..)
@@ -63,6 +64,14 @@ data ArrayItemError = forall e. E.Exception e => ArrayItemError {
 
 deriving instance Show ArrayItemError
 
+-- | Range error for various data types.
+data RangeError t = RangeError {
+-- | Allowed range (sum of acceptable ranges).
+  reRange :: [(t, t)]
+-- | Provided value which is not in above range.
+, reValue :: t
+} deriving (Eq, Ord, Show, Typeable)
+
 -- | Array dimenstion mismatch error.
 data ArrayDimensionMismatch = ArrayDimensionMismatch {
 -- | Dimension expected by the library.
@@ -94,6 +103,7 @@ instance E.Exception InternalError
 instance E.Exception LibPQError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError
+instance (Show t, Typeable t) => E.Exception (RangeError t)
 instance E.Exception ArrayDimensionMismatch
 instance E.Exception RowLengthMismatch
 instance E.Exception AffectedRowsMismatch

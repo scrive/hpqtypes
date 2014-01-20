@@ -16,6 +16,7 @@ module Database.PostgreSQL.PQTypes (
   , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)
+  , RangeError(..)
   , ArrayDimensionMismatch(..)
   , RowLengthMismatch(..)
   , AffectedRowsMismatch(..)
