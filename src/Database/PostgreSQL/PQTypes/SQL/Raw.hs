@@ -2,6 +2,7 @@
 module Database.PostgreSQL.PQTypes.SQL.Raw (
     RawSQL
   , rawSQL
+  , unRawSQL
   ) where
 
 import Data.Monoid
@@ -46,3 +47,7 @@ instance SpaceMonoid (RawSQL ()) where
 -- | Construct 'RawSQL' from 'ByteString' and a tuple of parameters.
 rawSQL :: (Show row, ToRow row) => BS.ByteString -> row -> RawSQL row
 rawSQL = RawSQL
+
+-- | Take query string out of 'RawSQL' ().
+unRawSQL :: RawSQL () -> BS.ByteString
+unRawSQL (RawSQL s _) = s
