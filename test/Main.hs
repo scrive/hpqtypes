@@ -163,9 +163,9 @@ type instance CompositeRow Simple = (Maybe Int32, Maybe Day)
 instance PQFormat Simple where
   pqFormat _ = "%simple_"
 instance CompositeFromSQL Simple where
-  toComposite (a, b) = Simple a b
+  toComposite (a, b) = return $ Simple a b
 instance CompositeToSQL Simple where
-  fromComposite (Simple a b) = (a, b)
+  fromComposite (Simple a b) = return (a, b)
 
 instance Arbitrary Simple where
   arbitrary = Simple <$> arbitrary <*> arbitrary
@@ -178,9 +178,9 @@ type instance CompositeRow Nested = (Maybe Double, Maybe (Composite Simple))
 instance PQFormat Nested where
   pqFormat _ = "%nested_"
 instance CompositeFromSQL Nested where
-  toComposite (a, b) = Nested a (unComposite <$> b)
+  toComposite (a, b) = return $ Nested a (unComposite <$> b)
 instance CompositeToSQL Nested where
-  fromComposite (Nested a b) = (a, Composite <$> b)
+  fromComposite (Nested a b) = return (a, Composite <$> b)
 
 instance Arbitrary Nested where
   arbitrary = Nested <$> arbitrary <*> arbitrary
