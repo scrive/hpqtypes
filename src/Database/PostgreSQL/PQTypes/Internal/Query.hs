@@ -51,7 +51,8 @@ runSQLQuery dbT sql = dbT $ do
             , statsValues = statsValues stats + (rows * columns)
             , statsParams  = statsParams stats + paramCount
             }
-        return (Just (fconn, stats'), (either id id affected, res))
+        -- Force evaluation of modified stats to squash space leak.
+        stats' `seq` return (Just (fconn, stats'), (either id id affected, res))
   modify $ \st -> st {
     dbLastQuery = someSQL sql
   , dbQueryResult = Just $ QueryResult res
