@@ -6,7 +6,7 @@ module Database.PostgreSQL.PQTypes (
   , ConnectionStats(..)
   , ConnectionSettings(..)
   , defaultSettings
-  , ConnectionSource(..)
+  , ConnectionSource
   , defaultSource
   , poolSource
   -- Database.PostgreSQL.PQTypes.Internal.Error
