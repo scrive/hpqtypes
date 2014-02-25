@@ -7,6 +7,8 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   , ConnectionSource(..)
   , defaultSource
   , poolSource
+  , connect
+  , disconnect
   ) where
 
 import Control.Applicative
@@ -141,6 +143,8 @@ disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> 
     Just (conn, _) -> finalizeForeignPtr conn
     Nothing -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
   return Nothing
+
+----------------------------------------
 
 wrapException :: IO a -> IO a
 wrapException = E.handle $ rethrowWithContext (mempty::SQL)
