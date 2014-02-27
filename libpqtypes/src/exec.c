@@ -136,7 +136,7 @@ PQgetvf(const PGresult *res, PGerror *err, int tup_num, const char *format, va_l
 			if (!h)
 			{
 				va_end(args.ap);
-				PQseterror(err, "Unknown type handler id at position %d", typpos+1);
+				PQseterror(err, "Unknown type handler id (column '%s' at position %d", PQfname(res, typpos), typpos+1);
 				return FALSE;
 			}
 
@@ -168,8 +168,8 @@ PQgetvf(const PGresult *res, PGerror *err, int tup_num, const char *format, va_l
 			!PQgetvalue(res, tup_num, args.get.field_num))
 		{
 			PQseterror(err,
-				"Invalid tup_num[%d].field_num[%d] (position %d)",
-				tup_num, args.get.field_num, typpos);
+				"Invalid tup_num[%d].field_num[%d] (column '%s' at position %d)",
+				tup_num, args.get.field_num, PQfname(res, typpos-1), typpos);
 			va_end(args.ap);
 			return FALSE;
 		}
@@ -178,11 +178,19 @@ PQgetvf(const PGresult *res, PGerror *err, int tup_num, const char *format, va_l
 		if (((flags & TYPFLAG_ARRAY) && ftype != h->typoid_array) ||
 			 (!(flags & TYPFLAG_ARRAY) && ftype != h->typoid))
 		{
+			// try to get name of actual type
+			char tname[200];
+			PGtypeHandler *hh = pqt_gethandlerbyoid(resData->typhandlers, resData->typhcnt, ftype);
+			if (hh != NULL)
+				pqt_fqtn(tname, sizeof(tname), hh->typschema, hh->typname);
+			else
+				strcpy(tname, "???");
+
 			Oid oid = (flags & TYPFLAG_ARRAY) ? h->typoid_array : h->typoid;
 			PQseterror(err,
-				"Trying to get type %u '%s' but server returned %u (position %d)",
-				oid, pqt_fqtn(tmp, sizeof(tmp), h->typschema, h->typname),
-				ftype, typpos);
+				"Trying to get type '%s' (%u) but server returned '%s' (%u) (column '%s' at position %d)",
+				pqt_fqtn(tmp, sizeof(tmp), h->typschema, h->typname), oid,
+				tname, ftype, PQfname(res, typpos-1), typpos);
 			va_end(args.ap);
 			return FALSE;
 		}

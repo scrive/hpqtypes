@@ -553,6 +553,25 @@ pqt_gethandlerbyid(PGtypeHandler *handlers, int hcnt, int id)
 	return &handlers[id];
 }
 
+PGtypeHandler *
+pqt_gethandlerbyoid(PGtypeHandler *handlers, int hcnt, Oid oid)
+{
+	int pg_handlers_count = countof(pg_handlers);
+	for (int i = 0; i < pg_handlers_count; ++i)
+	{
+		if (pg_handlers[i].typoid == oid)
+			return &pg_handlers[i];
+	}
+
+	for (int i = 0; i < hcnt; ++i)
+	{
+		if (handlers[i].typoid == oid)
+			return &handlers[i];
+	}
+
+	return NULL;
+}
+
 int
 pqt_argssuper(PGtypeArgs *args, ...)
 {

@@ -378,6 +378,9 @@ PGtypeHandler *pqt_gethandler(PGtypeHandler *handlers, int hcnt,
 PGtypeHandler *pqt_gethandlerbyid(PGtypeHandler *handlers,
 	int hcnt, int id);
 
+PGtypeHandler *pqt_gethandlerbyoid(PGtypeHandler *handlers,
+	int hcnt, Oid oid);
+
 /* FQTN standards for Fully Qualified Type Name.  Returns a pointer to out.
  * Only returns NULL if out is NULL or outl <= 0.
  */
