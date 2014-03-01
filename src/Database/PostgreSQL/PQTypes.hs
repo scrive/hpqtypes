@@ -12,7 +12,7 @@ module Database.PostgreSQL.PQTypes (
   -- Database.PostgreSQL.PQTypes.Internal.Error
   -- * Exceptions
   , QueryError(..)
-  , InternalError(..)
+  , HPQTypesError(..)
   , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)

@@ -2,7 +2,7 @@
 -- | Definitions of exception types.
 module Database.PostgreSQL.PQTypes.Internal.Error (
     QueryError(..)
-  , InternalError(..)
+  , HPQTypesError(..)
   , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)
@@ -31,7 +31,7 @@ newtype QueryError = QueryError String
   deriving (Eq, Ord, Show, Typeable)
 
 -- | Internal error in this library.
-newtype InternalError = InternalError String
+newtype HPQTypesError = HPQTypesError String
   deriving (Eq, Ord, Show, Typeable)
 
 -- | Internal error in libpq/libpqtypes library.
@@ -99,7 +99,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
 } deriving (Eq, Ord, Show, Typeable)
 
 instance E.Exception QueryError
-instance E.Exception InternalError
+instance E.Exception HPQTypesError
 instance E.Exception LibPQError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError

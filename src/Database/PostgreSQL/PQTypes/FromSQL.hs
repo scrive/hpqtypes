@@ -18,7 +18,6 @@ import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
 -- | Class which represents \"from SQL (libpqtypes)
@@ -173,7 +172,7 @@ localToZoned construct jts@(Just PGtimestamp{..}) = do
   localTime <- fromSQL jts
   case rest of
     0 -> return . construct (minutesToTimeZone mins) $ localTime
-    _ -> E.throwIO . InternalError $ "Invalid gmtoff: " ++ show gmtoff
+    _ -> hpqTypesError $ "Invalid gmtoff: " ++ show gmtoff
   where
     gmtoff = pgTimeGMTOff pgTimestampTime
     (mins, rest) = fromIntegral gmtoff `divMod` 60

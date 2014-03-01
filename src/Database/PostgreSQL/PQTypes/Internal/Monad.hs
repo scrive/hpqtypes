@@ -82,7 +82,7 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
   getConnectionStats = do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
-      Nothing -> throwDB $ InternalError "getConnectionStats: no connection"
+      Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
       Just (_, stats) -> return stats
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings

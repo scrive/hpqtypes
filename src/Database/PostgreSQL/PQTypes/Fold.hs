@@ -66,7 +66,7 @@ withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
 withQueryResult f = do
   mres <- getQueryResult
   case mres of
-    Nothing -> throwDB . InternalError $ "withQueryResult: no query result"
+    Nothing -> throwDB . HPQTypesError $ "withQueryResult: no query result"
     Just (QueryResult res) -> do
       SomeSQL ctx <- getLastQuery
       liftBase $ do

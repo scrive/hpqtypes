@@ -1,4 +1,18 @@
-module Database.PostgreSQL.PQTypes.Utils where
+module Database.PostgreSQL.PQTypes.Utils (
+    raw
+  , runQuery_
+  , runQuery01
+  , runQuery01_
+  , runSQL
+  , runSQL_
+  , runSQL01
+  , runSQL01_
+  , fetchMany
+  , fetchMaybe
+  , fetchOne
+  -- Internal.Utils
+  , hpqTypesError
+  ) where
 
 import Control.Monad
 
@@ -6,6 +20,7 @@ import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw

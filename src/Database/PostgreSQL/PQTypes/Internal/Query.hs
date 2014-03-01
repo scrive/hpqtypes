@@ -30,7 +30,7 @@ runSQLQuery dbT sql = dbT $ do
   (affected, res) <- liftBase . modifyMVar mvconn $ \mconn -> case mconn of
     Nothing -> E.throwIO DBException {
       dbeQueryContext = sql
-    , dbeError = InternalError "runQuery: no connection"
+    , dbeError = HPQTypesError "runQuery: no connection"
     }
     Just (fconn, stats) ->
       E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \conn -> do
@@ -82,5 +82,5 @@ runSQLQuery dbT sql = dbT $ do
             throwSQLError = throwQueryError conn
             throwParseError = E.throwIO DBException {
               dbeQueryContext = sql
-            , dbeError = InternalError "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
+            , dbeError = HPQTypesError "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
             }

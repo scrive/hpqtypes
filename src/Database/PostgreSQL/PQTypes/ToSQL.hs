@@ -15,13 +15,11 @@ import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
 -- | 'alloca'-like producer of 'PGparam' objects.
@@ -79,7 +77,7 @@ instance ToSQL Double where
 instance ToSQL Char where
   type PQDest Char = CChar
   toSQL c _ conv
-    | c > '\255' = E.throwIO . InternalError $ "toSQL (Char): character " ++ show c ++ " cannot be losslessly converted to CChar"
+    | c > '\255' = hpqTypesError $ "toSQL (Char): character " ++ show c ++ " cannot be losslessly converted to CChar"
     | otherwise = put (castCharToCChar c) conv
 
 instance ToSQL Word8 where

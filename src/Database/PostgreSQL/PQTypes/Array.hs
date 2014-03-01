@@ -235,7 +235,7 @@ putArray2 arr param conv putItem = do
       (row : rest) -> do
         nextInnerSize <- innLoop row 0 fmt
         when (size > 0 && innerSize /= nextInnerSize) $
-          E.throwIO . InternalError $ "putArray2: inner rows have different sizes"
+          hpqTypesError $ "putArray2: inner rows have different sizes"
         loop rest (size + 1) nextInnerSize fmt
 
     innLoop :: [t] -> CInt -> CString -> IO CInt

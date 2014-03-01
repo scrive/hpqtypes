@@ -3,6 +3,7 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
     cStringLenToBytea
   , byteaToCStringLen
   , bsToCString
+  , hpqTypesError
   , unexpectedNULL
   , verifyPQTRes
   , withPGparam
@@ -43,9 +44,13 @@ bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do
     pokeByteOff ptr len (0::CChar)
   return fptr
 
+-- | Throw 'HPQTypesError exception.
+hpqTypesError :: String -> IO a
+hpqTypesError = E.throwIO . HPQTypesError
+
 -- | Throw 'unexpected NULL' exception.
 unexpectedNULL :: IO a
-unexpectedNULL = E.throwIO . InternalError $ "unexpected NULL"
+unexpectedNULL = hpqTypesError "unexpected NULL"
 
 -- | Check return value of a function from libpqtypes
 -- and if it indicates an error, throw appropriate exception.

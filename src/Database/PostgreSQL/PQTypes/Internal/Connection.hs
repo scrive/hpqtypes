@@ -141,7 +141,7 @@ disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
     Just (conn, _) -> finalizeForeignPtr conn
-    Nothing -> E.throwIO (InternalError "disconnect: no connection (shouldn't happen)")
+    Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
 
 ----------------------------------------
