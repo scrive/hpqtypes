@@ -8,7 +8,6 @@ module Database.PostgreSQL.PQTypes.ToSQL (
 
 import Data.ByteString.Unsafe
 import Data.Int
-import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
 import Data.Word
@@ -18,6 +17,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -93,14 +93,13 @@ instance ToSQL BS.ByteString where
   toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
     put (cStringLenToBytea cslen) conv
 
-instance ToSQL Text where
-  type PQDest Text = PGbytea
+instance ToSQL T.Text where
+  type PQDest T.Text = PGbytea
   toSQL = toSQL . encodeUtf8
 
 instance ToSQL String where
   type PQDest String = PGbytea
-  toSQL s _ conv = withCStringLen s $ \cslen ->
-    put (cStringLenToBytea cslen) conv
+  toSQL = toSQL . T.pack
 
 -- DATE
 
