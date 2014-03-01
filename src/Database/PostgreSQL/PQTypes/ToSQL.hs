@@ -93,10 +93,14 @@ instance ToSQL BS.ByteString where
   toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
     put (cStringLenToBytea cslen) conv
 
+-- | Encodes underlying C string as UTF-8, so if you are working
+-- with a different encoding, you should not rely on this instance.
 instance ToSQL T.Text where
   type PQDest T.Text = PGbytea
   toSQL = toSQL . encodeUtf8
 
+-- | Encodes underlying C string as UTF-8, so if you are working
+-- with a different encoding, you should not rely on this instance.
 instance ToSQL String where
   type PQDest String = PGbytea
   toSQL = toSQL . T.pack
