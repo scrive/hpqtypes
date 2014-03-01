@@ -2,9 +2,9 @@
 module Database.PostgreSQL.PQTypes.SQL (
     SQL
   , mkSQL
-  , value
+  , sqlParam
   , (<?>)
-  , isEmpty
+  , isSqlEmpty
   ) where
 
 import Control.Applicative
@@ -27,7 +27,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 data SqlChunk where
   SqlString :: !BS.ByteString -> SqlChunk
-  SqlValue  :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
+  SqlParam  :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
 
 -- | Primary SQL type that supports efficient
 -- concatenation and variable number of parameters.
@@ -53,7 +53,7 @@ instance IsSQL SQL where
     where
       f param err nums chunk = case chunk of
         SqlString s -> return s
-        SqlValue v -> toSQL v allocParam $ \base ->
+        SqlParam v -> toSQL v allocParam $ \base ->
           BS.useAsCString (pqFormat v) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
@@ -69,7 +69,7 @@ instance Show SQL where
   showsPrec n sql = ("SQL " ++) . (showsPrec n . concatMap conv . unSQL $ sql)
     where
       conv (SqlString s) = BS.unpack s
-      conv (SqlValue v) = "<" ++ show v ++ ">"
+      conv (SqlParam v) = "<" ++ show v ++ ">"
 
 ----------------------------------------
 
@@ -78,8 +78,8 @@ mkSQL :: BS.ByteString -> SQL
 mkSQL = SQL . S.singleton . SqlString
 
 -- | Embed parameter value inside 'SQL'.
-value :: (Show t, ToSQL t) => t -> SQL
-value = SQL . S.singleton . SqlValue
+sqlParam :: (Show t, ToSQL t) => t -> SQL
+sqlParam = SQL . S.singleton . SqlParam
 
 -- | Embed parameter value inside existing 'SQL'. Example:
 --
@@ -87,14 +87,14 @@ value = SQL . S.singleton . SqlValue
 -- > f idx name = "SELECT foo FROM bar WHERE id =" <?> idx <+> "AND name =" <?> name
 --
 (<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
-s <?> v = s <+> value v
+s <?> v = s <+> sqlParam v
 infixr 7 <?>
 
 ----------------------------------------
 
 -- | Test whether an 'SQL' is empty.
-isEmpty :: SQL -> Bool
-isEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
+isSqlEmpty :: SQL -> Bool
+isSqlEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
   where
     cmp (SqlString s) = s == BS.empty
-    cmp (SqlValue _)  = False
+    cmp (SqlParam _)  = False
