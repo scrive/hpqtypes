@@ -7,7 +7,6 @@ module Database.PostgreSQL.PQTypes.FromSQL (
 import Control.Applicative
 import Data.Int
 import Data.Ratio
-import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
 import Data.Word
@@ -15,6 +14,7 @@ import Foreign.C
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -81,16 +81,15 @@ instance FromSQL Word8 where
 
 instance FromSQL String where
   type PQBase String = PGbytea
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just bytea) = peekCStringLen $ byteaToCStringLen bytea
+  fromSQL mbytea = T.unpack <$> fromSQL mbytea
 
 instance FromSQL BS.ByteString where
   type PQBase BS.ByteString = PGbytea
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just bytea) = BS.packCStringLen $ byteaToCStringLen bytea
 
-instance FromSQL Text where
-  type PQBase Text = PGbytea
+instance FromSQL T.Text where
+  type PQBase T.Text = PGbytea
   fromSQL mbytea = either E.throwIO return . decodeUtf8' =<< fromSQL mbytea
 
 -- DATE
