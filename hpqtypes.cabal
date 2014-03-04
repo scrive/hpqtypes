@@ -29,6 +29,29 @@ category:            Database
 build-type:          Custom
 cabal-version:       >= 1.8
 
+extra-source-files: libpqtypes/AUTHORS
+                  , libpqtypes/Makefile.in
+                  , libpqtypes/config.guess
+                  , libpqtypes/groff2html
+                  , libpqtypes/win32.mak
+                  , libpqtypes/ChangeLog
+                  , libpqtypes/Makefile.win32
+                  , libpqtypes/config.sub
+                  , libpqtypes/install-sh
+                  , libpqtypes/INSTALL
+                  , libpqtypes/README
+                  , libpqtypes/configure
+                  , libpqtypes/ltmain.sh
+                  , libpqtypes/LICENSE
+                  , libpqtypes/acinclude.m4
+                  , libpqtypes/configure.ac
+                  , libpqtypes/missing
+                  , libpqtypes/Makefile.am
+                  , libpqtypes/aclocal.m4
+                  , libpqtypes/src/pqt_config.h.in
+                  , libpqtypes/src/libpqtypes-int.h
+                  , libpqtypes/src/libpqtypes.h
+
 Flag tests
   description: Build test suite
   default: False
