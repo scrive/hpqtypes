@@ -20,10 +20,7 @@ main = defaultMainWithHooks simpleUserHooks {
 , confHook = \pkg flags -> do
   lbi <- confHook simpleUserHooks pkg flags
   let verbosity = fromFlag $ configVerbosity flags
-  srcpath <- case pkgDescrFile lbi of
-                  Just p -> return $ reverse $ drop 1 $ dropWhile (`notElem` "/\\") $ reverse p
-                  Nothing -> getCurrentDirectory
-  pqTypesConfigure srcpath verbosity
+  pqTypesConfigure verbosity
   bi <- psqlBuildInfo verbosity lbi
   return lbi {
     localPkgDescr = updatePackageDescription (Just bi, []) (localPkgDescr lbi)
@@ -56,10 +53,10 @@ psqlBuildInfo verbosity lbi = do
   where
     trim = let f = reverse . dropWhile isSpace in f . f
 
-pqTypesConfigure :: FilePath -> Verbosity -> IO ()
-pqTypesConfigure srcpath verbosity = do
+pqTypesConfigure :: Verbosity -> IO ()
+pqTypesConfigure verbosity = do
   dir <- getCurrentDirectory
-  setCurrentDirectory $ srcpath </> "libpqtypes"
+  setCurrentDirectory $ dir </> "libpqtypes"
   -- run configure to create appropriate pqt_config.h
   res <- rawSystemExitCode verbosity "env" ["./configure"]
   case res of
