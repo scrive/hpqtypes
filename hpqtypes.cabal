@@ -152,7 +152,7 @@ Executable tests
                      , monad-control >= 0.3
                      , lifted-base >= 0.2
                      , mtl >= 2.1
-                     , QuickCheck >= 2.5
+                     , QuickCheck >= 2.5 && < 2.7
                      , HUnit >= 1.2
                      , test-framework >= 0.8
                      , test-framework-hunit >= 0.3
