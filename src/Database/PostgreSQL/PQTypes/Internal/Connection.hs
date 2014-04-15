@@ -122,6 +122,8 @@ poolSource cs numStripes idleTime maxResources = do
 
 ----------------------------------------
 
+-- | Low-level function for connecting to the database.
+-- Useful if one wants to implement custom connection source.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = wrapException $ do
   fconn <- BS.useAsCString csConnInfo c_PQconnectdb
@@ -137,6 +139,8 @@ connect ConnectionSettings{..} = wrapException $ do
     registerComposites conn csComposites
   Connection <$> newMVar (Just (fconn, initialStats))
 
+-- | Low-level function for disconnecting from the database.
+-- Useful if one wants to implement custom connection source.
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
