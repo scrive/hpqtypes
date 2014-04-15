@@ -11,6 +11,10 @@
 
 #include "libpqtypes-int.h"
 
+// Needed by bindings for passing this
+// in case input ByteString is null.
+const char pqt_hs_null_string_ptr[1];
+
 int
 pqt_put_char(PGtypeArgs *args)
 {

@@ -19,6 +19,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Format
+import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
@@ -89,7 +90,16 @@ instance ToSQL Word8 where
 instance ToSQL BS.ByteString where
   type PQDest BS.ByteString = PGbytea
   toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
-    put (cStringLenToBytea cslen) conv
+    -- Note: it seems that ByteString can actually store NULL pointer
+    -- inside. This is bad, since NULL pointers are treated by libpqtypes
+    -- as NULL values. To get around that, nullStringCStringLen is used
+    -- (a static pointer to empty string defined on C level). Actually,
+    -- it would be sufficient to pass any non-NULL pointer there, but
+    -- this is much uglier and dangerous.
+    flip put conv . cStringLenToBytea $
+      if fst cslen == nullPtr
+        then nullStringCStringLen
+        else cslen
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.

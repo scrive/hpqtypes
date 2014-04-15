@@ -20,6 +20,8 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQparamCreate
   , c_PQparamClear
   , c_PQparamCount
+  -- * misc imports
+  , nullStringCStringLen
   )  where
 
 import Foreign.C
@@ -95,6 +97,14 @@ foreign import ccall unsafe "PQparamClear"
 
 foreign import ccall unsafe "PQparamCount"
   c_PQparamCount :: Ptr PGparam -> IO CInt
+
+-- misc
+
+foreign import ccall unsafe "&pqt_hs_null_string_ptr"
+  nullStringPtr :: Ptr CChar
+
+nullStringCStringLen :: CStringLen
+nullStringCStringLen = (nullStringPtr, 0)
 
 ----------------------------------------
 
