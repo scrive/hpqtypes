@@ -60,27 +60,26 @@ runSQLQuery dbT sql = dbT $ do
   return affected
   where
     verifyResult :: Ptr PGconn -> Ptr PGresult -> IO (Either Int Int)
-    verifyResult conn res
-      | res == nullPtr = throwSQLError
-      | otherwise = do
-        st <- c_PQresultStatus res
-        case st of
-          _ | st == c_PGRES_COMMAND_OK -> do
-            mn <- c_PQcmdTuples res >>= BS.packCString
-            case BS.readInt mn of
-              Nothing
-                | BS.null mn -> return . Left $ 0
-                | otherwise  -> throwParseError
-              Just (n, rest)
-                | rest /= BS.empty -> throwParseError
-                | otherwise        -> return . Left $ n
-          _ | st == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
-          _ | st == c_PGRES_FATAL_ERROR  -> throwSQLError
-          _ | st == c_PGRES_BAD_RESPONSE -> throwSQLError
-          _ | otherwise                  -> return . Left $ 0
-          where
-            throwSQLError = throwQueryError conn
-            throwParseError = E.throwIO DBException {
-              dbeQueryContext = sql
-            , dbeError = HPQTypesError "runQuery.verifyResult: string returned by PQcmdTuples is not a valid number"
-            }
+    verifyResult conn res = do
+      -- works even if res is NULL
+      st <- c_PQresultStatus res
+      case st of
+        _ | st == c_PGRES_COMMAND_OK -> do
+          sn <- c_PQcmdTuples res >>= BS.packCString
+          case BS.readInt sn of
+            Nothing
+              | BS.null sn -> return . Left $ 0
+              | otherwise  -> throwParseError sn
+            Just (n, rest)
+              | rest /= BS.empty -> throwParseError sn
+              | otherwise        -> return . Left $ n
+        _ | st == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
+        _ | st == c_PGRES_FATAL_ERROR  -> throwSQLError
+        _ | st == c_PGRES_BAD_RESPONSE -> throwSQLError
+        _ | otherwise                  -> return . Left $ 0
+        where
+          throwSQLError = throwQueryError conn res
+          throwParseError sn = E.throwIO DBException {
+            dbeQueryContext = sql
+          , dbeError = HPQTypesError ("runQuery.verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
+          }

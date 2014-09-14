@@ -6,6 +6,8 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQerrorMessage
   , c_PQsetClientEncoding
   , c_PQresultStatus
+  , c_PQresultErrorField
+  , c_PQresultErrorMessage
   , c_PQntuples
   , c_PQnfields
   , c_PQcmdTuples
@@ -44,6 +46,12 @@ foreign import ccall unsafe "PQsetClientEncoding"
 
 foreign import ccall unsafe "PQresultStatus"
   c_PQresultStatus :: Ptr PGresult -> IO ExecStatusType
+
+foreign import ccall unsafe "PQresultErrorField"
+  c_PQresultErrorField :: Ptr PGresult -> ErrorField -> IO CString
+
+foreign import ccall unsafe "PQresultErrorMessage"
+  c_PQresultErrorMessage :: Ptr PGresult -> IO CString
 
 foreign import ccall unsafe "PQntuples"
   c_PQntuples :: Ptr PGresult -> IO CInt

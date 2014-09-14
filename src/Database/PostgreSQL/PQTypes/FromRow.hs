@@ -29,7 +29,7 @@ convert res tuple column base = do
   where
     rethrowWithConvError :: E.SomeException -> IO a
     rethrowWithConvError (E.SomeException e) = do
-      colname <- peekCString =<< c_PQfname res column
+      colname <- safePeekCString' =<< c_PQfname res column
       E.throwIO ConversionError {
         convColumn = fromIntegral column + 1
       , convColumnName = colname

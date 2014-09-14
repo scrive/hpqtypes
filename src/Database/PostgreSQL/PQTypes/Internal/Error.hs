@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
 -- | Definitions of exception types.
 module Database.PostgreSQL.PQTypes.Internal.Error (
-    QueryError(..)
+    DetailedQueryError(..)
+  , QueryError(..)
   , HPQTypesError(..)
   , LibPQError(..)
   , ConversionError(..)
@@ -10,23 +11,32 @@ module Database.PostgreSQL.PQTypes.Internal.Error (
   , ArrayDimensionMismatch(..)
   , RowLengthMismatch(..)
   , AffectedRowsMismatch(..)
-  , throwQueryError
-  , throwLibPQError
-  , throwLibPQTypesError
-  , rethrowWithArrayError
   ) where
 
-import Control.Applicative
 import Data.Typeable
-import Foreign.C
-import Foreign.Ptr
-import Foreign.Storable
 import qualified Control.Exception as E
 
-import Database.PostgreSQL.PQTypes.Internal.C.Interface
-import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Error.Code
 
--- | SQL query error.
+-- | SQL query error. Reference: description of PQresultErrorField
+-- at <http://www.postgresql.org/docs/devel/static/libpq-exec.html>.
+data DetailedQueryError = DetailedQueryError {
+  qeSeverity          :: !String
+, qeErrorCode         :: !ErrorCode
+, qeMessagePrimary    :: !String
+, qeMessageDetail     :: !(Maybe String)
+, qeMessageHint       :: !(Maybe String)
+, qeStatementPosition :: !(Maybe Int)
+, qeInternalPosition  :: !(Maybe Int)
+, qeInternalQuery     :: !(Maybe String)
+, qeContext           :: !(Maybe String)
+, qeSourceFile        :: !(Maybe String)
+, qeSourceLine        :: !(Maybe Int)
+, qeSourceFunction    :: !(Maybe String)
+} deriving (Eq, Ord, Show, Typeable)
+
+-- | Simple SQL query error. Thrown when there is no
+-- PGresult object corresponding to query execution.
 newtype QueryError = QueryError String
   deriving (Eq, Ord, Show, Typeable)
 
@@ -98,6 +108,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
 , rowsDelivered :: !Int
 } deriving (Eq, Ord, Show, Typeable)
 
+instance E.Exception DetailedQueryError
 instance E.Exception QueryError
 instance E.Exception HPQTypesError
 instance E.Exception LibPQError
@@ -107,31 +118,3 @@ instance (Show t, Typeable t) => E.Exception (RangeError t)
 instance E.Exception ArrayDimensionMismatch
 instance E.Exception RowLengthMismatch
 instance E.Exception AffectedRowsMismatch
-
--- | Throw query error.
-throwQueryError :: Ptr PGconn -> IO a
-throwQueryError conn = do
-  msg <- peekCString =<< c_PQerrorMessage conn
-  E.throwIO . QueryError $ msg
-
--- | Throw libpq specific error.
-throwLibPQError :: Ptr PGconn -> String -> IO a
-throwLibPQError conn ctx = do
-  msg <- peekCString =<< c_PQerrorMessage conn
-  E.throwIO . LibPQError
-    $ if null ctx then msg else ctx ++ ": " ++ msg
-
--- | Throw libpqtypes specific error.
-throwLibPQTypesError :: Ptr PGerror -> String -> IO a
-throwLibPQTypesError err ctx = do
-  msg <- pgErrorMsg <$> peek err
-  E.throwIO . LibPQError
-    $ if null ctx then msg else ctx ++ ": " ++ msg
-
--- | Rethrow supplied exception enriched with array index.
-rethrowWithArrayError :: CInt -> E.SomeException -> IO a
-rethrowWithArrayError i (E.SomeException e) =
-  E.throwIO ArrayItemError {
-    arrItemIndex = fromIntegral i + 1
-  , arrItemError = e
-  }

@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.0.4
+version:             1.1.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -80,6 +80,7 @@ library
                      , Database.PostgreSQL.PQTypes.SQL.Class
                      , Database.PostgreSQL.PQTypes.Transaction.Settings
                      , Database.PostgreSQL.PQTypes.Internal.Error
+                     , Database.PostgreSQL.PQTypes.Internal.Error.Code
                      , Database.PostgreSQL.PQTypes.Internal.Composite
                      , Database.PostgreSQL.PQTypes.Internal.Utils
                      , Database.PostgreSQL.PQTypes.Internal.Connection

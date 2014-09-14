@@ -11,6 +11,8 @@ module Database.PostgreSQL.PQTypes (
   , poolSource
   -- Database.PostgreSQL.PQTypes.Internal.Error
   -- * Exceptions
+  , ErrorCode(..)
+  , DetailedQueryError(..)
   , QueryError(..)
   , HPQTypesError(..)
   , LibPQError(..)
@@ -54,6 +56,7 @@ module Database.PostgreSQL.PQTypes (
 
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Monad
 import Database.PostgreSQL.PQTypes.Internal.QueryResult

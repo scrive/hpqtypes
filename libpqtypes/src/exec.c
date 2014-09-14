@@ -493,8 +493,6 @@ copyExecError(PGconn *conn, PGerror *err, PGresult *r)
 		default:
 		{
 			PQseterror(err, "PGresult: %s", PQresultErrorMessage(r));
-			PQclear(r);
-			r = NULL;
 			break;
 		}
 	}
