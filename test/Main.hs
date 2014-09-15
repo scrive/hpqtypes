@@ -95,6 +95,16 @@ instance Arbitrary BS.ByteString where
 instance Arbitrary T.Text where
   arbitrary = T.pack . unString0 <$> arbitrary
 
+instance Arbitrary Interval where
+  arbitrary = Interval
+    <$> abs `fmap` arbitrary
+    <*> choose (0, 11)
+    <*> choose (0, 364)
+    <*> choose (0, 23)
+    <*> choose (0, 59)
+    <*> choose (0, 59)
+    <*> choose (0, 999999)
+
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> arbitrary
 
@@ -352,6 +362,7 @@ tests td = [
   , nullTest td (u::BS.ByteString)
   , nullTest td (u::T.Text)
   , nullTest td (u::Binary BS.ByteString)
+  , nullTest td (u::Interval)
   , nullTest td (u::Day)
   , nullTest td (u::TimeOfDay)
   , nullTest td (u::LocalTime)
@@ -375,6 +386,7 @@ tests td = [
   , putGetTest td 1000 (u::BS.ByteString) (==)
   , putGetTest td 1000 (u::T.Text) (==)
   , putGetTest td 1000 (u::Binary BS.ByteString) (==)
+  , putGetTest td 50 (u::Interval) (==)
   , putGetTest td 1000000 (u::Day) (==)
   , putGetTest td 10000 (u::TimeOfDay) eqTOD
   , putGetTest td 500000 (u::LocalTime) eqLT
