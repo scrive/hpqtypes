@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, Rank2Types
-  , RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings
+  , Rank2Types, RecordWildCards, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Transaction (
     Savepoint(..)
   , withSavepoint
@@ -21,8 +21,6 @@ import qualified Control.Exception.Lifted as LE
 import Data.Monoid.Space
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
@@ -78,25 +76,23 @@ rollback = getTransactionSettings >>= rollback'
 -- active (in such case 'withSavepoint' should be used instead).
 withTransaction' :: forall m a. (MonadBaseControl IO m, MonadDB m)
                  => TransactionSettings -> m a -> m a
-withTransaction' its m = LE.mask $ \restore -> exec restore its
+withTransaction' ts m = LE.mask $ exec 1
   where
-    exec :: (forall r. m r -> m r) -> TransactionSettings -> m a
-    exec restore ts = LE.handleJust expred (exec restore) $ do
+    exec :: Integer -> (forall r. m r -> m r) -> m a
+    exec !n restore = LE.handleJust expred (const $ exec (succ n) restore) $ do
       begin' ts
       res <- restore m `LE.onException` rollback' ts
       commit' ts
       return res
       where
-        expred :: DBException -> Maybe TransactionSettings
+        expred :: DBException -> Maybe ()
         expred DBException{..} = do
-          -- check if it is DetailedQueryError
-          qe <- cast dbeError
-          guard $ qeErrorCode qe == SerializationFailure
-          -- check if it is okay to restart the transaction
-          n <- tsRestartAfterSerializationFailure ts
-          guard $ n > 0
-          -- return transation settings with appropriately modified n
-          return ts { tsRestartAfterSerializationFailure = Just . pred $ n }
+          -- check if the predicate exists
+          RestartPredicate f <- Just $ tsRestartPredicate ts
+          -- cast exception to the type expected by the predicate
+          err <- cast dbeError
+          -- check if the predicate allows for the restart
+          guard $ f err n
 
 -- | Begin transaction using given transaction settings.
 begin' :: MonadDB m => TransactionSettings -> m ()
