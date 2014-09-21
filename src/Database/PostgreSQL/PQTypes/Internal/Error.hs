@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.Internal.Error (
   , LibPQError(..)
   , ConversionError(..)
   , ArrayItemError(..)
+  , InvalidValue(..)
   , RangeError(..)
   , ArrayDimensionMismatch(..)
   , RowLengthMismatch(..)
@@ -74,6 +75,14 @@ data ArrayItemError = forall e. E.Exception e => ArrayItemError {
 
 deriving instance Show ArrayItemError
 
+-- | \"Invalid value\" error for various data types.
+data InvalidValue t = InvalidValue {
+-- | Invalid value.
+  ivValue       :: t
+-- Optional list of valid values.
+, ivValidValues :: Maybe [t]
+} deriving (Eq, Ord, Show, Typeable)
+
 -- | Range error for various data types.
 data RangeError t = RangeError {
 -- | Allowed range (sum of acceptable ranges).
@@ -114,6 +123,7 @@ instance E.Exception HPQTypesError
 instance E.Exception LibPQError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError
+instance (Show t, Typeable t) => E.Exception (InvalidValue t)
 instance (Show t, Typeable t) => E.Exception (RangeError t)
 instance E.Exception ArrayDimensionMismatch
 instance E.Exception RowLengthMismatch
