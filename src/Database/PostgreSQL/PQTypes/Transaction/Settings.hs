@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types
+{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, Rank2Types
   , RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Transaction.Settings (
     RestartPredicate(..)
@@ -12,15 +12,12 @@ import Data.Typeable
 import qualified Control.Exception as E
 
 -- | Predicate that determines whether the transaction has to be restarted.
-data RestartPredicate where
-  RestartPredicate   :: forall e. E.Exception e
-                     => (e -> Integer -> Bool) -> RestartPredicate
-  NoRestartPredicate :: RestartPredicate
+data RestartPredicate = forall e. E.Exception e
+                     => RestartPredicate (e -> Integer -> Bool)
   deriving Typeable
 
 instance Show RestartPredicate where
   showsPrec _ RestartPredicate{} = (++) "RestartPredicate"
-  showsPrec _ NoRestartPredicate = (++) "NoRestartPredicate"
 
 data TransactionSettings = TransactionSettings {
 -- | If set to True, transaction will be automatically started at the
@@ -40,7 +37,7 @@ data TransactionSettings = TransactionSettings {
 -- allows for restarting transactions e.g. in case of serialization
 -- failure. It is up to the caller to ensure that is it safe to
 -- execute supplied monadic action multiple times.
-, tsRestartPredicate :: !RestartPredicate
+, tsRestartPredicate :: !(Maybe RestartPredicate)
 -- | Permissions of all transactions.
 , tsPermissions      :: !Permissions
 } deriving (Show, Typeable)
@@ -56,6 +53,6 @@ defaultTransactionSettings :: TransactionSettings
 defaultTransactionSettings = TransactionSettings {
   tsAutoTransaction  = True
 , tsIsolationLevel   = DefaultLevel
-, tsRestartPredicate = NoRestartPredicate
+, tsRestartPredicate = Nothing
 , tsPermissions      = DefaultPermissions
 }

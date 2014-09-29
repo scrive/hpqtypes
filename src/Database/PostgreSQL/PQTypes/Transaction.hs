@@ -88,7 +88,7 @@ withTransaction' ts m = LE.mask $ exec 1
         expred :: DBException -> Maybe ()
         expred DBException{..} = do
           -- check if the predicate exists
-          RestartPredicate f <- Just $ tsRestartPredicate ts
+          RestartPredicate f <- tsRestartPredicate ts
           -- cast exception to the type expected by the predicate
           err <- cast dbeError
           -- check if the predicate allows for the restart
