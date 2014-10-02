@@ -40,9 +40,6 @@ class (Applicative m, Functor m, Monad m) => MonadDB m where
   -- | Fold the result set of rows from right to left.
   foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
 
-  -- | Throw supplied exception as 'DBException'.
-  throwDB :: Exception e => e -> m a
-
   -- | Execute supplied monadic action with new connection
   -- using current connection source and transaction settings.
   --

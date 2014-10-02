@@ -7,6 +7,7 @@ module Main where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Base
+import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Control.Monad.State
 import Data.Char
@@ -36,7 +37,7 @@ import Test.QuickCheck.Arbitrary.Instances ()
 type InnerTestEnv = StateT StdGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
-  deriving (Applicative, Functor, Monad, MonadBase IO, MonadDB)
+  deriving (Applicative, Functor, Monad, MonadBase IO, MonadDB, MonadThrow)
 
 instance MonadBaseControl IO TestEnv where
   newtype StM TestEnv a = StTestEnv { unStTestEnv :: StM InnerTestEnv a }

@@ -28,6 +28,5 @@ instance (
     setTransactionSettings = lift . setTransactionSettings
     foldlM = foldLeftM
     foldrM = foldRightM
-    throwDB = lift . throwDB
     withNewConnection m = restoreT . return
       =<< liftWith (\run -> withNewConnection (run m))

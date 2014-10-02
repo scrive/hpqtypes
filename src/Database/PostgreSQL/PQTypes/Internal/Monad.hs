@@ -9,6 +9,7 @@ module Database.PostgreSQL.PQTypes.Internal.Monad (
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad.Base
+import Control.Monad.Catch
 import Control.Monad.Cont.Class
 import Control.Monad.Error.Class
 import Control.Monad.Reader.Class
@@ -16,7 +17,6 @@ import Control.Monad.State
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Monoid
-import qualified Control.Exception as E
 import qualified Control.Monad.Trans.State as S
 
 import Database.PostgreSQL.PQTypes.Class
@@ -36,11 +36,11 @@ type InnerDBT = StateT DBState
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
-  deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadIO, MonadPlus, MonadTrans)
+  deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadTrans)
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
-runDBT :: MonadBaseControl IO m
+runDBT :: (MonadBaseControl IO m, MonadThrow m)
        => ConnectionSource -> TransactionSettings -> DBT m a -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
   evalStateT action $ DBState {
@@ -75,14 +75,23 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
 
-instance MonadBaseControl IO m => MonadDB (DBT m) where
+-- | Throw supplied exception wrapped in 'DBException'.
+instance MonadThrow m => MonadThrow (DBT m) where
+  throwM e = do
+    SomeSQL sql <- DBT . gets $ dbLastQuery
+    throwM DBException {
+      dbeQueryContext = sql
+    , dbeError = e
+    }
+
+instance (MonadBaseControl IO m, MonadThrow m) => MonadDB (DBT m) where
   runQuery = runSQLQuery DBT
   getLastQuery = DBT . gets $ dbLastQuery
 
   getConnectionStats = do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
-      Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
+      Nothing -> throwM $ HPQTypesError "getConnectionStats: no connection"
       Just (_, stats) -> return stats
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
@@ -93,13 +102,6 @@ instance MonadBaseControl IO m => MonadDB (DBT m) where
 
   foldlM = foldLeftM
   foldrM = foldRightM
-
-  throwDB e = do
-    SomeSQL sql <- getLastQuery
-    liftBase . E.throwIO $ DBException {
-      dbeQueryContext = sql
-    , dbeError = e
-    }
 
   withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st

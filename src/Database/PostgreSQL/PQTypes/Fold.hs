@@ -65,10 +65,11 @@ withQueryResult :: forall m row r. (MonadBase IO m, MonadDB m, FromRow row)
                 -> m r
 withQueryResult f = do
   mres <- getQueryResult
+  SomeSQL ctx <- getLastQuery
   case mres of
-    Nothing -> throwDB . HPQTypesError $ "withQueryResult: no query result"
+    Nothing -> liftBase . rethrowWithContext ctx . E.toException . HPQTypesError
+      $ "withQueryResult: no query result"
     Just (QueryResult res) -> do
-      SomeSQL ctx <- getLastQuery
       liftBase $ do
         rowlen <- fromIntegral `liftM` withForeignPtr res c_PQnfields
         let expected = pqVariables (undefined::row)
