@@ -40,7 +40,7 @@ newtype DBT m a = DBT { unDBT :: InnerDBT m a }
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
-runDBT :: (MonadBaseControl IO m, MonadThrow m)
+runDBT :: (MonadBase IO m, MonadMask m)
        => ConnectionSource -> TransactionSettings -> DBT m a -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
   evalStateT action $ DBState {
@@ -61,30 +61,7 @@ mapDBT f = DBT . mapStateT f . unDBT
 
 ----------------------------------------
 
-instance MonadTransControl DBT where
-  newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
-  liftWith = defaultLiftWith DBT unDBT StDBT
-  restoreT = defaultRestoreT DBT unStDBT
-  {-# INLINE liftWith #-}
-  {-# INLINE restoreT #-}
-
-instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
-  newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt DBT m a }
-  liftBaseWith = defaultLiftBaseWith StMDBT
-  restoreM     = defaultRestoreM unStMDBT
-  {-# INLINE liftBaseWith #-}
-  {-# INLINE restoreM #-}
-
--- | Throw supplied exception wrapped in 'DBException'.
-instance MonadThrow m => MonadThrow (DBT m) where
-  throwM e = do
-    SomeSQL sql <- DBT . gets $ dbLastQuery
-    throwM DBException {
-      dbeQueryContext = sql
-    , dbeError = e
-    }
-
-instance (MonadBaseControl IO m, MonadThrow m) => MonadDB (DBT m) where
+instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
   runQuery = runSQLQuery DBT
   getLastQuery = DBT . gets $ dbLastQuery
 
@@ -110,6 +87,32 @@ instance (MonadBaseControl IO m, MonadThrow m) => MonadDB (DBT m) where
     return (res, st)
 
 ----------------------------------------
+
+instance MonadTransControl DBT where
+  newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
+  liftWith = defaultLiftWith DBT unDBT StDBT
+  restoreT = defaultRestoreT DBT unStDBT
+  {-# INLINE liftWith #-}
+  {-# INLINE restoreT #-}
+
+instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
+  newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt DBT m a }
+  liftBaseWith = defaultLiftBaseWith StMDBT
+  restoreM     = defaultRestoreM unStMDBT
+  {-# INLINE liftBaseWith #-}
+  {-# INLINE restoreM #-}
+
+-- | Throw supplied exception wrapped in 'DBException'
+-- or, given 'DBException', rethrow it.
+instance MonadThrow m => MonadThrow (DBT m) where
+  throwM e = DBT $ case fromException $ toException e of
+    Just dbe@DBException{} -> throwM dbe
+    Nothing -> do
+      SomeSQL sql <- gets $ dbLastQuery
+      throwM DBException {
+        dbeQueryContext = sql
+      , dbeError = e
+      }
 
 instance MonadCont m => MonadCont (DBT m) where
   callCC m = DBT $ S.liftCallCC' callCC (\c -> unDBT . m $ DBT . c)

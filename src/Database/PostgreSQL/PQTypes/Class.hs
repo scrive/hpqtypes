@@ -3,7 +3,6 @@ module Database.PostgreSQL.PQTypes.Class (
   ) where
 
 import Control.Applicative
-import Control.Exception (Exception)
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection

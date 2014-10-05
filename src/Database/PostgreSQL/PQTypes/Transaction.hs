@@ -14,9 +14,8 @@ module Database.PostgreSQL.PQTypes.Transaction (
   ) where
 
 import Control.Monad
-import Control.Monad.Trans.Control
+import Control.Monad.Catch
 import Data.Typeable
-import qualified Control.Exception.Lifted as LE
 
 import Data.Monoid.Space
 import Data.Monoid.Utils
@@ -34,10 +33,10 @@ newtype Savepoint = Savepoint (RawSQL ())
 -- provides something like \"nested transaction\".
 --
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
-withSavepoint :: (MonadBaseControl IO m, MonadDB m) => Savepoint -> m a -> m a
-withSavepoint (Savepoint savepoint) m = LE.mask $ \restore -> do
+withSavepoint :: (MonadDB m, MonadMask m) => Savepoint -> m a -> m a
+withSavepoint (Savepoint savepoint) m = mask $ \restore -> do
   runQuery_ $ "SAVEPOINT" <+> savepoint
-  res <- restore m `LE.onException` rollbackAndReleaseSavepoint
+  res <- restore m `onException` rollbackAndReleaseSavepoint
   runQuery_ sqlReleaseSavepoint
   return res
   where
@@ -54,7 +53,7 @@ withSavepoint (Savepoint savepoint) m = LE.mask $ \restore -> do
 -- monadic action won't have any effect  on the final 'commit'
 -- / 'rollback' as settings that were in effect during the call
 -- to 'withTransaction' will be used.
-withTransaction :: (MonadBaseControl IO m, MonadDB m) => m a -> m a
+withTransaction :: (MonadDB m, MonadMask m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m
 
 -- | Begin transaction using current transaction settings.
@@ -74,14 +73,14 @@ rollback = getTransactionSettings >>= rollback'
 -- | Execute monadic action within a transaction using given transaction
 -- settings. Note that it won't work as expected if a transaction is already
 -- active (in such case 'withSavepoint' should be used instead).
-withTransaction' :: forall m a. (MonadBaseControl IO m, MonadDB m)
+withTransaction' :: forall m a. (MonadDB m, MonadMask m)
                  => TransactionSettings -> m a -> m a
-withTransaction' ts m = LE.mask $ exec 1
+withTransaction' ts m = mask $ exec 1
   where
     exec :: Integer -> (forall r. m r -> m r) -> m a
-    exec !n restore = LE.handleJust expred (const $ exec (succ n) restore) $ do
+    exec !n restore = handleJust expred (const $ exec (succ n) restore) $ do
       begin' ts
-      res <- restore m `LE.onException` rollback' ts
+      res <- restore m `onException` rollback' ts
       commit' ts
       return res
       where

@@ -37,7 +37,7 @@ import Test.QuickCheck.Arbitrary.Instances ()
 type InnerTestEnv = StateT StdGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
-  deriving (Applicative, Functor, Monad, MonadBase IO, MonadDB, MonadThrow)
+  deriving (Applicative, Functor, Monad, MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow)
 
 instance MonadBaseControl IO TestEnv where
   newtype StM TestEnv a = StTestEnv { unStTestEnv :: StM InnerTestEnv a }

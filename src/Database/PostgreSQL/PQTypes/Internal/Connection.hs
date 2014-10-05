@@ -16,7 +16,7 @@ import Control.Arrow
 import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Base
-import Control.Monad.Trans.Control
+import Control.Monad.Catch
 import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
@@ -81,14 +81,14 @@ newtype Connection = Connection {
 
 -- | Database connection supplier.
 newtype ConnectionSource = ConnectionSource {
-  withConnection :: MonadBaseControl IO m => (Connection -> m a) -> m a
+  withConnection :: (MonadBase IO m, MonadMask m) => (Connection -> m a) -> m a
 }
 
 -- | Default connection supplier. It estabilishes new
 -- database connection each time 'withConnection' is called.
 defaultSource :: ConnectionSettings -> ConnectionSource
 defaultSource cs = ConnectionSource {
-  withConnection = liftBaseOp $ E.bracket (connect cs) disconnect
+  withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
 }
 
 -- | Pooled source. It uses striped pool from resource-pool
@@ -113,9 +113,16 @@ poolSource :: ConnectionSettings
 poolSource cs numStripes idleTime maxResources = do
   pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
   return ConnectionSource {
-    withConnection = withResource pool . (clearStats >=>)
+    withConnection = withResource' pool . (clearStats >=>)
   }
   where
+    withResource' pool m =  mask $ \restore -> do
+      (resource, local) <- liftBase $ takeResource pool
+      ret <- restore (m resource) `onException`
+        liftBase (destroyResource pool local resource)
+      liftBase $ putResource local resource
+      return ret
+
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
         return $ second (const initialStats) <$> mconn
