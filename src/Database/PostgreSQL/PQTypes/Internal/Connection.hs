@@ -21,6 +21,8 @@ import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
 import Foreign.ForeignPtr
+import Foreign.Ptr
+import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
@@ -76,7 +78,7 @@ initialStats = ConnectionStats {
 
 -- | Wrapper for hiding representation of a connection object.
 newtype Connection = Connection {
-  unConnection :: MVar (Maybe (ForeignPtr PGconn, ConnectionStats))
+  unConnection :: MVar (Maybe (ForeignPtr (Ptr PGconn), ConnectionStats))
 }
 
 -- | Database connection supplier.
@@ -135,7 +137,8 @@ poolSource cs numStripes idleTime maxResources = do
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = wrapException $ do
   fconn <- BS.useAsCString csConnInfo c_PQconnectdb
-  withForeignPtr fconn $ \conn -> do
+  withForeignPtr fconn $ \connPtr -> do
+    conn <- peek connPtr
     status <- c_PQstatus conn
     when (status /= c_CONNECTION_OK) $
       throwLibPQError conn "connect"
@@ -152,7 +155,7 @@ connect ConnectionSettings{..} = wrapException $ do
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just (conn, _) -> finalizeForeignPtr conn
+    Just (conn, _) -> withForeignPtr conn c_PQfinishPtr
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
 

@@ -15,6 +15,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQfname
   , c_PQclear
   -- * libpqtypes imports
+  , c_PQfinishPtr
   , c_PQconnectdb
   , c_PQinitTypes
   , c_PQregisterTypes
@@ -29,6 +30,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
+import Foreign.Storable
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -77,17 +79,26 @@ foreign import ccall unsafe "PQclear"
 foreign import ccall safe "PQconnectdb"
   c_rawPQconnectdb :: CString -> IO (Ptr PGconn)
 
-foreign import ccall unsafe "&PQfinish"
-  c_ptr_PQfinish :: FunPtr (Ptr PGconn -> IO ())
+foreign import ccall unsafe "PQfinishPtr"
+  c_PQfinishPtr :: Ptr (Ptr PGconn) -> IO ()
+
+foreign import ccall unsafe "&PQfinishPtr"
+  c_ptr_PQfinishPtr :: FunPtr (Ptr (Ptr PGconn) -> IO ())
 
 -- | Safe wrapper for 'c_rawPQconnectdb', returns
 -- 'ForeignPtr' instead of 'Ptr'.
-c_PQconnectdb :: CString -> IO (ForeignPtr PGconn)
+c_PQconnectdb :: CString -> IO (ForeignPtr (Ptr PGconn))
 c_PQconnectdb conninfo = E.mask_ $ do
   conn <- c_rawPQconnectdb conninfo
-  if conn == nullPtr
-    then newForeignPtr_ conn
-    else newForeignPtr c_ptr_PQfinish conn
+  -- Work around a bug in GHC that causes foreign pointer
+  -- finalizers to be run multiple times under random
+  -- circumstances by providing another level of indirection
+  -- and a wrapper for PQfinish that can be safely called
+  -- multiple times.
+  connPtr <- mallocForeignPtr
+  withForeignPtr connPtr $ flip poke conn
+  addForeignPtrFinalizer c_ptr_PQfinishPtr connPtr
+  return connPtr
 
 -- libpqtypes imports
 

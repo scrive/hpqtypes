@@ -9,6 +9,7 @@ import Control.Monad.Base
 import Control.Monad.Trans.State
 import Foreign.ForeignPtr
 import Foreign.Ptr
+import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
@@ -33,7 +34,8 @@ runSQLQuery dbT sql = dbT $ do
     , dbeError = HPQTypesError "runQuery: no connection"
     }
     Just (fconn, stats) ->
-      E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \conn -> do
+      E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \connPtr -> do
+        conn <- peek connPtr
         (paramCount, res) <- withSQL sql (withPGparam conn) $ \param query -> (,)
           <$> (fromIntegral <$> c_PQparamCount param)
           <*> c_PQparamExec conn nullPtr param query c_RESULT_BINARY

@@ -124,6 +124,7 @@ library
                      , libpqtypes/src/error.c
                      , libpqtypes/src/events.c
                      , libpqtypes/src/exec.c
+                     , libpqtypes/src/ffi.c
                      , libpqtypes/src/geo.c
                      , libpqtypes/src/handler.c
                      , libpqtypes/src/misc.c
