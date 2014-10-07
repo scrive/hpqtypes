@@ -8,8 +8,8 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Trans.Control
 import Control.Monad.State
+import Control.Monad.Trans.Control
 import Data.Char
 import Data.Int
 import Data.Time
@@ -265,7 +265,7 @@ autocommitTest td = testCase "Autocommit mode works" . runTestEnv td dts{tsAutoT
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dts{tsPermissions = ReadOnly} $ do
   let sint = Single (2::Int32)
-  eres <- E.try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
+  eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   case eres :: Either DBException () of
     Left _ -> return ()
     Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"
@@ -280,7 +280,7 @@ savepointTest td = testCase "Savepoint support works" . runTestEnv td dts $ do
 
   -- action executed within withSavepoint throws
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
-  _ :: Either DBException () <- E.try . withSavepoint (Savepoint "test") $ do
+  _ :: Either DBException () <- try . withSavepoint (Savepoint "test") $ do
     runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
     runSQL_ "SELECT * FROM table_that_is_not_there"
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2)" (int1, int2)
@@ -310,7 +310,7 @@ nullTest :: forall t. (Show t, ToSQL t, FromSQL t, Typeable t)
          => TestData -> t -> Test
 nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (typeOf t) <+> "fails if NULL is provided") . runTestEnv td dts $ do
   runSQL_ $ "SELECT" <?> (Nothing::Maybe t)
-  eres  <- E.try $ fetchOne unSingle
+  eres  <- try $ fetchOne unSingle
   case eres :: Either DBException t of
     Left _ -> return ()
     Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"

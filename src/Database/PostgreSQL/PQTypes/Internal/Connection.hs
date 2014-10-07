@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
+  , ConnectionData(..)
   , ConnectionStats(..)
   , ConnectionSettings(..)
   , defaultSettings
@@ -12,7 +13,6 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   ) where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Base
@@ -76,9 +76,19 @@ initialStats = ConnectionStats {
 , statsParams  = 0
 }
 
+-- | Representation of a connection object.
+data ConnectionData = ConnectionData {
+  -- | Foreign pointer to pointer to connection object.
+  cdFrgnPtr  :: !(ForeignPtr (Ptr PGconn))
+  -- | Pointer to connection object (the same as in 'cdFrgnPtr').
+, cdPtr      :: !(Ptr PGconn)
+  -- | Statistics associated with the connection.
+, cdStats    :: !ConnectionStats
+}
+
 -- | Wrapper for hiding representation of a connection object.
 newtype Connection = Connection {
-  unConnection :: MVar (Maybe (ForeignPtr (Ptr PGconn), ConnectionStats))
+  unConnection :: MVar (Maybe ConnectionData)
 }
 
 -- | Database connection supplier.
@@ -127,7 +137,7 @@ poolSource cs numStripes idleTime maxResources = do
 
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
-        return $ second (const initialStats) <$> mconn
+        return $ (\cd -> cd { cdStats = initialStats }) <$> mconn
       return conn
 
 ----------------------------------------
@@ -148,14 +158,18 @@ connect ConnectionSettings{..} = wrapException $ do
         throwLibPQError conn "connect"
     c_PQinitTypes conn
     registerComposites conn csComposites
-  Connection <$> newMVar (Just (fconn, initialStats))
+    Connection <$> newMVar (Just ConnectionData {
+      cdFrgnPtr = fconn
+    , cdPtr     = conn
+    , cdStats   = initialStats
+    })
 
 -- | Low-level function for disconnecting from the database.
 -- Useful if one wants to implement custom connection source.
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just (conn, _) -> withForeignPtr conn c_PQfinishPtr
+    Just cd -> withForeignPtr (cdFrgnPtr cd) c_PQfinishPtr
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
 

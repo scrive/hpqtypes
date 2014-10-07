@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
-  , MultiParamTypeClasses, TypeFamilies, UndecidableInstances #-}
+  , MultiParamTypeClasses, RecordWildCards, TypeFamilies
+  , UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
   , runDBT
@@ -69,7 +70,7 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
       Nothing -> throwM $ HPQTypesError "getConnectionStats: no connection"
-      Just (_, stats) -> return stats
+      Just cd -> return $ cdStats cd
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }

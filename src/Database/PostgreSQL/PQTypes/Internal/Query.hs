@@ -9,7 +9,6 @@ import Control.Monad.Base
 import Control.Monad.Trans.State
 import Foreign.ForeignPtr
 import Foreign.Ptr
-import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
@@ -33,28 +32,26 @@ runSQLQuery dbT sql = dbT $ do
       dbeQueryContext = sql
     , dbeError = HPQTypesError "runQuery: no connection"
     }
-    Just (fconn, stats) ->
-      E.handle (rethrowWithContext sql) $ withForeignPtr fconn $ \connPtr -> do
-        conn <- peek connPtr
-        (paramCount, res) <- withSQL sql (withPGparam conn) $ \param query -> (,)
-          <$> (fromIntegral <$> c_PQparamCount param)
-          <*> c_PQparamExec conn nullPtr param query c_RESULT_BINARY
-        affected <- withForeignPtr res $ verifyResult conn
-        stats' <- case affected of
-          Left _ -> return stats {
-            statsQueries = statsQueries stats + 1
-          , statsParams  = statsParams stats + paramCount
+    Just cd@ConnectionData{..} -> E.handle (rethrowWithContext sql) $ do
+      (paramCount, res) <- withSQL sql (withPGparam cdPtr) $ \param query -> (,)
+        <$> (fromIntegral <$> c_PQparamCount param)
+        <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
+      affected <- withForeignPtr res $ verifyResult cdPtr
+      stats' <- case affected of
+        Left _ -> return cdStats {
+          statsQueries = statsQueries cdStats + 1
+        , statsParams  = statsParams cdStats + paramCount
+        }
+        Right rows -> do
+          columns <- fromIntegral <$> withForeignPtr res c_PQnfields
+          return ConnectionStats {
+            statsQueries = statsQueries cdStats + 1
+          , statsRows    = statsRows cdStats + rows
+          , statsValues  = statsValues cdStats + (rows * columns)
+          , statsParams  = statsParams cdStats + paramCount
           }
-          Right rows -> do
-            columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-            return stats {
-              statsQueries = statsQueries stats + 1
-            , statsRows = statsRows stats + rows
-            , statsValues = statsValues stats + (rows * columns)
-            , statsParams  = statsParams stats + paramCount
-            }
-        -- Force evaluation of modified stats to squash space leak.
-        stats' `seq` return (Just (fconn, stats'), (either id id affected, res))
+      -- Force evaluation of modified stats to squash space leak.
+      stats' `seq` return (Just cd { cdStats = stats' }, (either id id affected, res))
   modify $ \st -> st {
     dbLastQuery = someSQL sql
   , dbQueryResult = Just $ QueryResult res
