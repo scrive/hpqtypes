@@ -10,7 +10,7 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.SQL.Class
 
-class (Applicative m, Functor m, Monad m) => MonadDB m where
+class (Applicative m, Monad m) => MonadDB m where
   -- | Run SQL query and return number of affected/returned rows. Note that
   -- for a given connection, only one thread may be executing 'runQuery' at
   -- a given time. If simultaneous call is made from another thread, it
