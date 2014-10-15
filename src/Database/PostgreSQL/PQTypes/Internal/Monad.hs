@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
-  , MultiParamTypeClasses, RecordWildCards, TypeFamilies
+  , MultiParamTypeClasses, ScopedTypeVariables, TypeFamilies
   , UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
@@ -17,6 +17,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Monoid
+import System.Exit
 import qualified Control.Monad.Trans.State as S
 
 import Database.PostgreSQL.PQTypes.Class
@@ -102,12 +103,13 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
 
--- | Throw supplied exception wrapped in 'DBException'
--- or, given 'DBException', rethrow it.
+-- | When given 'DBException' or 'ExitCode', throw it
+-- immediately. Otherwise wrap it in 'DBException' first.
 instance MonadThrow m => MonadThrow (DBT m) where
-  throwM e = DBT $ case fromException $ toException e of
-    Just dbe@DBException{} -> throwM dbe
-    Nothing -> do
+  throwM e = DBT $ case (,) <$> fromException <*> fromException $ toException e of
+    (Just (dbe::DBException), _) -> throwM dbe
+    (_, Just (ec::ExitCode))     -> throwM ec
+    _ -> do
       SomeSQL sql <- gets $ dbLastQuery
       throwM DBException {
         dbeQueryContext = sql
