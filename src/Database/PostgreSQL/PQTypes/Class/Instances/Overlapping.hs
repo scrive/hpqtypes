@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, OverlappingInstances
-  , Rank2Types, UndecidableInstances #-}
+  , RankNTypes, UndecidableInstances #-}
 -- | Definition of generic 'MonadDB' instance which works for
 -- any transformer with 'MonadTrans' and 'MonadTransControl'
 -- instances. Quite convenient, but not imported by default
