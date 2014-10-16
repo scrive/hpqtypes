@@ -23,7 +23,6 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
 import Test.QuickCheck.Gen
-import qualified Control.Exception.Lifted as E
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Text as T
@@ -492,5 +491,5 @@ main = do
   gen <- getStdGen
   putStrLn $ "PRNG:" <+> show gen
 
-  E.finally (defaultMainWithArgs (tests (gen, connPool)) $ tail args) $ do
+  finally (defaultMainWithArgs (tests (gen, connPool)) $ tail args) $ do
     dropStructures connSource
