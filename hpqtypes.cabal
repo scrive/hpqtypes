@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.2.1
+version:             1.2.2
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -98,7 +98,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Get
 
-  build-depends:       base >= 4.5
+  build-depends:       base >= 4.5 && < 5
                      , text >= 0.11
                      , bytestring >= 0.9
                      , time >= 1.4
