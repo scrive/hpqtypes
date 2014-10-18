@@ -120,7 +120,7 @@ library
   include-dirs:      libpqtypes/src
   extra-libraries:   pq
 
-  cc-options:        -DHAVE_CONFIG_H -D_GNU_SOURCE -D_REENTRANT -O2 -std=gnu99 -fsigned-char -fno-strict-aliasing -Wall -Wextra
+  cc-options:        -DHAVE_CONFIG_H -D_GNU_SOURCE -D_REENTRANT -std=gnu99 -fsigned-char -fno-strict-aliasing -Wall -Wextra
 
   c-sources:           libpqtypes/src/array.c
                      , libpqtypes/src/datetime.c
