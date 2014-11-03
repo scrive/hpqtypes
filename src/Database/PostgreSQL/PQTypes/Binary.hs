@@ -6,14 +6,12 @@ module Database.PostgreSQL.PQTypes.Binary (
   ) where
 
 import Control.Applicative
-import Data.ByteString.Unsafe
 import Data.Typeable
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Wrapper for (de)serializing underlying type as 'bytea'.
@@ -29,11 +27,11 @@ instance PQFormat (Binary BS.ByteString) where
 
 instance FromSQL (Binary BS.ByteString) where
   type PQBase (Binary BS.ByteString) = PGbytea
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGbytea{..}) = Binary
-    <$> BS.packCStringLen (pgByteaData, fromIntegral pgByteaLen)
+  -- use handler for ByteStringS for convenience
+  fromSQL mbase = Binary <$> fromSQL mbase
 
 instance ToSQL (Binary BS.ByteString) where
   type PQDest (Binary BS.ByteString) = PGbytea
-  toSQL (Binary bs) _ conv = unsafeUseAsCStringLen bs $ \cslen ->
-    put (cStringLenToBytea cslen) conv
+  -- use handler for ByteStringS as it properly handles
+  -- the case when underlying ByteString pointer is NULL.
+  toSQL (Binary bs) = toSQL bs
