@@ -22,6 +22,7 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
+import Test.QuickCheck.Compat
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -33,7 +34,7 @@ import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
 import Test.QuickCheck.Arbitrary.Instances ()
 
-type InnerTestEnv = StateT StdGen (DBT IO)
+type InnerTestEnv = StateT QCGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
   deriving (Applicative, Functor, Monad, MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow)
@@ -51,15 +52,15 @@ instance MonadBaseControl IO TestEnv where
   restoreM = TestEnv . restoreM . unStTestEnv
 #endif
 
-withStdGen :: (StdGen -> r) -> TestEnv r
-withStdGen f = do
+withQCGen :: (QCGen -> r) -> TestEnv r
+withQCGen f = do
   gen <- TestEnv get
   TestEnv . modify $ snd . next
   return (f gen)
 
 ----------------------------------------
 
-type TestData = (StdGen, ConnectionSource)
+type TestData = (QCGen, ConnectionSource)
 
 runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
 runTestEnv (env, cs) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
@@ -245,7 +246,7 @@ dts :: TransactionSettings
 dts = defaultTransactionSettings
 
 randomValue :: Arbitrary t => Int -> TestEnv t
-randomValue n = withStdGen $ \gen -> unGen arbitrary gen n
+randomValue n = withQCGen $ \gen -> unGen arbitrary gen n
 
 assertEqual :: (Show a, MonadBase IO m)
             => String -> a -> a -> (a -> a -> Bool) -> m ()
@@ -508,7 +509,7 @@ main = do
 
   createStructures connSource
   connPool <- poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
-  gen <- getStdGen
+  gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
   finally (defaultMainWithArgs (tests (gen, connPool)) $ tail args) $ do
