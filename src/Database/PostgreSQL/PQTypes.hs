@@ -5,9 +5,8 @@ module Database.PostgreSQL.PQTypes (
     Connection
   , ConnectionStats(..)
   , ConnectionSettings(..)
-  , defaultSettings
   , ConnectionSource
-  , defaultSource
+  , simpleSource
   , poolSource
   -- Database.PostgreSQL.PQTypes.Internal.Error
   -- * Exceptions

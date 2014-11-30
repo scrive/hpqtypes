@@ -5,9 +5,10 @@ module Database.PostgreSQL.PQTypes.Transaction.Settings (
   , TransactionSettings(..)
   , IsolationLevel(..)
   , Permissions(..)
-  , defaultTransactionSettings
+  , def
   ) where
 
+import Data.Default.Class
 import Data.Typeable
 import qualified Control.Exception as E
 
@@ -49,10 +50,10 @@ data Permissions = DefaultPermissions | ReadOnly | ReadWrite
   deriving (Eq, Ord, Show, Typeable)
 
 -- | Default transaction settings.
-defaultTransactionSettings :: TransactionSettings
-defaultTransactionSettings = TransactionSettings {
-  tsAutoTransaction  = True
-, tsIsolationLevel   = DefaultLevel
-, tsRestartPredicate = Nothing
-, tsPermissions      = DefaultPermissions
-}
+instance Default TransactionSettings where
+  def = TransactionSettings {
+    tsAutoTransaction  = True
+  , tsIsolationLevel   = DefaultLevel
+  , tsRestartPredicate = Nothing
+  , tsPermissions      = DefaultPermissions
+  }

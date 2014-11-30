@@ -6,9 +6,9 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   , withConnectionData
   , ConnectionStats(..)
   , ConnectionSettings(..)
-  , defaultSettings
+  , def
   , ConnectionSource(..)
-  , defaultSource
+  , simpleSource
   , poolSource
   , connect
   , disconnect
@@ -20,6 +20,7 @@ import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
+import Data.Default.Class
 import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
@@ -49,12 +50,12 @@ data ConnectionSettings = ConnectionSettings {
 } deriving (Eq, Ord, Show)
 
 -- | Default connection settings.
-defaultSettings :: ConnectionSettings
-defaultSettings = ConnectionSettings {
-  csConnInfo = BS.empty
-, csClientEncoding = Nothing
-, csComposites = []
-}
+instance Default ConnectionSettings where
+  def = ConnectionSettings {
+    csConnInfo = BS.empty
+  , csClientEncoding = Nothing
+  , csComposites = []
+  }
 
 ----------------------------------------
 
@@ -110,8 +111,8 @@ newtype ConnectionSource = ConnectionSource {
 
 -- | Default connection supplier. It estabilishes new
 -- database connection each time 'withConnection' is called.
-defaultSource :: ConnectionSettings -> ConnectionSource
-defaultSource cs = ConnectionSource {
+simpleSource :: ConnectionSettings -> ConnectionSource
+simpleSource cs = ConnectionSource {
   withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
 }
 

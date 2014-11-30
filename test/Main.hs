@@ -244,11 +244,8 @@ eqCompositeArray2 a b = a == b
 
 ----------------------------------------
 
-dts :: TransactionSettings
-dts = defaultTransactionSettings
-
 tsNoTrans :: TransactionSettings
-tsNoTrans = dts { tsAutoTransaction = False }
+tsNoTrans = def { tsAutoTransaction = False }
 
 randomValue :: Arbitrary t => Int -> TestEnv t
 randomValue n = withQCGen $ \gen -> unGen arbitrary gen n
@@ -275,7 +272,7 @@ autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
 readOnlyTest :: TestData -> Test
-readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dts{tsPermissions = ReadOnly} $ do
+readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td def{tsPermissions = ReadOnly} $ do
   let sint = Single (2::Int32)
   eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   case eres :: Either DBException () of
@@ -286,7 +283,7 @@ readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td dt
   assertEqual "SELECT works in read only mode" n 0 (==)
 
 savepointTest :: TestData -> Test
-savepointTest td = testCase "Savepoint support works" . runTestEnv td dts $ do
+savepointTest td = testCase "Savepoint support works" . runTestEnv td def $ do
   let int1 = 3 :: Int32
       int2 = 4 :: Int32
 
@@ -335,7 +332,7 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
     forkNewConn = void . fork . withNewConnection
 
 transactionTest :: TestData -> IsolationLevel -> Test
-transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td dts{tsIsolationLevel = lvl} $ do
+transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td def{tsIsolationLevel = lvl} $ do
   let sint = Single (5::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
@@ -345,7 +342,7 @@ transactionTest td lvl = testCase ("Auto transaction works by default with isola
 
 nullTest :: forall t. (Show t, ToSQL t, FromSQL t, Typeable t)
          => TestData -> t -> Test
-nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (typeOf t) <+> "fails if NULL is provided") . runTestEnv td dts $ do
+nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (typeOf t) <+> "fails if NULL is provided") . runTestEnv td def $ do
   runSQL_ $ "SELECT" <?> (Nothing::Maybe t)
   eres  <- try $ fetchOne unSingle
   case eres :: Either DBException t of
@@ -354,7 +351,7 @@ nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (type
 
 putGetTest :: forall t. (Arbitrary t, Show t, ToSQL t, FromSQL t, Typeable t)
            => TestData -> Int -> t -> (t -> t -> Bool) -> Test
-putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+> "through database doesn't change its value") . runTestEnv td dts . runTimes 1000 $ do
+putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+> "through database doesn't change its value") . runTestEnv td def . runTimes 1000 $ do
   v :: t <- randomValue n
   --liftBase . putStrLn . show $ v
   runSQL_ $ "SELECT" <?> v
@@ -362,7 +359,7 @@ putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+>
   assertEqual "Value doesn't change after getting through database" v v' eq
 
 xmlTest :: TestData -> Test
-xmlTest td  = testCase "Put and get XML value works" . runTestEnv td dts $ do
+xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
   runSQL_ $ "SET CLIENT_ENCODING TO 'UTF8'"
   let v = XML "some<tag>stringå</tag>"
   runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
@@ -375,7 +372,7 @@ xmlTest td  = testCase "Put and get XML value works" . runTestEnv td dts $ do
 
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
-rowTest td r = testCase ("Putting row of length" <+> show (pqVariables r) <+> "through database works") . runTestEnv td dts . runTimes 100 $ do
+rowTest td r = testCase ("Putting row of length" <+> show (pqVariables r) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
   row :: row <- randomValue 100
   let fmt = mintercalate ", " $ map (BSC.pack . ('$' :) . show) [1..pqVariables r]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
@@ -510,14 +507,14 @@ tests td = [
 ----------------------------------------
 
 createStructures :: ConnectionSource -> IO ()
-createStructures cs = runDBT cs dts $ do
+createStructures cs = runDBT cs def $ do
   liftBase . putStrLn $ "Creating structures..."
   runSQL_ "CREATE TABLE test1_ (a INTEGER)"
   runSQL_ "CREATE TYPE simple_ AS (a INTEGER, b DATE)"
   runSQL_ "CREATE TYPE nested_ AS (d DOUBLE PRECISION, s SIMPLE_)"
 
 dropStructures :: ConnectionSource -> IO ()
-dropStructures cs = runDBT cs dts $ do
+dropStructures cs = runDBT cs def $ do
   liftBase . putStrLn $ "Dropping structures..."
   runSQL_ "DROP TYPE nested_"
   runSQL_ "DROP TYPE simple_"
@@ -531,12 +528,11 @@ main = do
     putStrLn $ "Usage:" <+> prog <+> "<connection info string> [test-framework args]"
     exitFailure
 
-  let connSettings = ConnectionSettings {
+  let connSettings = def {
           csConnInfo = BSC.pack $ head args
         , csClientEncoding = Just "latin1"
-        , csComposites = []
         }
-      connSource = defaultSource connSettings
+      connSource = simpleSource connSettings
 
   createStructures connSource
   connPool <- poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
