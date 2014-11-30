@@ -78,7 +78,6 @@ library
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.Notification
                      , Database.PostgreSQL.PQTypes.SQL
-                     , Database.PostgreSQL.PQTypes.Single
                      , Database.PostgreSQL.PQTypes.SQL.Raw
                      , Database.PostgreSQL.PQTypes.SQL.Class
                      , Database.PostgreSQL.PQTypes.Transaction.Settings

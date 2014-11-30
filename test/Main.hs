@@ -148,8 +148,8 @@ instance Arbitrary a => Arbitrary (Binary a) where
 instance Arbitrary a => Arbitrary (Composite a) where
   arbitrary = Composite <$> arbitrary
 
-instance Arbitrary a => Arbitrary (Single a) where
-  arbitrary = Single <$> arbitrary
+instance Arbitrary a => Arbitrary (Identity a) where
+  arbitrary = Identity <$> arbitrary
 
 instance Arbitrary a => Arbitrary (Array1 a) where
   arbitrary = arbitraryArray1 Array1
@@ -264,7 +264,7 @@ assertEqual preface expected actual eq =
 
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $ do
-  let sint = Single (1::Int32)
+  let sint = Identity (1::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
@@ -273,7 +273,7 @@ autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $
 
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td def{tsPermissions = ReadOnly} $ do
-  let sint = Single (2::Int32)
+  let sint = Identity (2::Int32)
   eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   case eres :: Either DBException () of
     Left _ -> return ()
@@ -288,22 +288,22 @@ savepointTest td = testCase "Savepoint support works" . runTestEnv td def $ do
       int2 = 4 :: Int32
 
   -- action executed within withSavepoint throws
-  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
+  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int1)
   _ :: Either DBException () <- try . withSavepoint (Savepoint "test") $ do
-    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
+    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int2)
     runSQL_ "SELECT * FROM table_that_is_not_there"
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2)" (int1, int2)
-  res1 <- fetchMany unSingle
+  res1 <- fetchMany runIdentity
   assertEqual "Part of transaction was rolled back" res1 [int1] (==)
 
   rollback
 
   -- action executed within withSavepoint doesn't throw
-  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int1)
+  runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int1)
   withSavepoint (Savepoint "test") $ do
-    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Single int2)
+    runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int2)
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
-  res2 <- fetchMany unSingle
+  res2 <- fetchMany runIdentity
   assertEqual "Result of all queries is visible" res2 [int1, int2] (==)
 
 notifyTest :: TestData -> Test
@@ -333,7 +333,7 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
 
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td def{tsIsolationLevel = lvl} $ do
-  let sint = Single (5::Int32)
+  let sint = Identity (5::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
@@ -344,7 +344,7 @@ nullTest :: forall t. (Show t, ToSQL t, FromSQL t, Typeable t)
          => TestData -> t -> Test
 nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (typeOf t) <+> "fails if NULL is provided") . runTestEnv td def $ do
   runSQL_ $ "SELECT" <?> (Nothing::Maybe t)
-  eres  <- try $ fetchOne unSingle
+  eres  <- try $ fetchOne runIdentity
   case eres :: Either DBException t of
     Left _ -> return ()
     Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"
@@ -355,7 +355,7 @@ putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+>
   v :: t <- randomValue n
   --liftBase . putStrLn . show $ v
   runSQL_ $ "SELECT" <?> v
-  v' <- fetchOne unSingle
+  v' <- fetchOne runIdentity
   assertEqual "Value doesn't change after getting through database" v v' eq
 
 xmlTest :: TestData -> Test
@@ -363,10 +363,10 @@ xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
   runSQL_ $ "SET CLIENT_ENCODING TO 'UTF8'"
   let v = XML "some<tag>stringå</tag>"
   runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
-  v' <- fetchOne unSingle
+  v' <- fetchOne runIdentity
   assertEqual "XML value correct" v v' (==)
   runSQL_ $ "SELECT" <?> v
-  v'' <- fetchOne unSingle
+  v'' <- fetchOne runIdentity
   assertEqual "XML value correct" v v'' (==)
   runSQL_ $ "SET CLIENT_ENCODING TO 'latin-1'"
 
@@ -450,7 +450,7 @@ tests td = [
   , putGetTest td 1000 (u::CompositeArray1 Nested) (==)
   , putGetTest td 1000 (u::CompositeArray2 Nested) eqCompositeArray2
   ----------------------------------------
-  , rowTest td (u::Single Int16)
+  , rowTest td (u::Identity Int16)
   , rowTest td (u::(Int16, Int32))
   , rowTest td (u::(Int16, Int32, Int64))
   , rowTest td (u::(Int16, Int32, Int64, Float))

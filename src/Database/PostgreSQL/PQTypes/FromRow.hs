@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.FromRow (
   ) where
 
 import Control.Applicative
+import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Storable
@@ -19,7 +20,6 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Single
 
 -- | Convert base (libpqtypes) type to destination type.
 convert :: FromSQL t => Ptr PGresult -> CInt -> CInt -> PQBase t -> IO t
@@ -61,11 +61,11 @@ class PQFormat row => FromRow row where
 instance FromRow () where
   fromRow _ _ _ _ = return ()
 
-instance FromSQL t => FromRow (Single t) where
+instance FromSQL t => FromRow (Identity t) where
   fromRow res err i fmt = alloca $ \p1 -> do
     verify err =<< c_PQgetf1 res err i fmt 0 p1
     t <- peek p1 >>= convert res i 0
-    return (Single t)
+    return (Identity t)
 
 instance (
     FromSQL t1, FromSQL t2

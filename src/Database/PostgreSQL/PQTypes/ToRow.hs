@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.ToRow (
   , toRow'
   ) where
 
+import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -13,7 +14,6 @@ import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.Single
 import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | 'verifyPQTRes' specialized for usage in 'toRow'.
@@ -41,8 +41,8 @@ class PQFormat row => ToRow row where
 instance ToRow () where
   toRow _ _ _ _ _ = return ()
 
-instance ToSQL t => ToRow (Single t) where
-  toRow (Single t) pa param err fmt = toSQL t pa $ \base ->
+instance ToSQL t => ToRow (Identity t) where
+  toRow (Identity t) pa param err fmt = toSQL t pa $ \base ->
     verify err =<< c_PQputf1 param err fmt base
 
 instance (

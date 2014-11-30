@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.Format (
   ) where
 
 import Data.Int
+import Data.Functor.Identity
 import Data.Time
 import Data.Text (Text)
 import Data.Word
@@ -95,8 +96,14 @@ instance PQFormat Bool where
 -- TUPLES
 
 instance PQFormat () where
-    pqFormat _ = BS.empty
-    pqVariables _ = 0
+  pqFormat _ = BS.empty
+  pqVariables _ = 0
+
+instance (
+    PQFormat t
+  ) => PQFormat (Identity t) where
+    pqFormat _ = pqFormat (u::t)
+    pqVariables _ = 1
 
 instance (
     PQFormat t1, PQFormat t2

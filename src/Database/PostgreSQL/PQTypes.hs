@@ -35,6 +35,7 @@ module Database.PostgreSQL.PQTypes (
   , ntuples
   , nfields
   -- * Other modules
+  , module Data.Functor.Identity
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class
@@ -44,7 +45,6 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.FromSQL
   , module Database.PostgreSQL.PQTypes.Interval
   , module Database.PostgreSQL.PQTypes.Notification
-  , module Database.PostgreSQL.PQTypes.Single
   , module Database.PostgreSQL.PQTypes.SQL
   , module Database.PostgreSQL.PQTypes.SQL.Class
   , module Database.PostgreSQL.PQTypes.SQL.Raw
@@ -55,6 +55,8 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.Utils
   , module Database.PostgreSQL.PQTypes.XML
   ) where
+
+import Data.Functor.Identity
 
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
@@ -73,7 +75,6 @@ import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Interval
 import Database.PostgreSQL.PQTypes.Notification
-import Database.PostgreSQL.PQTypes.Single
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
