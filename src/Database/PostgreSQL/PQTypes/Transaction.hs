@@ -15,6 +15,7 @@ module Database.PostgreSQL.PQTypes.Transaction (
 
 import Control.Monad
 import Control.Monad.Catch
+import Data.String
 import Data.Typeable
 
 import Data.Monoid.Space
@@ -27,6 +28,9 @@ import Database.PostgreSQL.PQTypes.Utils
 
 -- | Wrapper that represents savepoint name.
 newtype Savepoint = Savepoint (RawSQL ())
+
+instance IsString Savepoint where
+  fromString = Savepoint . fromString
 
 -- | Create a savepoint and roll back to it if given monadic action throws.
 -- This may only be used if a transaction is already active. Note that it
