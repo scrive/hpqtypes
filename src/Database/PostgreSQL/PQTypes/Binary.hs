@@ -23,7 +23,7 @@ unBinary :: Binary b -> b
 unBinary (Binary b) = b
 
 instance PQFormat (Binary BS.ByteString) where
-  pqFormat _ = BS.pack "%bytea"
+  pqFormat = const $ BS.pack "%bytea"
 
 instance FromSQL (Binary BS.ByteString) where
   type PQBase (Binary BS.ByteString) = PGbytea

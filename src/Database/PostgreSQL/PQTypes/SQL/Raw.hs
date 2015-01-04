@@ -12,7 +12,6 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToRow
 
@@ -24,8 +23,8 @@ data RawSQL row = RawSQL !BS.ByteString !row
 
 instance (Show row, ToRow row) => IsSQL (RawSQL row) where
   withSQL (RawSQL query row) allocParam execute = alloca $ \err ->
-    allocParam $ \param -> BS.useAsCString (pqFormat row) $ \fmt -> do
-      toRow row allocParam param err fmt
+    allocParam $ \param -> do
+      toRow row allocParam param err
       BS.useAsCString query (execute param)
 
 -- | Construct 'RawSQL' () from 'String'. The underlying 'ByteString'

@@ -50,13 +50,13 @@ class (PQFormat t, ToRow (CompositeRow t)) => CompositeToSQL t where
   fromComposite :: t -> CompositeRow t
 
 instance PQFormat t => PQFormat (Composite t) where
-  pqFormat _ = pqFormat (undefined::t)
+  pqFormat = const $ pqFormat (undefined::t)
 
 instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just res) = Composite
-    <$> E.finally (toComposite <$> fromRow' res 0) (c_PQclear res)
+    <$> E.finally (toComposite <$> fromRow' res 0 0) (c_PQclear res)
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = PGparam

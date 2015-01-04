@@ -12,7 +12,6 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import System.IO.Unsafe
 import qualified Control.Exception as E
-import qualified Data.ByteString as BS
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
@@ -47,18 +46,17 @@ instance Foldable QueryResult where
       , lengthDelivered = rowlen
       }
     }
-    BS.useAsCString (pqFormat row) $ \fmt -> alloca $ \err ->
-      withForeignPtr fres $ \res -> c_PQntuples res >>= \i ->
-        worker res err (pred i) fmt iacc
+    alloca $ \err -> withForeignPtr fres $ \res ->
+      worker res err iacc . pred =<< c_PQntuples res
     where
       -- ⊥ of existential type hidden in QueryResult
       row = let _ = g row in row
 
-      worker res err !i fmt !acc
+      worker res err !acc !i
         | i == -1   = return acc
         | otherwise = do
-          obj <- g <$> fromRow res err i fmt `E.catch` rethrowWithContext ctx
-          worker res err (pred i) fmt (f obj acc)
+          obj <- g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx
+          worker res err (f obj acc) (pred i)
 
 -- Note: c_PQntuples/c_PQnfields are pure on a C level and QueryResult
 -- constructor is not exported to the end user (so it's not possible

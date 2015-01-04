@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE BangPatterns, DeriveDataTypeable, FlexibleContexts
-  , GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings
-  , RecordWildCards, ScopedTypeVariables, TypeFamilies
-  , UndecidableInstances, CPP #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable
+  , FlexibleContexts, GeneralizedNewtypeDeriving, MultiParamTypeClasses
+  , OverloadedStrings, RecordWildCards, ScopedTypeVariables
+  , TypeFamilies, TypeOperators, UndecidableInstances #-}
 module Main where
 
 import Control.Applicative
@@ -141,6 +141,9 @@ instance Arbitrary ZonedTime where
   arbitrary = ZonedTime <$> arbitrary <*> arbitrary
 
 ----------------------------------------
+
+instance (Arbitrary a1, Arbitrary a2) => Arbitrary (a1 :*: a2) where
+  arbitrary = (:*:) <$> arbitrary <*> arbitrary
 
 instance Arbitrary a => Arbitrary (Binary a) where
   arbitrary = Binary <$> arbitrary
@@ -451,6 +454,9 @@ tests td = [
   , putGetTest td 1000 (u::CompositeArray2 Nested) eqCompositeArray2
   ----------------------------------------
   , rowTest td (u::Identity Int16)
+  , rowTest td (u::Identity T.Text :*: (Double, Int16))
+  , rowTest td (u::(T.Text, Double) :*: Identity Int16)
+  , rowTest td (u::(Int16, T.Text, Int64, Double) :*: Identity Bool :*: (String0, Char))
   , rowTest td (u::(Int16, Int32))
   , rowTest td (u::(Int16, Int32, Int64))
   , rowTest td (u::(Int16, Int32, Int64, Float))

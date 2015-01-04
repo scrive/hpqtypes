@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances, Rank2Types, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances, Rank2Types, ScopedTypeVariables
+  , TypeOperators #-}
 module Database.PostgreSQL.PQTypes.ToRow (
     ToRow(..)
   , toRow'
@@ -8,7 +9,7 @@ import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Unsafe as BS
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
@@ -20,13 +21,15 @@ import Database.PostgreSQL.PQTypes.ToSQL
 verify :: Ptr PGerror -> CInt -> IO ()
 verify err = verifyPQTRes err "toRow"
 
+withFormat :: forall row. ToRow row => row -> (CString -> IO ()) -> IO ()
+withFormat = const $ BS.unsafeUseAsCString $ pqFormat0 (undefined::row)
+
 ----------------------------------------
 
 -- | More convenient version of 'toRow' that
 -- allocates 'PGerror' and format string by itself.
 toRow' :: forall row. ToRow row => row -> ParamAllocator -> Ptr PGparam -> IO ()
-toRow' row pa param = alloca $ \err ->
-  BS.useAsCString (pqFormat row) (toRow row pa param err)
+toRow' row pa param = alloca $ \err -> toRow row pa param err
 
 -- | Class which represents \"from Haskell tuple to SQL row\" transformation.
 class PQFormat row => ToRow row where
@@ -35,20 +38,28 @@ class PQFormat row => ToRow row where
         -> ParamAllocator -- ^ 'PGparam' allocator for 'toSQL'.
         -> Ptr PGparam    -- ^ 'PGparam' to put tuple into.
         -> Ptr PGerror    -- ^ Local error info.
-        -> CString        -- ^ Format of a tuple to be put.
         -> IO ()
 
+instance (
+    ToRow row1, ToRow row2
+  ) => ToRow (row1 :*: row2) where
+    toRow (row1 :*: row2) pa param err = do
+      toRow row1 pa param err
+      toRow row2 pa param err
+
 instance ToRow () where
-  toRow _ _ _ _ _ = return ()
+  toRow _ _ _ _ = return ()
 
 instance ToSQL t => ToRow (Identity t) where
-  toRow (Identity t) pa param err fmt = toSQL t pa $ \base ->
+  toRow row pa param err = withFormat row $ \fmt -> toSQL t pa $ \base ->
     verify err =<< c_PQputf1 param err fmt base
+    where
+      Identity t = row
 
 instance (
     ToSQL t1, ToSQL t2
   ) => ToRow (t1, t2) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 ->
         verify err =<< c_PQputf2 param err fmt p1 p2
       where
@@ -57,7 +68,7 @@ instance (
 instance (
     ToSQL t1, ToSQL t2, ToSQL t3
   ) => ToRow (t1, t2, t3) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
         verify err =<< c_PQputf3 param err fmt p1 p2 p3
       where
@@ -66,7 +77,7 @@ instance (
 instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4
   ) => ToRow (t1, t2, t3, t4) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 ->
         verify err =<< c_PQputf4 param err fmt p1 p2 p3 p4
@@ -76,7 +87,7 @@ instance (
 instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5
   ) => ToRow (t1, t2, t3, t4, t5) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 ->
         verify err =<< c_PQputf5 param err fmt p1 p2 p3 p4 p5
@@ -86,7 +97,7 @@ instance (
 instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6
   ) => ToRow (t1, t2, t3, t4, t5, t6) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
         verify err =<< c_PQputf6 param err fmt p1 p2 p3 p4 p5 p6
@@ -96,7 +107,7 @@ instance (
 instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 ->
@@ -108,7 +119,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 ->
@@ -120,7 +131,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -132,7 +143,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -145,7 +156,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -158,7 +169,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -171,7 +182,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -185,7 +196,7 @@ instance (
     ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -200,7 +211,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -215,7 +226,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -231,7 +242,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -247,7 +258,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -263,7 +274,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -280,7 +291,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -297,7 +308,7 @@ instance (
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -315,7 +326,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -334,7 +345,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -353,7 +364,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -372,7 +383,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -392,7 +403,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -412,7 +423,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -432,7 +443,7 @@ instance (
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -454,7 +465,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -476,7 +487,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -498,7 +509,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30, ToSQL t31
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -521,7 +532,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -544,7 +555,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -567,7 +578,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -591,7 +602,7 @@ instance (
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -616,7 +627,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -641,7 +652,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -667,7 +678,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37, ToSQL t38
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -693,7 +704,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -719,7 +730,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -746,7 +757,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -773,7 +784,7 @@ instance (
   , ToSQL t29, ToSQL t30, ToSQL t31, ToSQL t32, ToSQL t33, ToSQL t34, ToSQL t35
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -801,7 +812,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -830,7 +841,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -859,7 +870,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44, ToSQL t45
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -888,7 +899,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44, ToSQL t45, ToSQL t46
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -918,7 +929,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44, ToSQL t45, ToSQL t46, ToSQL t47
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -948,7 +959,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44, ToSQL t45, ToSQL t46, ToSQL t47, ToSQL t48
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47, t48) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -978,7 +989,7 @@ instance (
   , ToSQL t36, ToSQL t37, ToSQL t38, ToSQL t39, ToSQL t40, ToSQL t41, ToSQL t42
   , ToSQL t43, ToSQL t44, ToSQL t45, ToSQL t46, ToSQL t47, ToSQL t48, ToSQL t49
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47, t48, t49) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->
@@ -1010,7 +1021,7 @@ instance (
   , ToSQL t43, ToSQL t44, ToSQL t45, ToSQL t46, ToSQL t47, ToSQL t48, ToSQL t49
   , ToSQL t50
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47, t48, t49, t50) where
-    toRow row pa param err fmt =
+    toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
       toSQL t4 pa $ \p4 -> toSQL t5 pa $ \p5 -> toSQL t6 pa $ \p6 ->
       toSQL t7 pa $ \p7 -> toSQL t8 pa $ \p8 -> toSQL t9 pa $ \p9 ->

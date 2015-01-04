@@ -2,6 +2,7 @@
 module Test.QuickCheck.Compat (
     QCGen
   , newQCGen
+  , mkQCGen
   ) where
 
 #if MIN_VERSION_QuickCheck(2,7,0)
@@ -16,5 +17,8 @@ type QCGen = StdGen
 
 newQCGen :: IO QCGen
 newQCGen = newStdGen
+
+mkQCGen :: Int -> QCGen
+mkQCGen = mkStdGen
 
 #endif
