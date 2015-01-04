@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
   , MultiParamTypeClasses, ScopedTypeVariables, TypeFamilies
-  , UndecidableInstances #-}
+  , UndecidableInstances, CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
   , runDBT
@@ -90,18 +90,34 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
 ----------------------------------------
 
 instance MonadTransControl DBT where
+#if MIN_VERSION_monad_control(1,0,0)
+  type StT DBT a = StT InnerDBT a
+  liftWith = defaultLiftWith DBT unDBT
+  restoreT = defaultRestoreT DBT
+  {-# INLINE liftWith #-}
+  {-# INLINE restoreT #-}
+#else
   newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
   liftWith = defaultLiftWith DBT unDBT StDBT
   restoreT = defaultRestoreT DBT unStDBT
   {-# INLINE liftWith #-}
   {-# INLINE restoreT #-}
+#endif
 
 instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
+#if MIN_VERSION_monad_control(1,0,0)
+  type StM (DBT m) a = ComposeSt DBT m a
+  liftBaseWith = defaultLiftBaseWith
+  restoreM     = defaultRestoreM
+  {-# INLINE liftBaseWith #-}
+  {-# INLINE restoreM #-}
+#else
   newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt DBT m a }
   liftBaseWith = defaultLiftBaseWith StMDBT
   restoreM     = defaultRestoreM unStMDBT
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
+#endif
 
 -- | When given 'DBException' or 'ExitCode', throw it
 -- immediately. Otherwise wrap it in 'DBException' first.

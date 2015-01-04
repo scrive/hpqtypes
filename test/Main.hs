@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, FlexibleContexts
   , GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings
-  , ScopedTypeVariables, TypeFamilies, UndecidableInstances #-}
+  , ScopedTypeVariables, TypeFamilies, UndecidableInstances, CPP #-}
 module Main where
 
 import Control.Applicative
@@ -39,10 +39,17 @@ newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
   deriving (Applicative, Functor, Monad, MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow)
 
 instance MonadBaseControl IO TestEnv where
+#if MIN_VERSION_monad_control(1,0,0)
+  type StM TestEnv a = StM InnerTestEnv a
+  liftBaseWith f = liftBaseWith $ \run ->
+                         f $ run
+  restoreM = restoreM
+#else
   newtype StM TestEnv a = StTestEnv { unStTestEnv :: StM InnerTestEnv a }
   liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
                          f $ liftM StTestEnv . run . unTestEnv
   restoreM = TestEnv . restoreM . unStTestEnv
+#endif
 
 withStdGen :: (StdGen -> r) -> TestEnv r
 withStdGen f = do
