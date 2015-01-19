@@ -330,6 +330,18 @@ putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+>
   v' <- fetchOne unSingle
   assertEqual "Value doesn't change after getting through database" v v' eq
 
+xmlTest :: TestData -> Test
+xmlTest td  = testCase "Put and get XML value works" . runTestEnv td dts $ do
+  runSQL_ $ "SET CLIENT_ENCODING TO 'UTF8'"
+  let v = XML "some<tag>stringå</tag>"
+  runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
+  v' <- fetchOne unSingle
+  assertEqual "XML value correct" v v' (==)
+  runSQL_ $ "SELECT" <?> v
+  v'' <- fetchOne unSingle
+  assertEqual "XML value correct" v v'' (==)
+  runSQL_ $ "SET CLIENT_ENCODING TO 'latin-1'"
+
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
 rowTest td r = testCase ("Putting row of length" <+> show (pqVariables r) <+> "through database works") . runTestEnv td dts . runTimes 100 $ do
@@ -350,6 +362,7 @@ _printTime m = do
 tests :: TestData -> [Test]
 tests td = [
     autocommitTest td
+  , xmlTest td
   , readOnlyTest td
   , savepointTest td
   ----------------------------------------

@@ -257,6 +257,7 @@ extern "C" {
 #define ZPBITOID         1560 /* not supported yet */
 #define VARBITOID        1562 /* not supported yet */
 #define BYTEAOID           17
+#define XMLOID            142
 /* date and time types */
 #define DATEOID          1082
 #define TIMEOID          1083

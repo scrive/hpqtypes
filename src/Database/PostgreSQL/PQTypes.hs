@@ -54,6 +54,7 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.Transaction
   , module Database.PostgreSQL.PQTypes.Transaction.Settings
   , module Database.PostgreSQL.PQTypes.Utils
+  , module Database.PostgreSQL.PQTypes.XML
   ) where
 
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -82,3 +83,4 @@ import Database.PostgreSQL.PQTypes.ToSQL
 import Database.PostgreSQL.PQTypes.Transaction
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
+import Database.PostgreSQL.PQTypes.XML

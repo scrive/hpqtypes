@@ -116,7 +116,10 @@ static PGtypeHandler pg_handlers[] = {
 	/* text passed as bytea to avoid double copy with ByteStringS
 	 * and silent truncation of strings containting NULL characters */
 	{34, "pg_catalog", "btext", -1, TEXTOID, 1009, pqt_put_bytea,
-		pqt_get_bytea, __HANDLER_DEFAULTS__}
+                pqt_get_bytea, __HANDLER_DEFAULTS__},
+
+	{35, "pg_catalog", "xml", -1, XMLOID, 143, pqt_put_bytea,
+		pqt_get_bytea, __HANDLER_DEFAULTS__}, /* supports ptr */
 };
 
 static int
