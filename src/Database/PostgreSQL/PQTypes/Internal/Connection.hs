@@ -1,7 +1,9 @@
-{-# LANGUAGE FlexibleContexts, Rank2Types, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards
+  , TupleSections #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionData(..)
+  , withConnectionData
   , ConnectionStats(..)
   , ConnectionSettings(..)
   , defaultSettings
@@ -13,6 +15,7 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   ) where
 
 import Control.Applicative
+import Control.Arrow
 import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Base
@@ -34,6 +37,7 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 data ConnectionSettings = ConnectionSettings {
 -- | Connection info string.
@@ -90,6 +94,15 @@ data ConnectionData = ConnectionData {
 newtype Connection = Connection {
   unConnection :: MVar (Maybe ConnectionData)
 }
+
+withConnectionData :: Connection
+                   -> String
+                   -> (ConnectionData -> IO (ConnectionData, r))
+                   -> IO r
+withConnectionData (Connection mvc) fname f =
+  modifyMVar mvc $ \mc -> case mc of
+    Nothing -> E.throwIO . HPQTypesError $ fname ++ ": no connection"
+    Just cd -> first Just <$> f cd
 
 -- | Database connection supplier.
 newtype ConnectionSource = ConnectionSource {

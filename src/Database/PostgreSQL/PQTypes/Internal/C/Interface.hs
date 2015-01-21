@@ -2,9 +2,12 @@
 -- | Exports a set of FFI-imported libpq/libpqtypes functions.
 module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   -- * libpq imports
-    c_PQstatus
+    c_PQfreemem
+  , c_PQstatus
   , c_PQerrorMessage
   , c_PQsetClientEncoding
+  , c_PQsocket
+  , c_PQconsumeInput
   , c_PQresultStatus
   , c_PQresultErrorField
   , c_PQresultErrorMessage
@@ -31,11 +34,15 @@ import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import System.Posix.Types
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 -- libpq imports
+
+foreign import ccall unsafe "PQfreemem"
+  c_PQfreemem :: Ptr a -> IO ()
 
 foreign import ccall unsafe "PQstatus"
   c_PQstatus :: Ptr PGconn -> IO ConnStatusType
@@ -45,6 +52,12 @@ foreign import ccall unsafe "PQerrorMessage"
 
 foreign import ccall unsafe "PQsetClientEncoding"
   c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
+
+foreign import ccall unsafe "PQsocket"
+  c_PQsocket :: Ptr PGconn -> IO Fd
+
+foreign import ccall unsafe "PQconsumeInput"
+  c_PQconsumeInput :: Ptr PGconn -> IO CInt
 
 foreign import ccall unsafe "PQresultStatus"
   c_PQresultStatus :: Ptr PGresult -> IO ExecStatusType

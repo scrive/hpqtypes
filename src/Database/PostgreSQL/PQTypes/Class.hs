@@ -6,6 +6,7 @@ import Control.Applicative
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -38,6 +39,23 @@ class (Applicative m, Monad m) => MonadDB m where
   foldlM :: FromRow row => (acc -> row -> m acc) -> acc -> m acc
   -- | Fold the result set of rows from right to left.
   foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
+
+  -- | Attempt to receive a notification from the server. This
+  -- function waits until a notification arrives or specified
+  -- number of microseconds has passed. If a negative number
+  -- of microseconds is passed as an argument, it will wait
+  -- indefinitely. In addition, there are a couple of things
+  -- to be aware of:
+  --
+  -- * A lock on the underlying database connection is acquired
+  -- for the duration of the function.
+  --
+  -- * Notifications can be received only between transactions
+  -- (see <http://www.postgresql.org/docs/current/static/sql-notify.html>
+  -- for further info), therefore calling this function within
+  -- a transaction block will return 'Just' only if notifications
+  -- were received before the transaction began.
+  getNotification :: Int -> m (Maybe Notification)
 
   -- | Execute supplied monadic action with new connection
   -- using current connection source and transaction settings.

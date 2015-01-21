@@ -45,6 +45,7 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.FromRow
   , module Database.PostgreSQL.PQTypes.FromSQL
   , module Database.PostgreSQL.PQTypes.Interval
+  , module Database.PostgreSQL.PQTypes.Notification
   , module Database.PostgreSQL.PQTypes.Single
   , module Database.PostgreSQL.PQTypes.SQL
   , module Database.PostgreSQL.PQTypes.SQL.Class
@@ -74,6 +75,7 @@ import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Interval
+import Database.PostgreSQL.PQTypes.Notification
 import Database.PostgreSQL.PQTypes.Single
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class

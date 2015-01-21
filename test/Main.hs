@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, FlexibleContexts
   , GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings
-  , ScopedTypeVariables, TypeFamilies, UndecidableInstances, CPP #-}
+  , RecordWildCards, ScopedTypeVariables, TypeFamilies
+  , UndecidableInstances, CPP #-}
 module Main where
 
 import Control.Applicative
+import Control.Concurrent.Lifted
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -12,6 +14,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Control
 import Data.Char
 import Data.Int
+import Data.Maybe
 import Data.Time
 import Data.Typeable
 import Data.Word
@@ -42,9 +45,9 @@ newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
 instance MonadBaseControl IO TestEnv where
 #if MIN_VERSION_monad_control(1,0,0)
   type StM TestEnv a = StM InnerTestEnv a
-  liftBaseWith f = liftBaseWith $ \run ->
-                         f $ run
-  restoreM = restoreM
+  liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
+                         f $ run . unTestEnv
+  restoreM = TestEnv . restoreM
 #else
   newtype StM TestEnv a = StTestEnv { unStTestEnv :: StM InnerTestEnv a }
   liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
@@ -245,6 +248,9 @@ eqCompositeArray2 a b = a == b
 dts :: TransactionSettings
 dts = defaultTransactionSettings
 
+tsNoTrans :: TransactionSettings
+tsNoTrans = dts { tsAutoTransaction = False }
+
 randomValue :: Arbitrary t => Int -> TestEnv t
 randomValue n = withQCGen $ \gen -> unGen arbitrary gen n
 
@@ -261,7 +267,7 @@ assertEqual preface expected actual eq =
 ----------------------------------------
 
 autocommitTest :: TestData -> Test
-autocommitTest td = testCase "Autocommit mode works" . runTestEnv td dts{tsAutoTransaction = False} $ do
+autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $ do
   let sint = Single (1::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
@@ -303,6 +309,31 @@ savepointTest td = testCase "Savepoint support works" . runTestEnv td dts $ do
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
   res2 <- fetchMany unSingle
   assertEqual "Result of all queries is visible" res2 [int1, int2] (==)
+
+notifyTest :: TestData -> Test
+notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
+  listen chan
+  forkNewConn $ notify chan payload
+  mnt1 <- getNotification 100000
+  liftBase $ assertBool "Notification received" (isJust mnt1)
+  let Just nt1 = mnt1
+  assertEqual "Channels are equal" chan (ntChannel nt1) (==)
+  assertEqual "Payloads are equal" payload (ntPayload nt1) (==)
+
+  unlisten chan
+  forkNewConn $ notify chan payload
+  mnt2 <- getNotification 100000
+  assertEqual "No notification received after unlisten" Nothing mnt2 (==)
+
+  listen chan
+  unlistenAll
+  forkNewConn $ notify chan payload
+  mnt3 <- getNotification 100000
+  assertEqual "No notification received after unlistenAll" Nothing mnt3 (==)
+  where
+    chan = "test_channel"
+    payload = "test_payload"
+    forkNewConn = void . fork . withNewConnection
 
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td dts{tsIsolationLevel = lvl} $ do
@@ -366,6 +397,7 @@ tests td = [
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
+  , notifyTest td
   ----------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead

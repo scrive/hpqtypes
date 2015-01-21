@@ -32,6 +32,7 @@ instance (
     foldrM f acc = controlT $ \run ->
       run (return acc) >>= foldrM (\row acc' ->
         run $ restoreT (return acc') >>= f row)
+    getNotification = lift . getNotification
     withNewConnection m = controlT $ \run ->
       withNewConnection (run m)
 

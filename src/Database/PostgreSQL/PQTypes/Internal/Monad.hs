@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
-  , MultiParamTypeClasses, ScopedTypeVariables, TypeFamilies
-  , UndecidableInstances, CPP #-}
+  , MultiParamTypeClasses, ScopedTypeVariables, TupleSections
+  , TypeFamilies, UndecidableInstances, CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
   , runDBT
@@ -25,6 +25,7 @@ import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL
@@ -80,6 +81,9 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
 
   foldlM = foldLeftM
   foldrM = foldRightM
+
+  getNotification time = DBT . StateT $ \st -> (, st)
+    <$> liftBase (getNotificationIO st time)
 
   withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st

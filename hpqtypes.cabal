@@ -78,6 +78,7 @@ library
                      , Database.PostgreSQL.PQTypes.Format
                      , Database.PostgreSQL.PQTypes.Binary
                      , Database.PostgreSQL.PQTypes.Interval
+                     , Database.PostgreSQL.PQTypes.Notification
                      , Database.PostgreSQL.PQTypes.SQL
                      , Database.PostgreSQL.PQTypes.Single
                      , Database.PostgreSQL.PQTypes.SQL.Raw
@@ -91,6 +92,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.Connection
                      , Database.PostgreSQL.PQTypes.Internal.Exception
                      , Database.PostgreSQL.PQTypes.Internal.Monad
+                     , Database.PostgreSQL.PQTypes.Internal.Notification
                      , Database.PostgreSQL.PQTypes.Internal.QueryResult
                      , Database.PostgreSQL.PQTypes.Internal.Query
                      , Database.PostgreSQL.PQTypes.Internal.State
