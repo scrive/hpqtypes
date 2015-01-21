@@ -21,10 +21,10 @@ import System.Exit
 import qualified Control.Monad.Trans.State as S
 
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Fold
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State

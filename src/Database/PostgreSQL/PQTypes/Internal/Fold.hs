@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, Rank2Types, ScopedTypeVariables #-}
-module Database.PostgreSQL.PQTypes.Fold (
+module Database.PostgreSQL.PQTypes.Internal.Fold (
     foldLeftM
   , foldRightM
   ) where
