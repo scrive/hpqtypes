@@ -1,12 +1,9 @@
 {-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
-    runSQLQuery
+    runQueryIO
   ) where
 
 import Control.Applicative
-import Control.Concurrent.MVar
-import Control.Monad.Base
-import Control.Monad.Trans.State
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
@@ -22,48 +19,41 @@ import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
--- | Run SQL query.
-runSQLQuery :: (IsSQL sql, MonadBase IO m)
-            => (StateT DBState m Int -> r) -> sql -> r
-runSQLQuery dbT sql = dbT $ do
-  mvconn <- gets (unConnection . dbConnection)
-  (affected, res) <- liftBase . modifyMVar mvconn $ \mconn -> case mconn of
-    Nothing -> E.throwIO DBException {
-      dbeQueryContext = sql
-    , dbeError = HPQTypesError "runQuery: no connection"
-    }
-    Just cd@ConnectionData{..} -> E.handle (rethrowWithContext sql) $ do
-      (paramCount, res) <- withSQL sql (withPGparam cdPtr) $ \param query -> (,)
-        <$> (fromIntegral <$> c_PQparamCount param)
-        <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
-      affected <- withForeignPtr res $ verifyResult cdPtr
-      stats' <- case affected of
-        Left _ -> return cdStats {
+-- | Low-level function for running SQL query.
+runQueryIO :: IsSQL sql => sql -> DBState -> IO (Int, DBState)
+runQueryIO sql st = E.handle (rethrowWithContext sql) $ do
+  (affected, res) <- withConnectionData (dbConnection st) "runQueryIO" $ \cd -> do
+    let ConnectionData{..} = cd
+    (paramCount, res) <- withSQL sql (withPGparam cdPtr) $ \param query -> (,)
+      <$> (fromIntegral <$> c_PQparamCount param)
+      <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
+    affected <- withForeignPtr res $ verifyResult cdPtr
+    stats' <- case affected of
+      Left _ -> return cdStats {
+        statsQueries = statsQueries cdStats + 1
+      , statsParams  = statsParams cdStats + paramCount
+      }
+      Right rows -> do
+        columns <- fromIntegral <$> withForeignPtr res c_PQnfields
+        return ConnectionStats {
           statsQueries = statsQueries cdStats + 1
+        , statsRows    = statsRows cdStats + rows
+        , statsValues  = statsValues cdStats + (rows * columns)
         , statsParams  = statsParams cdStats + paramCount
         }
-        Right rows -> do
-          columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-          return ConnectionStats {
-            statsQueries = statsQueries cdStats + 1
-          , statsRows    = statsRows cdStats + rows
-          , statsValues  = statsValues cdStats + (rows * columns)
-          , statsParams  = statsParams cdStats + paramCount
-          }
-      -- Force evaluation of modified stats to squash space leak.
-      stats' `seq` return (Just cd { cdStats = stats' }, (either id id affected, res))
-  modify $ \st -> st {
+    -- Force evaluation of modified stats to squash space leak.
+    stats' `seq` return (cd { cdStats = stats' }, (either id id affected, res))
+  return (affected, st {
     dbLastQuery = someSQL sql
   , dbQueryResult = Just $ QueryResult res
-  }
-  return affected
+  })
   where
     verifyResult :: Ptr PGconn -> Ptr PGresult -> IO (Either Int Int)
     verifyResult conn res = do
       -- works even if res is NULL
-      st <- c_PQresultStatus res
-      case st of
-        _ | st == c_PGRES_COMMAND_OK -> do
+      rst <- c_PQresultStatus res
+      case rst of
+        _ | rst == c_PGRES_COMMAND_OK -> do
           sn <- c_PQcmdTuples res >>= BS.packCString
           case BS.readInt sn of
             Nothing
@@ -72,9 +62,9 @@ runSQLQuery dbT sql = dbT $ do
             Just (n, rest)
               | rest /= BS.empty -> throwParseError sn
               | otherwise        -> return . Left $ n
-        _ | st == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
-        _ | st == c_PGRES_FATAL_ERROR  -> throwSQLError
-        _ | st == c_PGRES_BAD_RESPONSE -> throwSQLError
+        _ | rst == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
+        _ | rst == c_PGRES_FATAL_ERROR  -> throwSQLError
+        _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
         _ | otherwise                  -> return . Left $ 0
         where
           throwSQLError = throwQueryError conn res

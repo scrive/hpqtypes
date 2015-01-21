@@ -64,7 +64,7 @@ mapDBT f = DBT . mapStateT f . unDBT
 ----------------------------------------
 
 instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
-  runQuery = runSQLQuery DBT
+  runQuery sql = DBT . StateT $ liftBase . runQueryIO sql
   getLastQuery = DBT . gets $ dbLastQuery
 
   getConnectionStats = do
