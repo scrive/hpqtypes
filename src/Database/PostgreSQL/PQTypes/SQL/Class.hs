@@ -17,9 +17,6 @@ data SomeSQL = forall sql. IsSQL sql => SomeSQL sql
 
 -- | Class representing \"SQLness\" of a given type.
 class Show sql => IsSQL sql where
-  -- | Convert 'sql' to 'SomeSQL'.
-  someSQL :: sql -> SomeSQL
-
   -- | Convert 'sql' to libpqtypes representation and pass
   -- it to supplied continuation (usually for execution).
   withSQL :: sql

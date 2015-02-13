@@ -45,7 +45,6 @@ instance IsString SQL where
   fromString = mkSQL . T.encodeUtf8 . T.pack
 
 instance IsSQL SQL where
-  someSQL = SomeSQL
   withSQL sql allocParam execute = alloca $ \err -> allocParam $ \param -> do
     nums <- newMVar (1::Int)
     query <- BS.concat <$> mapM (f param err nums) (unSQL sql)

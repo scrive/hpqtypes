@@ -23,7 +23,6 @@ data RawSQL row = RawSQL !BS.ByteString !row
   deriving (Eq, Ord, Show)
 
 instance (Show row, ToRow row) => IsSQL (RawSQL row) where
-  someSQL = SomeSQL
   withSQL (RawSQL query row) allocParam execute = alloca $ \err ->
     allocParam $ \param -> BS.useAsCString (pqFormat row) $ \fmt -> do
       toRow row allocParam param err fmt

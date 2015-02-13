@@ -44,7 +44,7 @@ runQueryIO sql st = E.handle (rethrowWithContext sql) $ do
     -- Force evaluation of modified stats to squash space leak.
     stats' `seq` return (cd { cdStats = stats' }, (either id id affected, res))
   return (affected, st {
-    dbLastQuery = someSQL sql
+    dbLastQuery = SomeSQL sql
   , dbQueryResult = Just $ QueryResult res
   })
   where

@@ -49,7 +49,7 @@ runDBT cs ts m = withConnection cs $ \conn -> do
     dbConnection = conn
   , dbConnectionSource = cs
   , dbTransactionSettings = ts
-  , dbLastQuery = someSQL (mempty::SQL)
+  , dbLastQuery = SomeSQL (mempty::SQL)
   , dbQueryResult = Nothing
   }
   where
