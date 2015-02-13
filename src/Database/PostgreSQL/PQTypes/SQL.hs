@@ -18,7 +18,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import Data.Monoid.Space
+import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
 import Database.PostgreSQL.PQTypes.Internal.Utils
@@ -61,9 +61,6 @@ instance IsSQL SQL where
 instance Monoid SQL where
   mempty = mkSQL BS.empty
   SQL a `mappend` SQL b = SQL (a S.>< b)
-
-instance SpaceMonoid SQL where
-  mspace = mkSQL mspace
 
 instance Show SQL where
   showsPrec n sql = ("SQL " ++) . (showsPrec n . concatMap conv . unSQL $ sql)

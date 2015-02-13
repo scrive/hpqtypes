@@ -18,7 +18,6 @@ import Control.Monad.Catch
 import Data.String
 import Data.Typeable
 
-import Data.Monoid.Space
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Exception

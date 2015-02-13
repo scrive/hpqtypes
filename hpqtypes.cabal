@@ -60,8 +60,7 @@ Flag tests
   default: False
 
 library
-  exposed-modules:     Data.Monoid.Space
-                     , Data.Monoid.Utils
+  exposed-modules:     Data.Monoid.Utils
                      , Database.PostgreSQL.PQTypes
                      , Database.PostgreSQL.PQTypes.Composite
                      , Database.PostgreSQL.PQTypes.ToRow

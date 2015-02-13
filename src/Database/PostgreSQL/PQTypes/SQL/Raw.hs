@@ -12,7 +12,6 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import Data.Monoid.Space
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToRow
@@ -40,9 +39,6 @@ instance Monoid (RawSQL ()) where
   mempty = rawSQL BS.empty ()
   RawSQL a () `mappend` RawSQL b () = RawSQL (a `mappend` b) ()
   mconcat xs = RawSQL (BS.concat $ map (\(RawSQL s ()) -> s) xs) ()
-
-instance SpaceMonoid (RawSQL ()) where
-  mspace = RawSQL mspace ()
 
 -- | Construct 'RawSQL' from 'ByteString' and a tuple of parameters.
 rawSQL :: (Show row, ToRow row) => BS.ByteString -> row -> RawSQL row

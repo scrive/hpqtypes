@@ -37,7 +37,6 @@ import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
-import Database.PostgreSQL.PQTypes.SQL.Class
 
 data ConnectionSettings = ConnectionSettings {
 -- | Connection info string.

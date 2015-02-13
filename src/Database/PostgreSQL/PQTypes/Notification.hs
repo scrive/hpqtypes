@@ -10,7 +10,7 @@ module Database.PostgreSQL.PQTypes.Notification (
 
 import Data.ByteString (ByteString)
 
-import Data.Monoid.Space
+import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.SQL.Raw
