@@ -26,12 +26,6 @@ instance (
     clearQueryResult = lift clearQueryResult
     getTransactionSettings = lift getTransactionSettings
     setTransactionSettings = lift . setTransactionSettings
-    foldlM f acc = controlT $ \run ->
-      run (return acc) >>= foldlM (\acc' row ->
-        run $ restoreT (return acc') >>= flip f row)
-    foldrM f acc = controlT $ \run ->
-      run (return acc) >>= foldrM (\row acc' ->
-        run $ restoreT (return acc') >>= f row)
     getNotification = lift . getNotification
     withNewConnection m = controlT $ \run ->
       withNewConnection (run m)

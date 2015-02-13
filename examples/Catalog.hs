@@ -9,7 +9,7 @@ import Control.Monad.Catch
 import Data.Function
 import Data.Int
 import Data.Monoid
-import Data.Monoid.Space
+import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
 import Database.PostgreSQL.PQTypes.Internal.Utils (mread)
 import System.Console.Readline
@@ -20,18 +20,12 @@ import qualified Data.ByteString.Char8 as BS
 printLn :: MonadBase IO m => String -> m ()
 printLn = liftBase . putStrLn
 
--- | Run 'DBT' over 'IO'.
-runDB :: ConnectionSource -> DBT IO a -> IO a
-runDB cs = runDBT cs defaultTransactionSettings
-
 -- | Get connection string from command line argument.
 getConnSettings :: IO ConnectionSettings
 getConnSettings = do
   args <- getArgs
   case args of
-    [conninfo] -> return defaultSettings {
-      csConnInfo = BS.pack conninfo
-    }
+    [conninfo] -> return def { csConnInfo = BS.pack conninfo }
     _ -> do
       prog <- getProgName
       error $ "Usage:" <+> prog <+> "<connection info>"
@@ -52,7 +46,7 @@ instance PQFormat Book where
   pqFormat _ = "%book_"
 
 instance CompositeFromSQL Book where
-  toComposite (bid, name, year) = return Book {
+  toComposite (bid, name, year) = Book {
     bookID = bid
   , bookName = name
   , bookYear = year
@@ -62,7 +56,7 @@ withCatalog :: ConnectionSettings -> IO () -> IO ()
 withCatalog cs = bracket_ createStructure dropStructure
   where
     -- | Create needed tables and types.
-    createStructure = runDB (defaultSource cs) $ do
+    createStructure = runDBT (simpleSource cs) def $ do
       printLn "Creating tables..."
       runSQL_ $ mconcat [
           "CREATE TABLE authors_ ("
@@ -89,7 +83,7 @@ withCatalog cs = bracket_ createStructure dropStructure
         , ")"
         ]
     -- | Drop previously created database structures.
-    dropStructure = runDB (defaultSource cs) $ do
+    dropStructure = runDBT (simpleSource cs) def $ do
       printLn "Dropping tables..."
       runSQL_ "DROP TYPE book_"
       runSQL_ "DROP TABLE books_"
@@ -100,24 +94,23 @@ withCatalog cs = bracket_ createStructure dropStructure
 processCommand :: ConnectionSource -> String -> IO ()
 processCommand cs cmd = case parse cmd of
   -- | Display authors.
-  ("authors", "") -> runDB cs $ do
+  ("authors", "") -> runDBT cs def $ do
     runSQL_ "SELECT * FROM authors_ ORDER BY name"
-    foldlM (\_ (aid::Int64, name) -> printLn $ show aid <> ":" <+> name) ()
+    mapDB_ $ \(aid::Int64, name) -> printLn $ show aid <> ":" <+> name
   -- | Display books.
-  ("books", "") -> runDB cs $ do
+  ("books", "") -> runDBT cs def $ do
     runSQL_ "SELECT a.name, ARRAY(SELECT (b.id, b.name, b.year)::book_ FROM books_ b WHERE b.author_id = a.id) FROM authors_ a ORDER BY a.name"
-    foldlM (\_ (author, CompositeArray1 (books::[Book])) -> do
+    mapDB_ $ \(author, CompositeArray1 (books::[Book])) -> do
       printLn $ author <> ":"
       forM_ books $ \book -> printLn $ "*" <+> show book
-      ) ()
   -- | Insert an author.
   ("insert_author", mname) -> case mread mname of
-    Just (name::String) -> runDB cs . runQuery_ $
+    Just (name::String) -> runDBT cs def . runQuery_ $
       "INSERT INTO authors_ (name) VALUES (" <?> name <+> ")"
     Nothing -> printLn $ "Invalid name"
   -- | Insert a book.
   ("insert_book", mbook) -> case mread mbook of
-    Just record -> runDB cs . runQuery_ $ rawSQL
+    Just record -> runDBT cs def . runQuery_ $ rawSQL
       "INSERT INTO books_ (name, year, author_id) VALUES ($1, $2, $3)"
       (record::(String, Int32, Int64))
     Nothing -> printLn $ "Invalid book record"

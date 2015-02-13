@@ -45,7 +45,11 @@ runQueryIO sql st = E.handle (rethrowWithContext sql) $ do
     stats' `seq` return (cd { cdStats = stats' }, (either id id affected, res))
   return (affected, st {
     dbLastQuery = SomeSQL sql
-  , dbQueryResult = Just $ QueryResult res
+  , dbQueryResult = Just QueryResult {
+      qrSQL = SomeSQL sql
+    , qrResult = res
+    , qrFromRow = id
+    }
   })
   where
     verifyResult :: Ptr PGconn -> Ptr PGresult -> IO (Either Int Int)

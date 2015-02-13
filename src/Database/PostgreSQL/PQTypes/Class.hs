@@ -16,7 +16,7 @@ class (Applicative m, Monad m) => MonadDB m where
   -- for a given connection, only one thread may be executing 'runQuery' at
   -- a given time. If simultaneous call is made from another thread, it
   -- will block until currently running 'runQuery' finishes.
-  runQuery     :: IsSQL sql => sql -> m Int
+  runQuery :: IsSQL sql => sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
 
@@ -24,7 +24,7 @@ class (Applicative m, Monad m) => MonadDB m where
   getConnectionStats :: m ConnectionStats
 
   -- | Get current query result.
-  getQueryResult   :: m (Maybe QueryResult)
+  getQueryResult :: FromRow row => m (Maybe (QueryResult row))
   -- | Clear current query result.
   clearQueryResult :: m ()
 
@@ -34,11 +34,6 @@ class (Applicative m, Monad m) => MonadDB m where
   -- won't change any properties of currently running transaction,
   -- only the subsequent ones.
   setTransactionSettings :: TransactionSettings -> m ()
-
-  -- | Fold the result set of rows from left to right.
-  foldlM :: FromRow row => (acc -> row -> m acc) -> acc -> m acc
-  -- | Fold the result set of rows from right to left.
-  foldrM :: FromRow row => (row -> acc -> m acc) -> acc -> m acc
 
   -- | Attempt to receive a notification from the server. This
   -- function waits until a notification arrives or specified

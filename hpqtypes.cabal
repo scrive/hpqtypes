@@ -67,6 +67,7 @@ library
                      , Database.PostgreSQL.PQTypes.Utils
                      , Database.PostgreSQL.PQTypes.FromSQL
                      , Database.PostgreSQL.PQTypes.Array
+                     , Database.PostgreSQL.PQTypes.Fold
                      , Database.PostgreSQL.PQTypes.FromRow
                      , Database.PostgreSQL.PQTypes.ToSQL
                      , Database.PostgreSQL.PQTypes.Transaction
@@ -84,7 +85,6 @@ library
                      , Database.PostgreSQL.PQTypes.XML
                      , Database.PostgreSQL.PQTypes.Internal.Error
                      , Database.PostgreSQL.PQTypes.Internal.Error.Code
-                     , Database.PostgreSQL.PQTypes.Internal.Fold
                      , Database.PostgreSQL.PQTypes.Internal.Composite
                      , Database.PostgreSQL.PQTypes.Internal.Utils
                      , Database.PostgreSQL.PQTypes.Internal.Connection

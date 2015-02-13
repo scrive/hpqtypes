@@ -24,7 +24,6 @@ import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
-import Database.PostgreSQL.PQTypes.Internal.Fold
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
@@ -78,9 +77,6 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
 
   getQueryResult = DBT . gets $ dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
-
-  foldlM = foldLeftM
-  foldrM = foldRightM
 
   getNotification time = DBT . StateT $ \st -> (, st)
     <$> liftBase (getNotificationIO st time)

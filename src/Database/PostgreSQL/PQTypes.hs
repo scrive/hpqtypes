@@ -40,6 +40,7 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class
   , module Database.PostgreSQL.PQTypes.Composite
+  , module Database.PostgreSQL.PQTypes.Fold
   , module Database.PostgreSQL.PQTypes.Format
   , module Database.PostgreSQL.PQTypes.FromRow
   , module Database.PostgreSQL.PQTypes.FromSQL
@@ -70,6 +71,7 @@ import Database.PostgreSQL.PQTypes.Binary
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Class.Instances ()
 import Database.PostgreSQL.PQTypes.Composite
+import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
