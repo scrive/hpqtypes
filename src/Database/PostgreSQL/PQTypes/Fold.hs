@@ -16,11 +16,12 @@ import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Utils
 
 -- | Get current 'QueryResult' or throw an exception if there isn't one.
 queryResult :: (MonadDB m, MonadThrow m, FromRow row) => m (QueryResult row)
 queryResult = getQueryResult
-  >>= maybe (throwM . HPQTypesError $ "queryResult: no query result") return
+  >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") return
 
 ----------------------------------------
 
@@ -50,7 +51,7 @@ fetchMaybe f = getQueryResult >>= \mqr -> case mqr of
   Just qr -> fst <$> foldlDB go (Nothing, f <$> qr)
   where
     go (Nothing, qr) row = return (Just $ f row, qr)
-    go (Just _, qr) _ = throwM AffectedRowsMismatch {
+    go (Just _, qr) _ = throwDB AffectedRowsMismatch {
         rowsExpected  = [(0, 1)]
       , rowsDelivered = ntuples qr
       }
@@ -62,7 +63,7 @@ fetchOne f = do
   mt <- fetchMaybe f
   case mt of
     Just t  -> return t
-    Nothing -> throwM AffectedRowsMismatch {
+    Nothing -> throwDB AffectedRowsMismatch {
       rowsExpected = [(1, 1)]
     , rowsDelivered = 0
     }

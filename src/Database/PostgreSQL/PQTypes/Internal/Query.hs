@@ -13,6 +13,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.State
@@ -21,7 +22,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 
 -- | Low-level function for running SQL query.
 runQueryIO :: IsSQL sql => sql -> DBState -> IO (Int, DBState)
-runQueryIO sql st = E.handle (rethrowWithContext sql) $ do
+runQueryIO sql st = do
   (affected, res) <- withConnectionData (dbConnection st) "runQueryIO" $ \cd -> do
     let ConnectionData{..} = cd
     (paramCount, res) <- withSQL sql (withPGparam cdPtr) $ \param query -> (,)
@@ -71,7 +72,26 @@ runQueryIO sql st = E.handle (rethrowWithContext sql) $ do
         _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
         _ | otherwise                  -> return . Left $ 0
         where
-          throwSQLError = throwQueryError conn res
+          throwSQLError = rethrowWithContext sql =<< if res == nullPtr
+            then return . E.toException . QueryError
+              =<< safePeekCString' =<< c_PQerrorMessage conn
+            else E.toException <$> (DetailedQueryError
+              <$> field c_PG_DIAG_SEVERITY
+              <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
+              <*> field c_PG_DIAG_MESSAGE_PRIMARY
+              <*> mfield c_PG_DIAG_MESSAGE_DETAIL
+              <*> mfield c_PG_DIAG_MESSAGE_HINT
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
+              <*> mfield c_PG_DIAG_INTERNAL_QUERY
+              <*> mfield c_PG_DIAG_CONTEXT
+              <*> mfield c_PG_DIAG_SOURCE_FILE
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
+              <*> mfield c_PG_DIAG_SOURCE_FUNCTION)
+            where
+              field f = maybe "" id <$> mfield f
+              mfield f = safePeekCString =<< c_PQresultErrorField res f
+
           throwParseError sn = E.throwIO DBException {
             dbeQueryContext = sql
           , dbeError = HPQTypesError ("runQuery.verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)

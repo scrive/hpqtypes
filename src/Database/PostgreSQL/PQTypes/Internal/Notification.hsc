@@ -21,10 +21,8 @@ import qualified Data.ByteString.Char8 as BS
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
-import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
@@ -76,26 +74,22 @@ instance Storable Notification where
 -- | Low-level function that waits for a notification for a given
 -- number of microseconds (it uses 'timeout' function internally).
 getNotificationIO :: DBState -> Int -> IO (Maybe Notification)
-getNotificationIO st n = do
-  let mvconn = dbConnection st
-  SomeSQL ctx <- return $ dbLastQuery st
-  E.handle (rethrowWithContext ctx)
-    . timeout n
-    . withConnectionData mvconn fname $ \cd -> fix $ \loop -> do
-      let conn = cdPtr cd
-      mmsg <- tryGet conn
-      case mmsg of
-        Just msg -> return (cd, msg)
-        Nothing -> do
-          fd <- c_PQsocket conn
-          if fd == -1
-            then hpqTypesError $ fname ++ ": invalid file descriptor"
-            else do
-              threadWaitRead fd
-              res <- c_PQconsumeInput conn
-              when (res /= 1) $ do
-                throwLibPQError conn fname
-              loop
+getNotificationIO st n = timeout n $ do
+  withConnectionData (dbConnection st) fname $ \cd -> fix $ \loop -> do
+    let conn = cdPtr cd
+    mmsg <- tryGet conn
+    case mmsg of
+      Just msg -> return (cd, msg)
+      Nothing -> do
+        fd <- c_PQsocket conn
+        if fd == -1
+          then hpqTypesError $ fname ++ ": invalid file descriptor"
+          else do
+            threadWaitRead fd
+            res <- c_PQconsumeInput conn
+            when (res /= 1) $ do
+              throwLibPQError conn fname
+            loop
   where
     fname :: String
     fname = "getNotificationIO"

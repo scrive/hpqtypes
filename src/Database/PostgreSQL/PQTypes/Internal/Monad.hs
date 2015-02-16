@@ -17,13 +17,11 @@ import Control.Monad.State
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Monoid
-import System.Exit
 import qualified Control.Monad.Trans.State as S
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
@@ -31,13 +29,14 @@ import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction
 import Database.PostgreSQL.PQTypes.Transaction.Settings
+import Database.PostgreSQL.PQTypes.Utils
 
 type InnerDBT = StateT DBState
 
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
 newtype DBT m a = DBT { unDBT :: InnerDBT m a }
-  deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadTrans)
+  deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
@@ -69,7 +68,7 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
   getConnectionStats = do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
-      Nothing -> throwM $ HPQTypesError "getConnectionStats: no connection"
+      Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
       Just cd -> return $ cdStats cd
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
@@ -118,19 +117,6 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
 #endif
-
--- | When given 'DBException' or 'ExitCode', throw it
--- immediately. Otherwise wrap it in 'DBException' first.
-instance MonadThrow m => MonadThrow (DBT m) where
-  throwM e = DBT $ case (,) <$> fromException <*> fromException $ toException e of
-    (Just (dbe::DBException), _) -> throwM dbe
-    (_, Just (ec::ExitCode))     -> throwM ec
-    _ -> do
-      SomeSQL sql <- gets $ dbLastQuery
-      throwM DBException {
-        dbeQueryContext = sql
-      , dbeError = e
-      }
 
 instance MonadError e m => MonadError e (DBT m) where
   throwError = lift . throwError

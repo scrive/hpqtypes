@@ -1,5 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Utils (
-    raw
+    throwDB
+  , raw
   , runQuery_
   , runQuery01
   , runQuery01_
@@ -16,10 +18,25 @@ import Control.Monad.Catch
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
+
+-- | When given 'DBException', throw it immediately. Otherwise
+-- wrap it in 'DBException' with the current query context first.
+throwDB :: (Exception e, MonadDB m, MonadThrow m) => e -> m a
+throwDB e = case fromException $ toException e of
+  Just (dbe::DBException) -> throwM dbe
+  Nothing -> do
+    SomeSQL sql <- getLastQuery
+    throwM DBException {
+      dbeQueryContext = sql
+    , dbeError = e
+    }
+
+----------------------------------------
 
 -- | Convert 'RawSQL' () to 'SQL'.
 raw :: RawSQL () -> SQL
@@ -37,7 +54,7 @@ runQuery_ = void . runQuery
 runQuery01 :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Bool
 runQuery01 sql = do
   n <- runQuery sql
-  when (n > 1) $ throwM AffectedRowsMismatch {
+  when (n > 1) $ throwDB AffectedRowsMismatch {
     rowsExpected = [(0, 1)]
   , rowsDelivered = n
   }

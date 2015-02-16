@@ -8,7 +8,6 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
   , bsToCString
   , verifyPQTRes
   , withPGparam
-  , throwQueryError
   , throwLibPQError
   , throwLibPQTypesError
   , rethrowWithArrayError
@@ -31,7 +30,6 @@ import qualified Control.Exception as E
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Error.Code
 
 -- Safely read value.
 mread :: Read a => String -> Maybe a
@@ -86,27 +84,6 @@ withPGparam conn = E.bracket create c_PQparamClear
       return param
 
 ----------------------------------------
-
--- | Throw query error.
-throwQueryError :: Ptr PGconn -> Ptr PGresult -> IO a
-throwQueryError conn res = if res == nullPtr
-  then E.throwIO . QueryError =<< safePeekCString' =<< c_PQerrorMessage conn
-  else E.throwIO =<< DetailedQueryError
-    <$> field c_PG_DIAG_SEVERITY
-    <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
-    <*> field c_PG_DIAG_MESSAGE_PRIMARY
-    <*> mfield c_PG_DIAG_MESSAGE_DETAIL
-    <*> mfield c_PG_DIAG_MESSAGE_HINT
-    <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
-    <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
-    <*> mfield c_PG_DIAG_INTERNAL_QUERY
-    <*> mfield c_PG_DIAG_CONTEXT
-    <*> mfield c_PG_DIAG_SOURCE_FILE
-    <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
-    <*> mfield c_PG_DIAG_SOURCE_FUNCTION
-  where
-    field f = maybe "" id <$> mfield f
-    mfield f = safePeekCString =<< c_PQresultErrorField res f
 
 -- | Throw libpq specific error.
 throwLibPQError :: Ptr PGconn -> String -> IO a

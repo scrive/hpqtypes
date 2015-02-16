@@ -87,12 +87,17 @@ withTransaction' ts m = mask $ exec 1
       commit' ts
       return res
       where
-        expred :: DBException -> Maybe ()
-        expred DBException{..} = do
+        expred :: SomeException -> Maybe ()
+        expred e = do
           -- check if the predicate exists
           RestartPredicate f <- tsRestartPredicate ts
           -- cast exception to the type expected by the predicate
-          err <- cast dbeError
+          err <- msum [
+              -- either cast the exception itself...
+              fromException e
+              -- ...or extract it from DBException
+            , fromException e >>= \DBException{..} -> cast dbeError
+            ]
           -- check if the predicate allows for the restart
           guard $ f err n
 

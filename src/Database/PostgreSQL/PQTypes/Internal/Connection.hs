@@ -21,7 +21,6 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Default.Class
-import Data.Monoid
 import Data.Pool
 import Data.Time.Clock
 import Foreign.ForeignPtr
@@ -35,9 +34,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
-import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Utils
-import Database.PostgreSQL.PQTypes.SQL
 
 data ConnectionSettings = ConnectionSettings {
 -- | Connection info string.
@@ -101,7 +98,7 @@ withConnectionData :: Connection
                    -> IO r
 withConnectionData (Connection mvc) fname f =
   modifyMVar mvc $ \mc -> case mc of
-    Nothing -> E.throwIO . HPQTypesError $ fname ++ ": no connection"
+    Nothing -> hpqTypesError $ fname ++ ": no connection"
     Just cd -> first Just <$> f cd
 
 -- | Database connection supplier.
@@ -158,7 +155,7 @@ poolSource cs numStripes idleTime maxResources = do
 -- | Low-level function for connecting to the database.
 -- Useful if one wants to implement custom connection source.
 connect :: ConnectionSettings -> IO Connection
-connect ConnectionSettings{..} = wrapException $ do
+connect ConnectionSettings{..} = do
   fconn <- BS.useAsCString csConnInfo c_PQconnectdb
   withForeignPtr fconn $ \connPtr -> do
     conn <- peek connPtr
@@ -180,13 +177,8 @@ connect ConnectionSettings{..} = wrapException $ do
 -- | Low-level function for disconnecting from the database.
 -- Useful if one wants to implement custom connection source.
 disconnect :: Connection -> IO ()
-disconnect (Connection mvconn) = wrapException . modifyMVar_ mvconn $ \mconn -> do
+disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
   case mconn of
     Just cd -> withForeignPtr (cdFrgnPtr cd) c_PQfinishPtr
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
-
-----------------------------------------
-
-wrapException :: IO a -> IO a
-wrapException = E.handle $ rethrowWithContext (mempty::SQL)

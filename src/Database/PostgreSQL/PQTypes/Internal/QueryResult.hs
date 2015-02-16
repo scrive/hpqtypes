@@ -55,7 +55,8 @@ instance Foldable QueryResult where
       worker res err !acc !i
         | i == -1   = return acc
         | otherwise = do
-          obj <- g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx
+          -- mask asynchronous exceptions so they won't be wrapped in DBException
+          obj <- E.mask_ $ g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx
           worker res err (f obj acc) (pred i)
 
 -- Note: c_PQntuples/c_PQnfields are pure on a C level and QueryResult
