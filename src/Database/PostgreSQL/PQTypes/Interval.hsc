@@ -12,6 +12,7 @@ module Database.PostgreSQL.PQTypes.Interval (
 
 import Control.Applicative
 import Data.Int
+import Data.List
 import Data.Monoid
 import Data.Typeable
 import Foreign.Storable
@@ -37,7 +38,23 @@ data Interval = Interval {
 , intMinutes       :: !Int32
 , intSeconds       :: !Int32
 , intMicroseconds  :: !Int32
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Typeable)
+
+instance Show Interval where
+  showsPrec _ Interval{..} = (++) . intercalate ", " $ filter (not . null) [
+      f intYears "year"
+    , f intMonths "month"
+    , f intDays "day"
+    , f intHours "hour"
+    , f intMinutes "minute"
+    , f intSeconds "second"
+    , f intMicroseconds "microsecond"
+    ]
+    where
+      f n desc = case n of
+        0 -> ""
+        1 -> show n ++ " " ++ desc
+        _ -> show n ++ " " ++ desc ++ "s"
 
 instance Monoid Interval where
   mempty = Interval 0 0 0 0 0 0 0
