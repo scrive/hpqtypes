@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.3.2
+version:             1.4.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -31,7 +31,8 @@ category:            Database
 build-type:          Custom
 cabal-version:       >= 1.8
 
-extra-source-files: examples/Catalog.hs
+extra-source-files: CHANGELOG.md
+                  , examples/Catalog.hs
                   , libpqtypes/AUTHORS
                   , libpqtypes/Makefile.in
                   , libpqtypes/config.guess
