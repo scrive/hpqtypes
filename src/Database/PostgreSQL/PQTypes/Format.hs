@@ -61,6 +61,9 @@ instance PQFormat Int32 where
 instance PQFormat Int64 where
   pqFormat = const $ BS.pack "%int8"
 
+instance PQFormat Int where
+  pqFormat = const $ BS.pack "%int8"
+
 instance PQFormat Float where
   pqFormat = const $ BS.pack "%float4"
 

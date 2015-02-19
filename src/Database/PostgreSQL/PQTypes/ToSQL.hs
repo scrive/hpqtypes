@@ -65,6 +65,10 @@ instance ToSQL Int64 where
   type PQDest Int64 = CLLong
   toSQL n _ = put (fromIntegral n)
 
+instance ToSQL Int where
+  type PQDest Int = CLLong
+  toSQL n _ = put (fromIntegral n)
+
 instance ToSQL Float where
   type PQDest Float = CFloat
   toSQL n _ = put (realToFrac n)
