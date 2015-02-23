@@ -8,8 +8,10 @@ module Database.PostgreSQL.PQTypes.Internal.QueryResult (
 import Control.Applicative
 import Control.Monad
 import Data.Foldable
+import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+import Foreign.Ptr
 import System.IO.Unsafe
 import qualified Control.Exception as E
 
@@ -34,11 +36,26 @@ instance Functor QueryResult where
   f `fmap` QueryResult ctx fres g = QueryResult ctx fres (f . g)
 
 instance Foldable QueryResult where
-  foldr f iacc (QueryResult (SomeSQL ctx) fres g) = unsafePerformIO $ do
+  foldr  = foldImpl False (fmap pred . c_PQntuples) (const . return $ -1) pred
+  foldr' = foldImpl True  (fmap pred . c_PQntuples) (const . return $ -1) pred
+
+  foldl  = foldImpl False (const $ return 0) c_PQntuples succ . flip
+  foldl' = foldImpl True  (const $ return 0) c_PQntuples succ . flip
+
+foldImpl :: Bool
+         -> (Ptr PGresult -> IO CInt)
+         -> (Ptr PGresult -> IO CInt)
+         -> (CInt -> CInt)
+         -> (t -> acc -> acc)
+         -> acc
+         -> QueryResult t
+         -> acc
+foldImpl strict initCtr termCtr advCtr f iacc (QueryResult (SomeSQL ctx) fres g) =
+  unsafePerformIO $ withForeignPtr fres $ \res -> do
     -- This bit is referentially transparent iff appropriate
     -- FrowRow and FromSQL instances are (the ones provided
     -- by the library fulfil this requirement).
-    rowlen <- fromIntegral <$> withForeignPtr fres c_PQnfields
+    rowlen <- fromIntegral <$> c_PQnfields res
     when (rowlen /= pqVariables row) $ E.throwIO DBException {
       dbeQueryContext = ctx
     , dbeError = RowLengthMismatch {
@@ -46,18 +63,22 @@ instance Foldable QueryResult where
       , lengthDelivered = rowlen
       }
     }
-    alloca $ \err -> withForeignPtr fres $ \res ->
-      worker res err iacc . pred =<< c_PQntuples res
-    where
-      -- ⊥ of existential type hidden in QueryResult
-      row = let _ = g row in row
+    alloca $ \err -> do
+      i <- initCtr res
+      n <- termCtr res
+      worker res err i n iacc
+  where
+    -- ⊥ of existential type hidden in QueryResult
+    row = let _ = g row in row
 
-      worker res err !acc !i
-        | i == -1   = return acc
-        | otherwise = do
-          -- mask asynchronous exceptions so they won't be wrapped in DBException
-          obj <- E.mask_ $ g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx
-          worker res err (f obj acc) (pred i)
+    apply = if strict then ($!) else ($)
+
+    worker res err !i n acc
+      | i == n    = return acc
+      | otherwise = do
+        -- mask asynchronous exceptions so they won't be wrapped in DBException
+        obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
+        worker res err (advCtr i) n `apply` f obj acc
 
 -- Note: c_PQntuples/c_PQnfields are pure on a C level and QueryResult
 -- constructor is not exported to the end user (so it's not possible
