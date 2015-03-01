@@ -170,3 +170,7 @@ Executable tests
                      , exceptions >= 0.6
 
   main-is:           Main.hs
+
+Source-repository head
+  Type:     git
+  Location: https://github.com/scrive/hpqtypes
