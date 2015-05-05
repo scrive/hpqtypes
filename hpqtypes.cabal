@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.4.0
+version:             1.4.1
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -70,6 +70,7 @@ library
                      , Database.PostgreSQL.PQTypes.Array
                      , Database.PostgreSQL.PQTypes.Fold
                      , Database.PostgreSQL.PQTypes.FromRow
+                     , Database.PostgreSQL.PQTypes.JSON
                      , Database.PostgreSQL.PQTypes.ToSQL
                      , Database.PostgreSQL.PQTypes.Transaction
                      , Database.PostgreSQL.PQTypes.Class
@@ -102,6 +103,7 @@ library
 
   build-depends:       base >= 4.5 && < 5
                      , text >= 0.11
+                     , aeson >= 0.6.2.0
                      , bytestring >= 0.9
                      , time >= 1.4
                      , vector >= 0.10
@@ -156,6 +158,7 @@ Executable tests
   build-depends:       hpqtypes
                      , base >= 4.5
                      , text >= 0.11
+                     , aeson >= 0.6.2.0
                      , bytestring >= 0.9
                      , time >= 1.4
                      , transformers-base >= 0.4
@@ -168,6 +171,9 @@ Executable tests
                      , test-framework-hunit >= 0.3
                      , random >= 1.0
                      , exceptions >= 0.6
+                     , scientific
+                     , unordered-containers
+                     , vector
 
   main-is:           Main.hs
 

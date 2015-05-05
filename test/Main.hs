@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable
-  , FlexibleContexts, GeneralizedNewtypeDeriving, MultiParamTypeClasses
-  , OverloadedStrings, RecordWildCards, ScopedTypeVariables
-  , TypeFamilies, TypeOperators, UndecidableInstances #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, FlexibleContexts, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TypeFamilies, TypeOperators, UndecidableInstances #-}
 module Main where
 
 import Control.Applicative
@@ -12,7 +9,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Control
-import Data.Char
+import Data.Aeson
 import Data.Int
 import Data.Maybe
 import Data.Time
@@ -34,7 +31,7 @@ import qualified Data.Text as T
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
-import Test.QuickCheck.Arbitrary.Instances ()
+import Test.QuickCheck.Arbitrary.Instances
 
 type InnerTestEnv = StateT QCGen (DBT IO)
 
@@ -74,37 +71,6 @@ runTimes !n m = case n of
 
 ----------------------------------------
 
-newtype String0 = String0 { unString0 :: String }
-  deriving (Eq, Ord, Show, Typeable, PQFormat)
-
-instance FromSQL String0 where
-  type PQBase String0 = PQBase String
-  fromSQL = fmap String0 . fromSQL
-
-instance ToSQL String0 where
-  type PQDest String0 = PQDest String
-  toSQL (String0 s) = toSQL s
-
-instance Arbitrary String0 where
-  arbitrary = String0 . map (chr . fromIntegral . unWord0) <$> arbitrary
-
-newtype Word0 = Word0 { unWord0 :: Word8 }
-  deriving (Enum, Eq, Integral, Num, Ord, Real)
-
-instance Bounded Word0 where
-  minBound = 1
-  maxBound = 255
-
-instance Arbitrary Word0 where
-  arbitrary = arbitrarySizedBoundedIntegral
-  shrink = shrinkIntegral
-
-instance Arbitrary BS.ByteString where
-  arbitrary = BS.pack . map unWord0 <$> arbitrary
-
-instance Arbitrary T.Text where
-  arbitrary = T.pack . unString0 <$> arbitrary
-
 instance Arbitrary Interval where
   arbitrary = Interval
     <$> abs `fmap` arbitrary
@@ -115,33 +81,6 @@ instance Arbitrary Interval where
     <*> choose (0, 59)
     <*> choose (0, 999999)
 
-instance Arbitrary Day where
-  arbitrary = ModifiedJulianDay <$> arbitrary
-
-instance Arbitrary TimeOfDay where
-  arbitrary = do
-    hours <- choose (0, 23)
-    mins <- choose (0, 59)
-    secs :: Double <- choose (0, 60)
-    return $ TimeOfDay hours mins (realToFrac secs)
-
-instance Arbitrary LocalTime where
-  arbitrary = LocalTime <$> arbitrary <*> arbitrary
-
-instance Arbitrary UTCTime where
-  arbitrary = do
-    day <- arbitrary
-    secs :: Double <- choose (0, 86401)
-    return $ UTCTime day (realToFrac secs)
-
-instance Arbitrary TimeZone where
-  arbitrary = elements $ map hoursToTimeZone [-12..14]
-
-instance Arbitrary ZonedTime where
-  arbitrary = ZonedTime <$> arbitrary <*> arbitrary
-
-----------------------------------------
-
 instance (Arbitrary a1, Arbitrary a2) => Arbitrary (a1 :*: a2) where
   arbitrary = (:*:) <$> arbitrary <*> arbitrary
 
@@ -151,8 +90,11 @@ instance Arbitrary a => Arbitrary (Binary a) where
 instance Arbitrary a => Arbitrary (Composite a) where
   arbitrary = Composite <$> arbitrary
 
-instance Arbitrary a => Arbitrary (Identity a) where
-  arbitrary = Identity <$> arbitrary
+instance Arbitrary json => Arbitrary (JSON json) where
+  arbitrary = JSON <$> arbitrary
+
+instance Arbitrary jsonb => Arbitrary (JSONB jsonb) where
+  arbitrary = JSONB <$> arbitrary
 
 instance Arbitrary a => Arbitrary (Array1 a) where
   arbitrary = arbitraryArray1 Array1
@@ -414,6 +356,9 @@ tests td = [
   , nullTest td (u::BS.ByteString)
   , nullTest td (u::T.Text)
   , nullTest td (u::Binary BS.ByteString)
+  , nullTest td (u::JSON Value)
+  , nullTest td (u::JSONB Value)
+  , nullTest td (u::XML)
   , nullTest td (u::Interval)
   , nullTest td (u::Day)
   , nullTest td (u::TimeOfDay)
@@ -438,6 +383,10 @@ tests td = [
   , putGetTest td 1000 (u::BS.ByteString) (==)
   , putGetTest td 1000 (u::T.Text) (==)
   , putGetTest td 1000 (u::Binary BS.ByteString) (==)
+  , putGetTest td 50 (u::JSON Value) (==)
+  , putGetTest td 50 (u::JSONB Value) (==)
+  , putGetTest td 20 (u::Array1 (JSON Value)) (==)
+  , putGetTest td 20 (u::Array1 (JSONB Value)) (==)
   , putGetTest td 50 (u::Interval) (==)
   , putGetTest td 1000000 (u::Day) (==)
   , putGetTest td 10000 (u::TimeOfDay) eqTOD

@@ -257,6 +257,8 @@ extern "C" {
 #define ZPBITOID         1560 /* not supported yet */
 #define VARBITOID        1562 /* not supported yet */
 #define BYTEAOID           17
+#define JSONOID           114
+#define JSONBOID         3802
 #define XMLOID            142
 /* date and time types */
 #define DATEOID          1082
@@ -527,6 +529,11 @@ int pqt_put_text(PGtypeArgs *args); /* handles varchar, bpchar and name */
 int pqt_get_text(PGtypeArgs *args); /* handles varchar, bpchar and name */
 int pqt_put_bytea(PGtypeArgs *args);
 int pqt_get_bytea(PGtypeArgs *args);
+
+int pqt_put_btext(PGtypeArgs *args);
+int pqt_get_btext(PGtypeArgs *args);
+int pqt_put_jsonb(PGtypeArgs *args);
+int pqt_get_jsonb(PGtypeArgs *args);
 
 #ifdef __cplusplus
 }
