@@ -23,6 +23,7 @@ description:         Efficient and easy-to-use bindings to (slightly modified)
                      .
                      Examples can be found in the <https://github.com/scrive/hpqtypes/tree/master/examples examples> directory.
 
+homepage:            https://github.com/scrive/hpqtypes
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive
@@ -55,6 +56,10 @@ extra-source-files: CHANGELOG.md
                   , libpqtypes/src/pqt_config.h.in
                   , libpqtypes/src/libpqtypes-int.h
                   , libpqtypes/src/libpqtypes.h
+
+Source-repository head
+  Type:     git
+  Location: git@github.com:scrive/log.git
 
 Flag tests
   description: Build test suite
@@ -177,6 +182,3 @@ Executable tests
 
   main-is:           Main.hs
 
-Source-repository head
-  Type:     git
-  Location: https://github.com/scrive/hpqtypes
