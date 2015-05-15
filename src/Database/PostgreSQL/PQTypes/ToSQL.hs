@@ -16,7 +16,9 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -105,11 +107,21 @@ instance ToSQL BS.ByteString where
         then nullStringCStringLen
         else cslen
 
+instance ToSQL BSL.ByteString where
+  type PQDest BSL.ByteString = PGbytea
+  toSQL = toSQL . BSL.toStrict
+
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL T.Text where
   type PQDest T.Text = PGbytea
   toSQL = toSQL . encodeUtf8
+
+-- | Encodes underlying C string as UTF-8, so if you are working
+-- with a different encoding, you should not rely on this instance.
+instance ToSQL TL.Text where
+  type PQDest TL.Text = PGbytea
+  toSQL = toSQL . TL.toStrict
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.

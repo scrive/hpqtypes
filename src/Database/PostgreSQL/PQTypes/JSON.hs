@@ -11,7 +11,7 @@ import Data.Typeable
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Char8 as BSL
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
@@ -29,8 +29,16 @@ instance FromSQL (JSON BS.ByteString) where
   type PQBase (JSON BS.ByteString) = PGbytea
   fromSQL = fmap JSON . fromSQL
 
+instance FromSQL (JSON BSL.ByteString) where
+  type PQBase (JSON BSL.ByteString) = PGbytea
+  fromSQL = fmap JSON . fromSQL
+
 instance ToSQL (JSON BS.ByteString) where
   type PQDest (JSON BS.ByteString) = PGbytea
+  toSQL = toSQL . unJSON
+
+instance ToSQL (JSON BSL.ByteString) where
+  type PQDest (JSON BSL.ByteString) = PGbytea
   toSQL = toSQL . unJSON
 
 instance FromSQL (JSON Value) where
@@ -54,8 +62,16 @@ instance FromSQL (JSONB BS.ByteString) where
   type PQBase (JSONB BS.ByteString) = PGbytea
   fromSQL = fmap JSONB . fromSQL
 
+instance FromSQL (JSONB BSL.ByteString) where
+  type PQBase (JSONB BSL.ByteString) = PGbytea
+  fromSQL = fmap JSONB . fromSQL
+
 instance ToSQL (JSONB BS.ByteString) where
   type PQDest (JSONB BS.ByteString) = PGbytea
+  toSQL = toSQL . unJSONB
+
+instance ToSQL (JSONB BSL.ByteString) where
+  type PQDest (JSONB BSL.ByteString) = PGbytea
   toSQL = toSQL . unJSONB
 
 instance FromSQL (JSONB Value) where

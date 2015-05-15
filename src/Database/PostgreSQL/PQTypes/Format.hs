@@ -8,10 +8,12 @@ module Database.PostgreSQL.PQTypes.Format (
 import Data.Int
 import Data.Functor.Identity
 import Data.Time
-import Data.Text (Text)
 import Data.Typeable
 import Data.Word
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 u :: a
 u = undefined
@@ -86,7 +88,13 @@ instance PQFormat String where
 instance PQFormat BS.ByteString where
   pqFormat = const $ BS.pack "%btext"
 
-instance PQFormat Text where
+instance PQFormat BSL.ByteString where
+  pqFormat = const $ BS.pack "%btext"
+
+instance PQFormat T.Text where
+  pqFormat = const $ BS.pack "%btext"
+
+instance PQFormat TL.Text where
   pqFormat = const $ BS.pack "%btext"
 
 -- DATE

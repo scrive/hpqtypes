@@ -14,7 +14,9 @@ import Foreign.C
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -83,11 +85,21 @@ instance FromSQL BS.ByteString where
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just bytea) = BS.packCStringLen $ byteaToCStringLen bytea
 
+instance FromSQL BSL.ByteString where
+  type PQBase BSL.ByteString = PGbytea
+  fromSQL = fmap BSL.fromStrict . fromSQL
+
 -- | Assumes that source C string is UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance FromSQL T.Text where
   type PQBase T.Text = PGbytea
   fromSQL mbytea = either E.throwIO return . decodeUtf8' =<< fromSQL mbytea
+
+-- | Assumes that source C string is UTF-8, so if you are working
+-- with a different encoding, you should not rely on this instance
+instance FromSQL TL.Text where
+  type PQBase TL.Text = PGbytea
+  fromSQL = fmap TL.fromStrict . fromSQL
 
 -- | Assumes that source C string is UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
