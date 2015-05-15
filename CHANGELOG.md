@@ -1,3 +1,7 @@
+# hpqtypes-1.4.1 (2015-05-15)
+* add support for json and jsonb sql types
+* add support for lazy ByteString and Text
+
 # hpqtypes-1.4.0 (2015-02-26)
 * add support for QuickCheck 2.7
 * add support for notifications
