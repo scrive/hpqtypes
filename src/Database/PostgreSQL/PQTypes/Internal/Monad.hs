@@ -13,11 +13,11 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Error.Class
 import Control.Monad.Reader.Class
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Monoid
-import qualified Control.Monad.Trans.State as S
+import qualified Control.Monad.Trans.State.Strict as S
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
