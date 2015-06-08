@@ -1,3 +1,7 @@
+# hpqtypes-1.4.2 (2015-06-08)
+* use strict StateT for DBT
+* use catch in withTransaction only if it might be used
+
 # hpqtypes-1.4.1 (2015-05-15)
 * add support for json and jsonb sql types
 * add support for lazy ByteString and Text
