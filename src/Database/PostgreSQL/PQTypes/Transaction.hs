@@ -15,6 +15,7 @@ module Database.PostgreSQL.PQTypes.Transaction (
 
 import Control.Monad
 import Control.Monad.Catch
+import Data.Function
 import Data.String
 import Data.Typeable
 
@@ -76,30 +77,34 @@ rollback = getTransactionSettings >>= rollback'
 -- | Execute monadic action within a transaction using given transaction
 -- settings. Note that it won't work as expected if a transaction is already
 -- active (in such case 'withSavepoint' should be used instead).
-withTransaction' :: forall m a. (MonadDB m, MonadMask m)
+withTransaction' :: (MonadDB m, MonadMask m)
                  => TransactionSettings -> m a -> m a
-withTransaction' ts m = mask $ exec 1
+withTransaction' ts m = mask $ \restore -> (`fix` 1) $ \loop n -> do
+  -- Optimization for squashing possible space leaks.
+  -- It looks like GHC doesn't like 'catch' and passes
+  -- on introducing strictness in some cases.
+  let maybeRestart = case tsRestartPredicate ts of
+        Just _  -> handleJust (expred n) (\_ -> loop $ n+1)
+        Nothing -> id
+  maybeRestart $ do
+    begin' ts
+    res <- restore m `onException` rollback' ts
+    commit' ts
+    return res
   where
-    exec :: Integer -> (forall r. m r -> m r) -> m a
-    exec !n restore = handleJust expred (const $ exec (succ n) restore) $ do
-      begin' ts
-      res <- restore m `onException` rollback' ts
-      commit' ts
-      return res
-      where
-        expred :: SomeException -> Maybe ()
-        expred e = do
-          -- check if the predicate exists
-          RestartPredicate f <- tsRestartPredicate ts
-          -- cast exception to the type expected by the predicate
-          err <- msum [
-              -- either cast the exception itself...
-              fromException e
-              -- ...or extract it from DBException
-            , fromException e >>= \DBException{..} -> cast dbeError
-            ]
-          -- check if the predicate allows for the restart
-          guard $ f err n
+    expred :: Integer -> SomeException -> Maybe ()
+    expred !n e = do
+      -- check if the predicate exists
+      RestartPredicate f <- tsRestartPredicate ts
+      -- cast exception to the type expected by the predicate
+      err <- msum [
+          -- either cast the exception itself...
+          fromException e
+          -- ...or extract it from DBException
+        , fromException e >>= \DBException{..} -> cast dbeError
+        ]
+      -- check if the predicate allows for the restart
+      guard $ f err n
 
 -- | Begin transaction using given transaction settings.
 begin' :: MonadDB m => TransactionSettings -> m ()
