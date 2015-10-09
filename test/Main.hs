@@ -364,7 +364,6 @@ tests td = [
   , nullTest td (u::TimeOfDay)
   , nullTest td (u::LocalTime)
   , nullTest td (u::UTCTime)
-  , nullTest td (u::ZonedTime)
   , nullTest td (u::Array1 Int32)
   , nullTest td (u::Array2 Double)
   , nullTest td (u::Composite Simple)
@@ -392,7 +391,6 @@ tests td = [
   , putGetTest td 10000 (u::TimeOfDay) eqTOD
   , putGetTest td 500000 (u::LocalTime) eqLT
   , putGetTest td 500000 (u::UTCTime) eqUTCT
-  , putGetTest td 500000 (u::ZonedTime) eqZT
   , putGetTest td 1000 (u::Array1 Int32) (==)
   , putGetTest td 1000 (u::Array2 Double) eqArray2
   , putGetTest td 100000 (u::Composite Simple) (==)
