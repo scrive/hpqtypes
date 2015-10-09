@@ -1,3 +1,6 @@
+# hpqtypes-1.4.3 (2015-10-09)
+* remove invalid FromSQL ZonedTime instance
+
 # hpqtypes-1.4.2 (2015-06-08)
 * use strict StateT for DBT
 * use catch in withTransaction only if it might be used

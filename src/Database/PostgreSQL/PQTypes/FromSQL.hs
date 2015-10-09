@@ -133,13 +133,20 @@ instance FromSQL LocalTime where
 
 -- TIMESTAMPTZ
 
+-- | 'FromSQL' instance for 'ZonedTime' doesn't exist because
+-- PostgreSQL doesn't provide zone offset information when returning
+-- timestamps with time zone in a binary format.
 instance FromSQL UTCTime where
   type PQBase UTCTime = PGtimestamp
-  fromSQL = localToZoned localTimeToUTC
-
-instance FromSQL ZonedTime where
-  type PQBase ZonedTime = PGtimestamp
-  fromSQL = localToZoned (flip ZonedTime)
+  fromSQL Nothing = unexpectedNULL
+  fromSQL jts@(Just PGtimestamp{..}) = do
+    localTime <- fromSQL jts
+    case rest of
+      0 -> return . localTimeToUTC (minutesToTimeZone mins) $ localTime
+      _ -> hpqTypesError $ "Invalid gmtoff: " ++ show gmtoff
+    where
+      gmtoff = pgTimeGMTOff pgTimestampTime
+      (mins, rest) = fromIntegral gmtoff `divMod` 60
 
 -- BOOL
 
@@ -176,15 +183,3 @@ pgTimeToTimeOfDay PGtime{..} = TimeOfDay hour mins $ sec + fromRational (usec % 
     mins = fromIntegral pgTimeMin
     sec  = fromIntegral pgTimeSec
     usec = fromIntegral pgTimeUSec
-
--- | Helper for converting local time to either 'ZonedTime' or 'UTCTime'.
-localToZoned :: (TimeZone -> LocalTime -> a) -> Maybe PGtimestamp -> IO a
-localToZoned _ Nothing = unexpectedNULL
-localToZoned construct jts@(Just PGtimestamp{..}) = do
-  localTime <- fromSQL jts
-  case rest of
-    0 -> return . construct (minutesToTimeZone mins) $ localTime
-    _ -> hpqTypesError $ "Invalid gmtoff: " ++ show gmtoff
-  where
-    gmtoff = pgTimeGMTOff pgTimestampTime
-    (mins, rest) = fromIntegral gmtoff `divMod` 60
