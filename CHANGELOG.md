@@ -1,3 +1,6 @@
+# hpqtypes-1.4.4 (2016-01-19)
+* fix lower bound of base version
+
 # hpqtypes-1.4.3 (2015-10-09)
 * remove invalid FromSQL ZonedTime instance
 
