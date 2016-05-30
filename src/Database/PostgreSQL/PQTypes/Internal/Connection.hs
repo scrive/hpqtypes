@@ -103,7 +103,7 @@ withConnectionData (Connection mvc) fname f =
 
 -- | Database connection supplier.
 newtype ConnectionSource = ConnectionSource {
-  withConnection :: (MonadBase IO m, MonadMask m) => (Connection -> m a) -> m a
+  withConnection :: forall m r. (MonadBase IO m, MonadMask m) => (Connection -> m r) -> m r
 }
 
 -- | Default connection supplier. It estabilishes new

@@ -1,3 +1,6 @@
+# hpqtypes-1.4.5 (2016-05-30)
+* fix compilation with Cabal 1.24 and GHC 8.0.1
+
 # hpqtypes-1.4.4 (2016-01-19)
 * fix lower bound of base version
 

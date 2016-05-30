@@ -21,5 +21,5 @@ data DBState = DBState {
 -- | Last SQL query that was executed.
 , dbLastQuery           :: !SomeSQL
 -- | Current query result.
-, dbQueryResult         :: !(FromRow row => Maybe (QueryResult row))
+, dbQueryResult         :: !(forall row. FromRow row => Maybe (QueryResult row))
 }

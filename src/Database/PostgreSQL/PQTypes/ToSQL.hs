@@ -109,25 +109,25 @@ instance ToSQL BS.ByteString where
 
 instance ToSQL BSL.ByteString where
   type PQDest BSL.ByteString = PGbytea
-  toSQL = toSQL . BSL.toStrict
+  toSQL t = toSQL $ BSL.toStrict t
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL T.Text where
   type PQDest T.Text = PGbytea
-  toSQL = toSQL . encodeUtf8
+  toSQL t = toSQL $ encodeUtf8 t
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL TL.Text where
   type PQDest TL.Text = PGbytea
-  toSQL = toSQL . TL.toStrict
+  toSQL t = toSQL $ TL.toStrict t
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL String where
   type PQDest String = PGbytea
-  toSQL = toSQL . T.pack
+  toSQL t = toSQL $ T.pack t
 
 -- DATE
 

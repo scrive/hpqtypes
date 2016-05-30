@@ -35,11 +35,11 @@ instance FromSQL (JSON BSL.ByteString) where
 
 instance ToSQL (JSON BS.ByteString) where
   type PQDest (JSON BS.ByteString) = PGbytea
-  toSQL = toSQL . unJSON
+  toSQL (JSON t) = toSQL t
 
 instance ToSQL (JSON BSL.ByteString) where
   type PQDest (JSON BSL.ByteString) = PGbytea
-  toSQL = toSQL . unJSON
+  toSQL (JSON t) = toSQL t
 
 instance FromSQL (JSON Value) where
   type PQBase (JSON Value) = PGbytea
@@ -68,11 +68,11 @@ instance FromSQL (JSONB BSL.ByteString) where
 
 instance ToSQL (JSONB BS.ByteString) where
   type PQDest (JSONB BS.ByteString) = PGbytea
-  toSQL = toSQL . unJSONB
+  toSQL (JSONB t) = toSQL t
 
 instance ToSQL (JSONB BSL.ByteString) where
   type PQDest (JSONB BSL.ByteString) = PGbytea
-  toSQL = toSQL . unJSONB
+  toSQL (JSONB t) = toSQL t
 
 instance FromSQL (JSONB Value) where
   type PQBase (JSONB Value) = PGbytea
@@ -96,4 +96,4 @@ valueToSQL :: (json -> Value)
            -> ParamAllocator
            -> (Ptr PGbytea -> IO r)
            -> IO r
-valueToSQL jsonDecon = toSQL . BSL.toStrict . encode . jsonDecon
+valueToSQL jsonDecon js = toSQL $ BSL.toStrict . encode $ jsonDecon js

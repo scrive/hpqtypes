@@ -7,6 +7,7 @@ import Distribution.PackageDescription
 import Distribution.Simple
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Program
+import Distribution.Simple.Program.Find
 import Distribution.Simple.Setup
 import Distribution.Simple.Utils
 import Distribution.Verbosity
@@ -32,9 +33,9 @@ main = defaultMainWithHooks simpleUserHooks {
 
 pgconfigProgram :: Program
 pgconfigProgram = (simpleProgram "pgconfig") {
-  programFindLocation = \verbosity -> constOrId $ do
-    pgconfig  <- findProgramLocation verbosity "pgconfig"
-    pg_config <- findProgramLocation verbosity "pg_config"
+  programFindLocation = \verbosity psp -> do
+    pgconfig  <- findProgramOnSearchPath verbosity psp "pgconfig"
+    pg_config <- findProgramOnSearchPath verbosity psp "pg_config"
     return $ pgconfig `mplus` pg_config
 }
 
@@ -66,18 +67,3 @@ pqTypesConfigure verbosity = do
 pqTypesDistclean :: Verbosity -> IO ()
 pqTypesDistclean verbosity =
   rawSystemExit verbosity "env" ["make", "--directory=libpqtypes", "distclean"]
-
---------------------
-
--- 'ConstOrId' is a @Cabal-1.16@ vs @Cabal-1.18@ compatibility hack,
--- 'programFindLocation' has a new (unused in this case)
--- parameter. 'ConstOrId' adds this parameter when types say it is
--- mandatory.
-class ConstOrId a b where
-    constOrId :: a -> b
-
-instance ConstOrId a a where
-    constOrId = id
-
-instance ConstOrId a (b -> a) where
-    constOrId = const
