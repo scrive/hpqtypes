@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionData(..)
@@ -5,6 +6,7 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   , ConnectionStats(..)
   , ConnectionSettings(..)
   , def
+  , ConnectionSourceM(..)
   , ConnectionSource(..)
   , simpleSource
   , poolSource
@@ -24,6 +26,7 @@ import Data.Time.Clock
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Exts
 import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
@@ -91,49 +94,58 @@ newtype Connection = Connection {
   unConnection :: MVar (Maybe ConnectionData)
 }
 
-withConnectionData :: Connection
-                   -> String
-                   -> (ConnectionData -> IO (ConnectionData, r))
-                   -> IO r
+withConnectionData
+  :: Connection
+  -> String
+  -> (ConnectionData -> IO (ConnectionData, r))
+  -> IO r
 withConnectionData (Connection mvc) fname f =
   modifyMVar mvc $ \mc -> case mc of
     Nothing -> hpqTypesError $ fname ++ ": no connection"
     Just cd -> first Just <$> f cd
 
 -- | Database connection supplier.
-newtype ConnectionSource = ConnectionSource {
-  withConnection :: forall m r. (MonadBase IO m, MonadMask m) => (Connection -> m r) -> m r
+newtype ConnectionSourceM m = ConnectionSourceM {
+  withConnection :: forall r. (Connection -> m r) -> m r
+}
+
+-- | Wrapper for a polymorphic connection source.
+newtype ConnectionSource (cs :: [(* -> *) -> Constraint]) = ConnectionSource {
+  unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
 }
 
 -- | Default connection supplier. It estabilishes new
 -- database connection each time 'withConnection' is called.
-simpleSource :: ConnectionSettings -> ConnectionSource
-simpleSource cs = ConnectionSource {
+simpleSource
+  :: ConnectionSettings
+  -> ConnectionSource [MonadBase IO, MonadMask]
+simpleSource cs = ConnectionSource $ ConnectionSourceM {
   withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
 }
 
 -- | Pooled source. It uses striped pool from resource-pool
 -- package to cache estabilished connections and reuse them.
-poolSource :: ConnectionSettings
-           -> Int -- ^ Stripe count. The number of distinct sub-pools
-           -- to maintain. The smallest acceptable value is 1.
-           -> NominalDiffTime -- ^ Amount of time for which an unused database
-           -- connection is kept open. The smallest acceptable value is 0.5
-           -- seconds.
-           --
-           -- The elapsed time before closing database connection may be
-           -- a little longer than requested, as the reaper thread wakes
-           -- at 1-second intervals.
-           -> Int -- ^ Maximum number of database connections to keep open
-           -- per stripe. The smallest acceptable value is 1.
-           --
-           -- Requests for database connections will block if this limit is
-           -- reached on a single stripe, even if other stripes have idle
-           -- connections available.
-           -> IO ConnectionSource
+poolSource
+  :: ConnectionSettings
+  -> Int -- ^ Stripe count. The number of distinct sub-pools
+  -- to maintain. The smallest acceptable value is 1.
+  -> NominalDiffTime -- ^ Amount of time for which an unused database
+  -- connection is kept open. The smallest acceptable value is 0.5
+  -- seconds.
+  --
+  -- The elapsed time before closing database connection may be
+  -- a little longer than requested, as the reaper thread wakes
+  -- at 1-second intervals.
+  -> Int -- ^ Maximum number of database connections to keep open
+  -- per stripe. The smallest acceptable value is 1.
+  --
+  -- Requests for database connections will block if this limit is
+  -- reached on a single stripe, even if other stripes have idle
+  -- connections available.
+  -> IO (ConnectionSource [MonadBase IO, MonadMask])
 poolSource cs numStripes idleTime maxResources = do
   pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
-  return ConnectionSource {
+  return $ ConnectionSource $ ConnectionSourceM {
     withConnection = withResource' pool . (clearStats >=>)
   }
   where

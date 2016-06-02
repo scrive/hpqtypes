@@ -72,7 +72,7 @@ instance Storable Notification where
 
 -- | Low-level function that waits for a notification for a given
 -- number of microseconds (it uses 'timeout' function internally).
-getNotificationIO :: DBState -> Int -> IO (Maybe Notification)
+getNotificationIO :: DBState m -> Int -> IO (Maybe Notification)
 getNotificationIO st n = timeout n $ do
   withConnectionData (dbConnection st) fname $ \cd -> fix $ \loop -> do
     let conn = cdPtr cd

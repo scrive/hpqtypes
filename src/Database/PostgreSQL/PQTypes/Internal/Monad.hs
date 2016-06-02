@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
-    DBT(..)
+    DBT_(..)
+  , DBT
   , runDBT
   , mapDBT
   ) where
@@ -30,17 +31,23 @@ import Database.PostgreSQL.PQTypes.Transaction
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
 
-type InnerDBT = StateT DBState
+type InnerDBT m = StateT (DBState m)
 
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
-newtype DBT m a = DBT { unDBT :: InnerDBT m a }
+newtype DBT_ n m a = DBT { unDBT :: InnerDBT n m a }
   deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
+
+type DBT m = DBT_ m m
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
-runDBT :: (MonadBase IO m, MonadMask m)
-       => ConnectionSource -> TransactionSettings -> DBT m a -> m a
+runDBT
+  :: (MonadBase IO m, MonadMask m)
+  => ConnectionSourceM m
+  -> TransactionSettings
+  -> DBT m a
+  -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
   evalStateT action $ DBState {
     dbConnection = conn
@@ -55,8 +62,12 @@ runDBT cs ts m = withConnection cs $ \conn -> do
       else m
 
 -- | Transform the underlying monad.
-mapDBT :: (m (a, DBState) -> n (b, DBState)) -> DBT m a -> DBT n b
-mapDBT f = DBT . mapStateT f . unDBT
+mapDBT
+  :: (DBState n -> DBState m)
+  -> (m (a, DBState m) -> n (b, DBState n))
+  -> DBT m a
+  -> DBT n b
+mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 ----------------------------------------
 
@@ -87,15 +98,15 @@ instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
 
 ----------------------------------------
 
-instance MonadTransControl DBT where
+instance MonadTransControl (DBT_ m) where
 #if MIN_VERSION_monad_control(1,0,0)
-  type StT DBT a = StT InnerDBT a
+  type StT (DBT_ m) a = StT (InnerDBT m) a
   liftWith = defaultLiftWith DBT unDBT
   restoreT = defaultRestoreT DBT
   {-# INLINE liftWith #-}
   {-# INLINE restoreT #-}
 #else
-  newtype StT DBT a = StDBT { unStDBT :: StT InnerDBT a }
+  newtype StT (DBT_ m) a = StDBT { unStDBT :: StT (InnerDBT m) a }
   liftWith = defaultLiftWith DBT unDBT StDBT
   restoreT = defaultRestoreT DBT unStDBT
   {-# INLINE liftWith #-}
@@ -104,13 +115,13 @@ instance MonadTransControl DBT where
 
 instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
 #if MIN_VERSION_monad_control(1,0,0)
-  type StM (DBT m) a = ComposeSt DBT m a
+  type StM (DBT m) a = ComposeSt (DBT_ m) m a
   liftBaseWith = defaultLiftBaseWith
   restoreM     = defaultRestoreM
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
 #else
-  newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt DBT m a }
+  newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt (DBT_ m) m a }
   liftBaseWith = defaultLiftBaseWith StMDBT
   restoreM     = defaultRestoreM unStMDBT
   {-# INLINE liftBaseWith #-}
@@ -123,7 +134,7 @@ instance MonadError e m => MonadError e (DBT m) where
 
 instance MonadReader r m => MonadReader r (DBT m) where
   ask = lift ask
-  local f = mapDBT (local f)
+  local f = mapDBT id (local f)
   reader = lift . reader
 
 instance MonadState s m => MonadState s (DBT m) where

@@ -60,7 +60,7 @@ withQCGen f = do
 
 ----------------------------------------
 
-type TestData = (QCGen, ConnectionSource)
+type TestData = (QCGen, ConnectionSourceM IO)
 
 runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
 runTestEnv (env, cs) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
@@ -460,14 +460,14 @@ tests td = [
 
 ----------------------------------------
 
-createStructures :: ConnectionSource -> IO ()
+createStructures :: ConnectionSourceM IO -> IO ()
 createStructures cs = runDBT cs def $ do
   liftBase . putStrLn $ "Creating structures..."
   runSQL_ "CREATE TABLE test1_ (a INTEGER)"
   runSQL_ "CREATE TYPE simple_ AS (a INTEGER, b DATE)"
   runSQL_ "CREATE TYPE nested_ AS (d DOUBLE PRECISION, s SIMPLE_)"
 
-dropStructures :: ConnectionSource -> IO ()
+dropStructures :: ConnectionSourceM IO -> IO ()
 dropStructures cs = runDBT cs def $ do
   liftBase . putStrLn $ "Dropping structures..."
   runSQL_ "DROP TYPE nested_"
@@ -486,10 +486,10 @@ main = do
           csConnInfo = BSC.pack $ head args
         , csClientEncoding = Just "latin1"
         }
-      connSource = simpleSource connSettings
+      ConnectionSource connSource = simpleSource connSettings
 
   createStructures connSource
-  connPool <- poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
+  ConnectionSource connPool <- poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 

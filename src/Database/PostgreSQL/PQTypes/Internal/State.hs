@@ -12,11 +12,11 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 -- | Internal DB state.
-data DBState = DBState {
+data DBState m = DBState {
 -- | Active connection.
   dbConnection          :: !Connection
 -- | Supplied connection source.
-, dbConnectionSource    :: !ConnectionSource
+, dbConnectionSource    :: !(ConnectionSourceM m)
 -- | Current transaction settings.
 , dbTransactionSettings :: !TransactionSettings
 -- | Last SQL query that was executed.

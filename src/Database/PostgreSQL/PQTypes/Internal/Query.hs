@@ -22,7 +22,7 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Low-level function for running SQL query.
-runQueryIO :: IsSQL sql => sql -> DBState -> IO (Int, DBState)
+runQueryIO :: IsSQL sql => sql -> DBState m -> IO (Int, DBState m)
 runQueryIO sql st = do
   (affected, res) <- withConnectionData (dbConnection st) "runQueryIO" $ \cd -> do
     let ConnectionData{..} = cd

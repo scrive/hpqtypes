@@ -1,5 +1,7 @@
+{-# LANGUAGE DataKinds #-}
 module Database.PostgreSQL.PQTypes.Internal.Utils (
-    mread
+    MkConstraint
+  , mread
   , safePeekCString
   , safePeekCString'
   , cStringLenToBytea
@@ -24,12 +26,17 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Exts
 import Prelude
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
+
+type family MkConstraint (m :: * -> *) (cs :: [(* -> *) -> Constraint]) :: Constraint where
+  MkConstraint m '[] = ()
+  MkConstraint m (c ': cs) = (c m, MkConstraint m cs)
 
 -- Safely read value.
 mread :: Read a => String -> Maybe a
