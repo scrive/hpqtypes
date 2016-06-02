@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveFunctor
-  , FlexibleInstances, RecordWildCards, ScopedTypeVariables
-  , TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Array (
     -- * Array1
     Array1(..)

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE BangPatterns, DeriveDataTypeable, GeneralizedNewtypeDeriving, ScopedTypeVariables, TypeFamilies, UndecidableInstances #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
 import Control.Applicative

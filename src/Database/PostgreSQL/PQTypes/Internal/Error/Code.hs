@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module Database.PostgreSQL.PQTypes.Internal.Error.Code (
     ErrorCode(..)
   , stringToErrorCode

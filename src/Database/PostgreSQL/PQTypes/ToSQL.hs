@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, Rank2Types
-  , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.ToSQL (
     ParamAllocator
   , ToSQL(..)

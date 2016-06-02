@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Internal.Query (
     runQueryIO
   ) where

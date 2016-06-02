@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards
-  , TupleSections #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionData(..)

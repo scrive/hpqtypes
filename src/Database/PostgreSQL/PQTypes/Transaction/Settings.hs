@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, Rank2Types
-  , RecordWildCards #-}
 module Database.PostgreSQL.PQTypes.Transaction.Settings (
     RestartPredicate(..)
   , TransactionSettings(..)

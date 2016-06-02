@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 module Database.PostgreSQL.PQTypes.SQL.Raw (
     RawSQL
   , rawSQL

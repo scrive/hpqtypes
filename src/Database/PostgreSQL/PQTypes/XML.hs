@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.XML (
     XML(..)
   ) where

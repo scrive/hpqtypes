@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 import Control.Monad
 import Data.Char
 

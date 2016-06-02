@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleInstances, ScopedTypeVariables
-  , TypeOperators #-}
 module Database.PostgreSQL.PQTypes.Format (
     PQFormat(..)
   , (:*:)(..)

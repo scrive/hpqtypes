@@ -1,4 +1,3 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
 -- | Exports a set of FFI-imported libpq/libpqtypes functions.
 module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   -- * libpq imports

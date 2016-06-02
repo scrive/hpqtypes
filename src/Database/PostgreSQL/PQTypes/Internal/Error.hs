@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
 -- | Definitions of exception types.
 module Database.PostgreSQL.PQTypes.Internal.Error (
     DetailedQueryError(..)

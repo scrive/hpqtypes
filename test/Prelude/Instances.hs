@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE StandaloneDeriving #-}
 module Prelude.Instances where
 
 deriving instance (

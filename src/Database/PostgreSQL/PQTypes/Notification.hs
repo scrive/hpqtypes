@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Database.PostgreSQL.PQTypes.Notification (
     Channel(..)
   , Notification(..)

@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.Interval (
     Interval(..)
   , iyears

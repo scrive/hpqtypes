@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, FlexibleInstances
-  , RecordWildCards, ScopedTypeVariables, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.FromSQL (
     FromSQL(..)
   ) where

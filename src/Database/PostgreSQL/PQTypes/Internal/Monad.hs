@@ -1,6 +1,4 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving
-  , MultiParamTypeClasses, ScopedTypeVariables, TupleSections
-  , TypeFamilies, UndecidableInstances, CPP #-}
+{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT(..)
   , runDBT

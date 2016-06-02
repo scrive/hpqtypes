@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, FlexibleInstances
-  , RankNTypes, TypeFamilies #-}
 module Database.PostgreSQL.PQTypes.JSON (
     JSON(..)
   , JSONB(..)

@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances, ScopedTypeVariables, TypeOperators #-}
 module Database.PostgreSQL.PQTypes.FromRow (
     FromRow(..)
   , fromRow'

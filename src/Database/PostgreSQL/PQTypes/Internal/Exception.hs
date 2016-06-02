@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, ExistentialQuantification, StandaloneDeriving #-}
 -- | Definition of main exception type.
 module Database.PostgreSQL.PQTypes.Internal.Exception (
     DBException(..)

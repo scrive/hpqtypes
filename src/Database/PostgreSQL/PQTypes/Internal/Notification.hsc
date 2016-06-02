@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable, ForeignFunctionInterface, RecordWildCards
-  , TupleSections #-}
 module Database.PostgreSQL.PQTypes.Internal.Notification (
     Channel(..)
   , Notification(..)

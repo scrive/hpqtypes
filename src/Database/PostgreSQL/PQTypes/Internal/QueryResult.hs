@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, ExistentialQuantification #-}
 module Database.PostgreSQL.PQTypes.Internal.QueryResult (
     QueryResult(..)
   , ntuples

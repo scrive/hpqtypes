@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Utils (
     throwDB
   , raw

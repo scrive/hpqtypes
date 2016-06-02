@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings
-  , Rank2Types, RecordWildCards, ScopedTypeVariables #-}
 module Database.PostgreSQL.PQTypes.Transaction (
     Savepoint(..)
   , withSavepoint

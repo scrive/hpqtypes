@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleContexts, UndecidableInstances #-}
 module Database.PostgreSQL.PQTypes.Class.Instances where
 
 import Control.Monad.Trans

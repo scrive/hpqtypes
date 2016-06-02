@@ -1,5 +1,4 @@
 -- | Definition of internal DBT state.
-{-# LANGUAGE RankNTypes #-}
 module Database.PostgreSQL.PQTypes.Internal.State (
     DBState(..)
   ) where

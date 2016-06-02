@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, FlexibleContexts, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TypeFamilies, TypeOperators, UndecidableInstances #-}
+{-# LANGUAGE CPP #-}
 module Main where
 
 import Control.Applicative

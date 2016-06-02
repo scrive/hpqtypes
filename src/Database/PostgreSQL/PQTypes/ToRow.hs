@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances, Rank2Types, ScopedTypeVariables
-  , TypeOperators #-}
 module Database.PostgreSQL.PQTypes.ToRow (
     ToRow(..)
   , toRow'

@@ -1,4 +1,3 @@
-{-# LANGUAGE ExistentialQuantification, Rank2Types #-}
 module Database.PostgreSQL.PQTypes.SQL.Class (
     SomeSQL(..)
   , IsSQL(..)
