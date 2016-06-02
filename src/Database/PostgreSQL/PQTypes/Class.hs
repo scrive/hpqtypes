@@ -1,8 +1,12 @@
+{-# LANGUAGE OverlappingInstances #-}
+{-# OPTIONS_GHC -fno-warn-deprecated-flags #-}
 module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
 import Control.Applicative
+import Control.Monad.Trans
+import Control.Monad.Trans.Control
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -59,3 +63,25 @@ class (Applicative m, Monad m) => MonadDB m where
   -- do not want the connection in child thread to be shared with
   -- the parent one.
   withNewConnection :: m a -> m a
+
+-- | Generic, overlapping instance.
+instance (
+    Applicative (t m)
+  , Monad (t m)
+  , MonadTrans t
+  , MonadTransControl t
+  , MonadDB m
+  ) => MonadDB (t m) where
+    runQuery = lift . runQuery
+    getLastQuery = lift getLastQuery
+    getConnectionStats = lift getConnectionStats
+    getQueryResult = lift getQueryResult
+    clearQueryResult = lift clearQueryResult
+    getTransactionSettings = lift getTransactionSettings
+    setTransactionSettings = lift . setTransactionSettings
+    getNotification = lift . getNotification
+    withNewConnection m = controlT $ \run -> withNewConnection (run m)
+
+controlT :: (MonadTransControl t, Monad (t m), Monad m)
+         => (Run t -> m (StT t a)) -> t m a
+controlT f = liftWith f >>= restoreT . return

@@ -70,7 +70,6 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Binary
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Class.Instances ()
 import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Format
