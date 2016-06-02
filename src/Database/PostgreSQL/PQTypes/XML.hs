@@ -26,4 +26,4 @@ instance FromSQL XML where
 
 instance ToSQL XML where
   type PQDest XML = PGbytea
-  toSQL (XML t) = toSQL t
+  toSQL = toSQL . unXML

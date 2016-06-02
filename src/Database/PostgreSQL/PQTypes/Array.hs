@@ -62,9 +62,10 @@ instance FromSQL t => FromSQL (Array1 t) where
 
 instance ToSQL t => ToSQL (Array1 t) where
   type PQDest (Array1 t) = PGarray
-  toSQL (Array1 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
+  toSQL (Array1 arr) pa@(ParamAllocator allocParam) conv =
+    alloca $ \err -> allocParam $ \param ->
     putArray1 arr param conv $ \fmt item ->
-      toSQL item allocParam (c_PQputf1 param err fmt)
+      toSQL item pa (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (Array1)"
 
 ----------------------------------------
@@ -89,9 +90,10 @@ instance CompositeFromSQL t => FromSQL (CompositeArray1 t) where
 
 instance CompositeToSQL t => ToSQL (CompositeArray1 t) where
   type PQDest (CompositeArray1 t) = PGarray
-  toSQL (CompositeArray1 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
+  toSQL (CompositeArray1 arr) pa@(ParamAllocator allocParam) conv =
+    alloca $ \err -> allocParam $ \param ->
     putArray1 arr param conv $ \fmt item ->
-      toSQL (Composite item) allocParam (c_PQputf1 param err fmt)
+      toSQL (Composite item) pa (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (CompositeArray1)"
 
 ----------------------------------------
@@ -169,9 +171,10 @@ instance FromSQL t => FromSQL (Array2 t) where
 
 instance ToSQL t => ToSQL (Array2 t) where
   type PQDest (Array2 t) = PGarray
-  toSQL (Array2 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
+  toSQL (Array2 arr) pa@(ParamAllocator allocParam) conv =
+    alloca $ \err -> allocParam $ \param ->
     putArray2 arr param conv $ \fmt item ->
-      toSQL item allocParam (c_PQputf1 param err fmt)
+      toSQL item pa (c_PQputf1 param err fmt)
           >>= verifyPQTRes err "toSQL (Array2)"
 
 ----------------------------------------
@@ -196,9 +199,10 @@ instance CompositeFromSQL t => FromSQL (CompositeArray2 t) where
 
 instance CompositeToSQL t => ToSQL (CompositeArray2 t) where
   type PQDest (CompositeArray2 t) = PGarray
-  toSQL (CompositeArray2 arr) allocParam conv = alloca $ \err -> allocParam $ \param ->
+  toSQL (CompositeArray2 arr) pa@(ParamAllocator allocParam) conv =
+    alloca $ \err -> allocParam $ \param ->
     putArray2 arr param conv $ \fmt item ->
-      toSQL (Composite item) allocParam (c_PQputf1 param err fmt)
+      toSQL (Composite item) pa (c_PQputf1 param err fmt)
         >>= verifyPQTRes err "toSQL (CompositeArray2)"
 
 ----------------------------------------

@@ -1,5 +1,5 @@
 module Database.PostgreSQL.PQTypes.ToSQL (
-    ParamAllocator
+    ParamAllocator(..)
   , ToSQL(..)
   , put
   ) where
@@ -25,7 +25,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
 -- | 'alloca'-like producer of 'PGparam' objects.
-type ParamAllocator = forall r. (Ptr PGparam -> IO r) -> IO r
+newtype ParamAllocator = ParamAllocator (forall r. (Ptr PGparam -> IO r) -> IO r)
 
 -- | Class which represents \"from Haskell type
 -- to SQL (libpqtypes) type\" transformation.
@@ -108,25 +108,25 @@ instance ToSQL BS.ByteString where
 
 instance ToSQL BSL.ByteString where
   type PQDest BSL.ByteString = PGbytea
-  toSQL t = toSQL $ BSL.toStrict t
+  toSQL = toSQL . BSL.toStrict
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL T.Text where
   type PQDest T.Text = PGbytea
-  toSQL t = toSQL $ encodeUtf8 t
+  toSQL = toSQL . encodeUtf8
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL TL.Text where
   type PQDest TL.Text = PGbytea
-  toSQL t = toSQL $ TL.toStrict t
+  toSQL = toSQL . TL.toStrict
 
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL String where
   type PQDest String = PGbytea
-  toSQL t = toSQL $ T.pack t
+  toSQL = toSQL . T.pack
 
 -- DATE
 

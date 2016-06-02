@@ -45,14 +45,15 @@ instance IsString SQL where
   fromString = mkSQL . T.encodeUtf8 . T.pack
 
 instance IsSQL SQL where
-  withSQL sql allocParam execute = alloca $ \err -> allocParam $ \param -> do
-    nums <- newMVar (1::Int)
-    query <- BS.concat <$> mapM (f param err nums) (unSQL sql)
-    BS.useAsCString query (execute param)
+  withSQL sql pa@(ParamAllocator allocParam) execute = do
+    alloca $ \err -> allocParam $ \param -> do
+      nums <- newMVar (1::Int)
+      query <- BS.concat <$> mapM (f param err nums) (unSQL sql)
+      BS.useAsCString query (execute param)
     where
       f param err nums chunk = case chunk of
         SqlString s -> return s
-        SqlParam v -> toSQL v allocParam $ \base ->
+        SqlParam v -> toSQL v pa $ \base ->
           BS.useAsCString (pqFormat v) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1

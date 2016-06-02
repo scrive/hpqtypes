@@ -19,13 +19,15 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
+import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Low-level function for running SQL query.
 runQueryIO :: IsSQL sql => sql -> DBState -> IO (Int, DBState)
 runQueryIO sql st = do
   (affected, res) <- withConnectionData (dbConnection st) "runQueryIO" $ \cd -> do
     let ConnectionData{..} = cd
-    (paramCount, res) <- withSQL sql (withPGparam cdPtr) $ \param query -> (,)
+        allocParam = ParamAllocator $ withPGparam cdPtr
+    (paramCount, res) <- withSQL sql allocParam $ \param query -> (,)
       <$> (fromIntegral <$> c_PQparamCount param)
       <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
     affected <- withForeignPtr res $ verifyResult cdPtr

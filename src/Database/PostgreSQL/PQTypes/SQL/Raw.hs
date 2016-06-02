@@ -14,6 +14,7 @@ import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToRow
+import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Form of SQL query which is very close to libpqtypes specific
 -- representation. Note that, in particular, 'RawSQL' () is
@@ -22,9 +23,9 @@ data RawSQL row = RawSQL !BS.ByteString !row
   deriving (Eq, Ord, Show)
 
 instance (Show row, ToRow row) => IsSQL (RawSQL row) where
-  withSQL (RawSQL query row) allocParam execute = alloca $ \err ->
-    allocParam $ \param -> do
-      toRow row allocParam param err
+  withSQL (RawSQL query row) pa@(ParamAllocator allocParam) execute =
+    alloca $ \err -> allocParam $ \param -> do
+      toRow row pa param err
       BS.useAsCString query (execute param)
 
 -- | Construct 'RawSQL' () from 'String'. The underlying 'ByteString'

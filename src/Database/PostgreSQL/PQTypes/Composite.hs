@@ -59,6 +59,7 @@ instance CompositeFromSQL t => FromSQL (Composite t) where
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = PGparam
-  toSQL (Composite comp) allocParam conv = allocParam $ \param -> do
-    toRow' (fromComposite comp) allocParam param
-    conv param
+  toSQL (Composite comp) pa@(ParamAllocator allocParam) conv =
+    allocParam $ \param -> do
+      toRow' (fromComposite comp) pa param
+      conv param
