@@ -13,6 +13,7 @@ import Data.String
 import Foreign.Marshal.Alloc
 import Prelude
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Unsafe as BS
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S
 import qualified Data.Text as T
@@ -54,7 +55,7 @@ instance IsSQL SQL where
       f param err nums chunk = case chunk of
         SqlString s -> return s
         SqlParam v -> toSQL v pa $ \base ->
-          BS.useAsCString (pqFormat v) $ \fmt -> do
+          BS.unsafeUseAsCString (pqFormat0 v) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
 
