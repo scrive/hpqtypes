@@ -24,6 +24,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
+import Prelude
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface

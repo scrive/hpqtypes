@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.SQL.Class (
 import Data.String
 import Foreign.C.String
 import Foreign.Ptr
+import Prelude
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.ToSQL

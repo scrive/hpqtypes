@@ -8,6 +8,7 @@ module Database.PostgreSQL.PQTypes.Notification (
   ) where
 
 import Data.ByteString (ByteString)
+import Prelude
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class

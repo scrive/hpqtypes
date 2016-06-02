@@ -14,6 +14,7 @@ module Database.PostgreSQL.PQTypes.Internal.Error (
   ) where
 
 import Data.Typeable
+import Prelude
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.Error.Code

@@ -16,6 +16,7 @@ import Control.Monad.Catch
 import Data.Function
 import Data.String
 import Data.Typeable
+import Prelude
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class

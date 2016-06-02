@@ -11,6 +11,7 @@ import Control.Concurrent.MVar
 import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
+import Prelude
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S

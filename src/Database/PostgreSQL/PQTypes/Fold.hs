@@ -10,6 +10,7 @@ module Database.PostgreSQL.PQTypes.Fold (
 
 import Control.Applicative
 import Control.Monad.Catch
+import Prelude
 import qualified Data.Foldable as F
 
 import Database.PostgreSQL.PQTypes.Class

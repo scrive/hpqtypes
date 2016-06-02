@@ -3,6 +3,8 @@ module Database.PostgreSQL.PQTypes.Internal.State (
     DBState(..)
   ) where
 
+import Prelude
+
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.QueryResult

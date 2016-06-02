@@ -7,13 +7,14 @@ module Database.PostgreSQL.PQTypes.Class (
 import Control.Applicative
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
+import Prelude
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
-import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.SQL.Class
+import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 class (Applicative m, Monad m) => MonadDB m where
   -- | Run SQL query and return number of affected/returned rows. Note that

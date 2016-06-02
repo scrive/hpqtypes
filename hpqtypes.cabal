@@ -159,6 +159,7 @@ library
                     , GADTs
                     , GeneralizedNewtypeDeriving
                     , MultiParamTypeClasses
+                    , NoImplicitPrelude
                     , OverloadedStrings
                     , RankNTypes
                     , RecordWildCards
@@ -212,6 +213,7 @@ Executable tests
                     , GADTs
                     , GeneralizedNewtypeDeriving
                     , MultiParamTypeClasses
+                    , NoImplicitPrelude
                     , OverloadedStrings
                     , RankNTypes
                     , RecordWildCards

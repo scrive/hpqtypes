@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Prelude.Instances where
 
+import Prelude
+
 deriving instance (
     Eq a1, Eq a2, Eq a3, Eq a4, Eq a5, Eq a6, Eq a7, Eq a8, Eq a9, Eq a10
   , Eq a11, Eq a12, Eq a13, Eq a14, Eq a15, Eq a16

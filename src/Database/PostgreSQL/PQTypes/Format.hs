@@ -3,11 +3,12 @@ module Database.PostgreSQL.PQTypes.Format (
   , (:*:)(..)
   ) where
 
-import Data.Int
 import Data.Functor.Identity
+import Data.Int
 import Data.Time
 import Data.Typeable
 import Data.Word
+import Prelude
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T

@@ -33,6 +33,7 @@ import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import Prelude
 import System.Posix.Types
 import qualified Control.Exception as E
 

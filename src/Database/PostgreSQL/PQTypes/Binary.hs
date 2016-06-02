@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.Binary (
 
 import Control.Applicative
 import Data.Typeable
+import Prelude
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Format

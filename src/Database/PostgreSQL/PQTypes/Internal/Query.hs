@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.Internal.Query (
 import Control.Applicative
 import Foreign.ForeignPtr
 import Foreign.Ptr
+import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 
@@ -16,8 +17,8 @@ import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Internal.Utils
+import Database.PostgreSQL.PQTypes.SQL.Class
 
 -- | Low-level function for running SQL query.
 runQueryIO :: IsSQL sql => sql -> DBState -> IO (Int, DBState)

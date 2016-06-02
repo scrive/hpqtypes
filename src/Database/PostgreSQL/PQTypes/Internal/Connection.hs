@@ -24,6 +24,7 @@ import Data.Time.Clock
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
+import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F

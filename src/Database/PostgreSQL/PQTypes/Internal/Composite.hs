@@ -2,11 +2,12 @@ module Database.PostgreSQL.PQTypes.Internal.Composite (
     registerComposites
   ) where
 
-import Foreign.ForeignPtr.Safe
+import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
+import Prelude
 import qualified Data.ByteString as BS
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface

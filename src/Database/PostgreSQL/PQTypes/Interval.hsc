@@ -15,6 +15,7 @@ import Data.List
 import Data.Monoid
 import Data.Typeable
 import Foreign.Storable
+import Prelude
 import qualified Data.ByteString.Char8 as BS
 
 import Database.PostgreSQL.PQTypes.Format

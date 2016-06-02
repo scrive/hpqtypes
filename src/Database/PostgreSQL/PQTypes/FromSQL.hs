@@ -10,6 +10,7 @@ import Data.Time
 import Data.Word
 import Foreign.C
 import Foreign.Storable
+import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL

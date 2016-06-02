@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.XML (
 
 import Data.Text
 import Data.Typeable
+import Prelude
 import qualified Data.ByteString.Char8 as BSC
 
 import Database.PostgreSQL.PQTypes.Format

@@ -7,6 +7,7 @@ import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
+import Prelude
 import qualified Data.ByteString.Unsafe as BS
 
 import Database.PostgreSQL.PQTypes.Format

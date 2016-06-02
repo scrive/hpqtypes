@@ -9,11 +9,12 @@ module Database.PostgreSQL.PQTypes.Composite (
 import Control.Applicative
 import Data.Typeable
 import Foreign.Ptr
+import Prelude
 import qualified Control.Exception as E
 
+import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
-import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Utils

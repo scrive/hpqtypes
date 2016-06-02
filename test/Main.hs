@@ -15,6 +15,7 @@ import Data.Maybe
 import Data.Time
 import Data.Typeable
 import Data.Word
+import Prelude
 import System.Environment
 import System.Exit
 import System.Random
@@ -22,7 +23,6 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
-import Test.QuickCheck.Compat
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -32,6 +32,7 @@ import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
 import Test.QuickCheck.Arbitrary.Instances
+import Test.QuickCheck.Compat
 
 type InnerTestEnv = StateT QCGen (DBT IO)
 

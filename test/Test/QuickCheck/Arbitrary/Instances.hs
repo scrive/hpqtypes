@@ -8,6 +8,7 @@ import Data.Scientific
 import Data.Time
 import Data.Typeable
 import Data.Word
+import Prelude
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS

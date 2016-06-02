@@ -9,6 +9,7 @@ module Data.Monoid.Utils (
 import Data.List
 import Data.Monoid
 import Data.String
+import Prelude
 
 -- | Generalization of 'intercalate' to arbitrary 'Monoid'.
 mintercalate :: Monoid m => m -> [m] -> m

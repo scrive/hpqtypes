@@ -11,6 +11,7 @@ import Data.String
 import Data.Typeable
 import Foreign.Ptr
 import Foreign.Storable
+import Prelude
 import System.Posix.Types
 import System.Timeout
 import qualified Control.Exception as E

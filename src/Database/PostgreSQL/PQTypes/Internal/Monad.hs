@@ -15,6 +15,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Monoid
+import Prelude
 import qualified Control.Monad.Trans.State.Strict as S
 
 import Database.PostgreSQL.PQTypes.Class

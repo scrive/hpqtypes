@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.SQL.Raw (
 import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
+import Prelude
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

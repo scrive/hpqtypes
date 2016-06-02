@@ -38,8 +38,9 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Data.Vector.Storable as V
+import Prelude
 import qualified Data.ByteString as BS
+import qualified Data.Vector.Storable as V
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
 
