@@ -1,7 +1,7 @@
 module Database.PostgreSQL.PQTypes.ToSQL (
     ParamAllocator(..)
   , ToSQL(..)
-  , put
+  , putAsPtr
   ) where
 
 import Data.ByteString.Unsafe
@@ -41,8 +41,8 @@ class PQFormat t => ToSQL t where
 
 -- | Function that abstracts away common elements of most 'ToSQL'
 -- instance definitions to make them easier to write and less verbose.
-put :: Storable t => t -> (Ptr t -> IO r) -> IO r
-put x conv = alloca $ \ptr -> poke ptr x >> conv ptr
+putAsPtr :: Storable t => t -> (Ptr t -> IO r) -> IO r
+putAsPtr x conv = alloca $ \ptr -> poke ptr x >> conv ptr
 
 -- NULLables
 
@@ -56,27 +56,27 @@ instance ToSQL t => ToSQL (Maybe t) where
 
 instance ToSQL Int16 where
   type PQDest Int16 = CShort
-  toSQL n _ = put (fromIntegral n)
+  toSQL n _ = putAsPtr (fromIntegral n)
 
 instance ToSQL Int32 where
   type PQDest Int32 = CInt
-  toSQL n _ = put (fromIntegral n)
+  toSQL n _ = putAsPtr (fromIntegral n)
 
 instance ToSQL Int64 where
   type PQDest Int64 = CLLong
-  toSQL n _ = put (fromIntegral n)
+  toSQL n _ = putAsPtr (fromIntegral n)
 
 instance ToSQL Int where
   type PQDest Int = CLLong
-  toSQL n _ = put (fromIntegral n)
+  toSQL n _ = putAsPtr (fromIntegral n)
 
 instance ToSQL Float where
   type PQDest Float = CFloat
-  toSQL n _ = put (realToFrac n)
+  toSQL n _ = putAsPtr (realToFrac n)
 
 instance ToSQL Double where
   type PQDest Double = CDouble
-  toSQL n _ = put (realToFrac n)
+  toSQL n _ = putAsPtr (realToFrac n)
 
 -- CHAR
 
@@ -84,11 +84,11 @@ instance ToSQL Char where
   type PQDest Char = CChar
   toSQL c _ conv
     | c > '\255' = hpqTypesError $ "toSQL (Char): character " ++ show c ++ " cannot be losslessly converted to CChar"
-    | otherwise = put (castCharToCChar c) conv
+    | otherwise = putAsPtr (castCharToCChar c) conv
 
 instance ToSQL Word8 where
   type PQDest Word8 = CChar
-  toSQL c _ = put (fromIntegral c)
+  toSQL c _ = putAsPtr (fromIntegral c)
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
@@ -101,7 +101,7 @@ instance ToSQL BS.ByteString where
     -- (a static pointer to empty string defined on C level). Actually,
     -- it would be sufficient to pass any non-NULL pointer there, but
     -- this is much uglier and dangerous.
-    flip put conv . cStringLenToBytea $
+    flip putAsPtr conv . cStringLenToBytea $
       if fst cslen == nullPtr
         then nullStringCStringLen
         else cslen
@@ -132,19 +132,19 @@ instance ToSQL String where
 
 instance ToSQL Day where
   type PQDest Day = PGdate
-  toSQL day _ = put (dayToPGdate day)
+  toSQL day _ = putAsPtr (dayToPGdate day)
 
 -- TIME
 
 instance ToSQL TimeOfDay where
   type PQDest TimeOfDay = PGtime
-  toSQL tod _ = put (timeOfDayToPGtime tod)
+  toSQL tod _ = putAsPtr (timeOfDayToPGtime tod)
 
 -- TIMESTAMP
 
 instance ToSQL LocalTime where
   type PQDest LocalTime = PGtimestamp
-  toSQL LocalTime{..} _ = put PGtimestamp {
+  toSQL LocalTime{..} _ = putAsPtr PGtimestamp {
     pgTimestampEpoch = 0
   , pgTimestampDate = dayToPGdate localDay
   , pgTimestampTime = timeOfDayToPGtime localTimeOfDay
@@ -154,7 +154,7 @@ instance ToSQL LocalTime where
 
 instance ToSQL UTCTime where
   type PQDest UTCTime = PGtimestamp
-  toSQL UTCTime{..} _ = put PGtimestamp {
+  toSQL UTCTime{..} _ = putAsPtr PGtimestamp {
     pgTimestampEpoch = 0
   , pgTimestampDate = dayToPGdate utctDay
   , pgTimestampTime = timeOfDayToPGtime $ timeToTimeOfDay utctDayTime
@@ -162,7 +162,7 @@ instance ToSQL UTCTime where
 
 instance ToSQL ZonedTime where
   type PQDest ZonedTime = PGtimestamp
-  toSQL ZonedTime{..} _ = put PGtimestamp {
+  toSQL ZonedTime{..} _ = putAsPtr PGtimestamp {
     pgTimestampEpoch = 0
   , pgTimestampDate = dayToPGdate $ localDay zonedTimeToLocalTime
   , pgTimestampTime = (timeOfDayToPGtime $ localTimeOfDay zonedTimeToLocalTime) {
@@ -174,8 +174,8 @@ instance ToSQL ZonedTime where
 
 instance ToSQL Bool where
   type PQDest Bool = CInt
-  toSQL True  _ = put 1
-  toSQL False _ = put 0
+  toSQL True  _ = putAsPtr 1
+  toSQL False _ = putAsPtr 0
 
 ----------------------------------------
 

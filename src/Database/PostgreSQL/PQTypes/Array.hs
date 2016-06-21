@@ -110,7 +110,7 @@ putArray1 :: forall t r. PQFormat t
           -> IO r
 putArray1 arr param conv putItem = do
   pqFormat0 (undefined::t) `BS.unsafeUseAsCString` (forM_ arr . putItem)
-  put (PGarray {
+  putAsPtr (PGarray {
     pgArrayNDims = 0
   , pgArrayLBound = V.empty
   , pgArrayDims = V.empty
@@ -219,7 +219,7 @@ putArray2 :: forall t r. PQFormat t
           -> IO r
 putArray2 arr param conv putItem = do
   dims <- pqFormat0 (undefined::t) `BS.unsafeUseAsCString` loop arr 0 0
-  put (PGarray {
+  putAsPtr (PGarray {
     pgArrayNDims = 2
   , pgArrayLBound = V.fromList [1, 1]
   , pgArrayDims = dims

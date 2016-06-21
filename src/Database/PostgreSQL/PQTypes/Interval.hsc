@@ -98,7 +98,7 @@ instance FromSQL Interval where
 
 instance ToSQL Interval where
   type PQDest Interval = Interval
-  toSQL int _ = put int
+  toSQL int _ = putAsPtr int
 
 ----------------------------------------
 
