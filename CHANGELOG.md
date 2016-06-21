@@ -1,3 +1,10 @@
+# hpqtypes-1.5.0 (2016-06-21)
+* remove orphan MonadDB instances
+* turn ConnectionSource into indexed datatype
+* remove Binary wrapper and (de)serialize ByteString as bytea
+* use Text instead of ByteString where appropriate
+* use UTF-8 client encoding by default for compatibility with Text
+
 # hpqtypes-1.4.5 (2016-05-30)
 * fix compilation with Cabal 1.24 and GHC 8.0.1
 
