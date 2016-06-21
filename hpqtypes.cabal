@@ -80,7 +80,6 @@ library
                      , Database.PostgreSQL.PQTypes.Transaction
                      , Database.PostgreSQL.PQTypes.Class
                      , Database.PostgreSQL.PQTypes.Format
-                     , Database.PostgreSQL.PQTypes.Binary
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.Notification
                      , Database.PostgreSQL.PQTypes.SQL

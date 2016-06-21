@@ -84,17 +84,19 @@ instance PQFormat Word8 where
 instance PQFormat String where
   pqFormat = const $ BS.pack "%btext"
 
-instance PQFormat BS.ByteString where
-  pqFormat = const $ BS.pack "%btext"
-
-instance PQFormat BSL.ByteString where
-  pqFormat = const $ BS.pack "%btext"
-
 instance PQFormat T.Text where
   pqFormat = const $ BS.pack "%btext"
 
 instance PQFormat TL.Text where
   pqFormat = const $ BS.pack "%btext"
+
+-- BYTEA
+
+instance PQFormat BS.ByteString where
+  pqFormat = const $ BS.pack "%bytea"
+
+instance PQFormat BSL.ByteString where
+  pqFormat = const $ BS.pack "%bytea"
 
 -- DATE
 

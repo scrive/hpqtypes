@@ -38,7 +38,6 @@ module Database.PostgreSQL.PQTypes (
   -- * Other modules
   , module Data.Functor.Identity
   , module Database.PostgreSQL.PQTypes.Array
-  , module Database.PostgreSQL.PQTypes.Binary
   , module Database.PostgreSQL.PQTypes.Class
   , module Database.PostgreSQL.PQTypes.Composite
   , module Database.PostgreSQL.PQTypes.Fold
@@ -62,7 +61,6 @@ module Database.PostgreSQL.PQTypes (
 import Data.Functor.Identity
 
 import Database.PostgreSQL.PQTypes.Array
-import Database.PostgreSQL.PQTypes.Binary
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Fold
