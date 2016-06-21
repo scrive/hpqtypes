@@ -79,15 +79,6 @@ instance FromSQL Word8 where
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
-instance FromSQL BS.ByteString where
-  type PQBase BS.ByteString = PGbytea
-  fromSQL Nothing = unexpectedNULL
-  fromSQL (Just bytea) = BS.packCStringLen $ byteaToCStringLen bytea
-
-instance FromSQL BSL.ByteString where
-  type PQBase BSL.ByteString = PGbytea
-  fromSQL = fmap BSL.fromStrict . fromSQL
-
 -- | Assumes that source C string is UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance FromSQL T.Text where
@@ -105,6 +96,17 @@ instance FromSQL TL.Text where
 instance FromSQL String where
   type PQBase String = PGbytea
   fromSQL mbytea = T.unpack <$> fromSQL mbytea
+
+-- BYTEA
+
+instance FromSQL BS.ByteString where
+  type PQBase BS.ByteString = PGbytea
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just bytea) = BS.packCStringLen $ byteaToCStringLen bytea
+
+instance FromSQL BSL.ByteString where
+  type PQBase BSL.ByteString = PGbytea
+  fromSQL = fmap BSL.fromStrict . fromSQL
 
 -- DATE
 

@@ -92,24 +92,6 @@ instance ToSQL Word8 where
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
-instance ToSQL BS.ByteString where
-  type PQDest BS.ByteString = PGbytea
-  toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
-    -- Note: it seems that ByteString can actually store NULL pointer
-    -- inside. This is bad, since NULL pointers are treated by libpqtypes
-    -- as NULL values. To get around that, nullStringCStringLen is used
-    -- (a static pointer to empty string defined on C level). Actually,
-    -- it would be sufficient to pass any non-NULL pointer there, but
-    -- this is much uglier and dangerous.
-    flip putAsPtr conv . cStringLenToBytea $
-      if fst cslen == nullPtr
-        then nullStringCStringLen
-        else cslen
-
-instance ToSQL BSL.ByteString where
-  type PQDest BSL.ByteString = PGbytea
-  toSQL = toSQL . BSL.toStrict
-
 -- | Encodes underlying C string as UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance.
 instance ToSQL T.Text where
@@ -127,6 +109,26 @@ instance ToSQL TL.Text where
 instance ToSQL String where
   type PQDest String = PGbytea
   toSQL = toSQL . T.pack
+
+-- BYTEA
+
+instance ToSQL BS.ByteString where
+  type PQDest BS.ByteString = PGbytea
+  toSQL bs _ conv = unsafeUseAsCStringLen bs $ \cslen ->
+    -- Note: it seems that ByteString can actually store NULL pointer
+    -- inside. This is bad, since NULL pointers are treated by libpqtypes
+    -- as NULL values. To get around that, nullStringCStringLen is used
+    -- (a static pointer to empty string defined on C level). Actually,
+    -- it would be sufficient to pass any non-NULL pointer there, but
+    -- this is much uglier and dangerous.
+    flip putAsPtr conv . cStringLenToBytea $
+      if fst cslen == nullPtr
+        then nullStringCStringLen
+        else cslen
+
+instance ToSQL BSL.ByteString where
+  type PQDest BSL.ByteString = PGbytea
+  toSQL = toSQL . BSL.toStrict
 
 -- DATE
 
