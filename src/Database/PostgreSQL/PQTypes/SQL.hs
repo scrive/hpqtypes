@@ -12,6 +12,7 @@ import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
 import Prelude
+import TextShow
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Unsafe as BS
 import qualified Data.Foldable as F
@@ -27,7 +28,7 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToSQL
 
 data SqlChunk where
-  SqlString :: !BS.ByteString -> SqlChunk
+  SqlString :: !T.Text -> SqlChunk
   SqlParam  :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
 
 -- | Primary SQL type that supports efficient
@@ -39,40 +40,38 @@ unSQL (SQL chunks) = F.toList chunks
 
 ----------------------------------------
 
--- | Construct 'SQL' from 'String'. The underlying 'ByteString'
--- will be encoded as UTF-8, so if you are working with
--- a different encoding, you should not rely on this instance.
+-- | Construct 'SQL' from 'String'.
 instance IsString SQL where
-  fromString = mkSQL . T.encodeUtf8 . T.pack
+  fromString = mkSQL . T.pack
 
 instance IsSQL SQL where
   withSQL sql pa@(ParamAllocator allocParam) execute = do
     alloca $ \err -> allocParam $ \param -> do
       nums <- newMVar (1::Int)
-      query <- BS.concat <$> mapM (f param err nums) (unSQL sql)
-      BS.useAsCString query (execute param)
+      query <- T.concat <$> mapM (f param err nums) (unSQL sql)
+      BS.useAsCString (T.encodeUtf8 query) (execute param)
     where
       f param err nums chunk = case chunk of
         SqlString s -> return s
         SqlParam v -> toSQL v pa $ \base ->
           BS.unsafeUseAsCString (pqFormat0 v) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> return . (, BS.pack $ "$" ++ show n) $! n+1
+            modifyMVar nums $ \n -> return . (, "$" <> showt n) $! n+1
 
 instance Monoid SQL where
-  mempty = mkSQL BS.empty
+  mempty = mkSQL T.empty
   SQL a `mappend` SQL b = SQL (a S.>< b)
 
 instance Show SQL where
   showsPrec n sql = ("SQL " ++) . (showsPrec n . concatMap conv . unSQL $ sql)
     where
-      conv (SqlString s) = BS.unpack s
+      conv (SqlString s) = T.unpack s
       conv (SqlParam v) = "<" ++ show v ++ ">"
 
 ----------------------------------------
 
 -- | Convert 'ByteString' to 'SQL'.
-mkSQL :: BS.ByteString -> SQL
+mkSQL :: T.Text -> SQL
 mkSQL = SQL . S.singleton . SqlString
 
 -- | Embed parameter value inside 'SQL'.
@@ -94,5 +93,5 @@ infixr 7 <?>
 isSqlEmpty :: SQL -> Bool
 isSqlEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
   where
-    cmp (SqlString s) = s == BS.empty
+    cmp (SqlString s) = s == T.empty
     cmp (SqlParam _)  = False

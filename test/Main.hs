@@ -24,8 +24,8 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
 import Test.QuickCheck.Gen
+import TextShow
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Text as T
 
 import Data.Monoid.Utils
@@ -317,7 +317,7 @@ rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
 rowTest td r = testCase ("Putting row of length" <+> show (pqVariables r) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
   row :: row <- randomValue 100
-  let fmt = mintercalate ", " $ map (BSC.pack . ('$' :) . show) [1..pqVariables r]
+  let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables r]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
   row' <- fetchOne id
   assertEqual "Row doesn't change after getting through database" row row' (==)
@@ -478,7 +478,7 @@ main = do
     exitFailure
 
   let connSettings = def {
-          csConnInfo = BSC.pack $ head args
+          csConnInfo = T.pack $ head args
         , csClientEncoding = Just "latin1"
         }
       ConnectionSource connSource = simpleSource connSettings

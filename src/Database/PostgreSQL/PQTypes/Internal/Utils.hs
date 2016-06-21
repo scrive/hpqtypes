@@ -6,7 +6,7 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
   , safePeekCString'
   , cStringLenToBytea
   , byteaToCStringLen
-  , bsToCString
+  , textToCString
   , verifyPQTRes
   , withPGparam
   , throwLibPQError
@@ -18,7 +18,6 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
 
 import Control.Applicative
 import Control.Monad
-import Data.ByteString (ByteString)
 import Data.ByteString.Unsafe
 import Foreign.C
 import Foreign.ForeignPtr
@@ -29,6 +28,8 @@ import Foreign.Storable
 import GHC.Exts
 import Prelude
 import qualified Control.Exception as E
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -65,9 +66,9 @@ cStringLenToBytea (cs, len) = PGbytea {
 byteaToCStringLen :: PGbytea -> CStringLen
 byteaToCStringLen PGbytea{..} = (pgByteaData, fromIntegral pgByteaLen)
 
--- | Convert 'ByteString' to C string wrapped by foreign pointer.
-bsToCString :: ByteString -> IO (ForeignPtr CChar)
-bsToCString bs = unsafeUseAsCStringLen bs $ \(cs, len) -> do
+-- | Convert 'Text' to UTF-8 encoded C string wrapped by foreign pointer.
+textToCString :: T.Text -> IO (ForeignPtr CChar)
+textToCString bs = unsafeUseAsCStringLen (T.encodeUtf8 bs) $ \(cs, len) -> do
   fptr <- mallocForeignPtrBytes (len + 1)
   withForeignPtr fptr $ \ptr -> do
     copyBytes ptr cs len

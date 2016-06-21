@@ -16,6 +16,8 @@ import System.Posix.Types
 import System.Timeout
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -52,7 +54,7 @@ data Notification = Notification {
   -- | Notification channel name.
 , ntChannel :: !Channel
   -- | Notification payload string.
-, ntPayload :: !BS.ByteString
+, ntPayload :: !T.Text
 } deriving (Eq, Ord, Show, Typeable)
 
 instance Storable Notification where
@@ -61,9 +63,9 @@ instance Storable Notification where
   peek ptr = do
     ntPID <- return . CPid
       =<< #{peek PGnotify, be_pid} ptr
-    ntChannel <- fmap (Channel . flip rawSQL ()) . BS.packCString
+    ntChannel <- fmap (Channel . flip rawSQL () . T.decodeUtf8) . BS.packCString
       =<< #{peek PGnotify, relname} ptr
-    ntPayload <- BS.packCString
+    ntPayload <- fmap T.decodeUtf8 . BS.packCString
       =<< #{peek PGnotify, extra} ptr
     return Notification{..}
   poke _ _ = error "Storable Notification: poke is not supposed to be used"

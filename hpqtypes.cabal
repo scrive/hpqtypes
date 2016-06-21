@@ -118,6 +118,7 @@ library
                      , containers >= 0.4.0.0
                      , exceptions >= 0.6
                      , data-default-class
+                     , text-show
 
   hs-source-dirs:    src
 
@@ -198,6 +199,7 @@ Executable tests
                      , scientific
                      , unordered-containers
                      , vector
+                     , text-show
 
   main-is:           Main.hs
 

@@ -7,7 +7,7 @@ module Database.PostgreSQL.PQTypes.Notification (
   , notify
   ) where
 
-import Data.ByteString (ByteString)
+import Data.Text (Text)
 import Prelude
 
 import Data.Monoid.Utils
@@ -29,6 +29,6 @@ unlistenAll :: MonadDB m => m ()
 unlistenAll = runSQL_ "UNLISTEN *"
 
 -- | Generate a notification on a given channel.
-notify :: MonadDB m => Channel -> ByteString -> m ()
+notify :: MonadDB m => Channel -> Text -> m ()
 notify (Channel chan) payload = runQuery_
   $ rawSQL "SELECT pg_notify($1, $2)" (unRawSQL chan, payload)

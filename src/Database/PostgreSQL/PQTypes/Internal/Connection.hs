@@ -31,6 +31,8 @@ import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -40,19 +42,21 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 
 data ConnectionSettings = ConnectionSettings {
 -- | Connection info string.
-  csConnInfo       :: !BS.ByteString
+  csConnInfo       :: !T.Text
 -- | Client-side encoding. If set to 'Nothing', database encoding is used.
-, csClientEncoding :: !(Maybe BS.ByteString)
+, csClientEncoding :: !(Maybe T.Text)
 -- | A list of composite types to register. In order to be able to
 -- (de)serialize specific composite types, you need to register them.
-, csComposites     :: ![BS.ByteString]
+, csComposites     :: ![T.Text]
 } deriving (Eq, Ord, Show)
 
--- | Default connection settings.
+-- | Default connection settings. Note that all strings sent to PostgreSQL by
+-- the library are encoded as UTF-8, so don't alter client encoding unless you
+-- know what you're doing.
 instance Default ConnectionSettings where
   def = ConnectionSettings {
-    csConnInfo = BS.empty
-  , csClientEncoding = Nothing
+    csConnInfo = T.empty
+  , csClientEncoding = Just "UTF-8"
   , csComposites = []
   }
 
@@ -167,14 +171,14 @@ poolSource cs numStripes idleTime maxResources = do
 -- Useful if one wants to implement custom connection source.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = do
-  fconn <- BS.useAsCString csConnInfo c_PQconnectdb
+  fconn <- BS.useAsCString (T.encodeUtf8 csConnInfo) c_PQconnectdb
   withForeignPtr fconn $ \connPtr -> do
     conn <- peek connPtr
     status <- c_PQstatus conn
     when (status /= c_CONNECTION_OK) $
       throwLibPQError conn "connect"
     F.forM_ csClientEncoding $ \enc -> do
-      res <- BS.useAsCString enc (c_PQsetClientEncoding conn)
+      res <- BS.useAsCString (T.encodeUtf8 enc) (c_PQsetClientEncoding conn)
       when (res == -1) $
         throwLibPQError conn "connect"
     c_PQinitTypes conn
