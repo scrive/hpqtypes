@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionData(..)

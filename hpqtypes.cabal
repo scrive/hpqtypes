@@ -151,6 +151,8 @@ library
 
   default-language:  Haskell2010
   default-extensions: BangPatterns
+                    , ConstraintKinds
+                    , DataKinds
                     , DeriveDataTypeable
                     , DeriveFunctor
                     , ExistentialQuantification
