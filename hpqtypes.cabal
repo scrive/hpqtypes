@@ -53,6 +53,7 @@ extra-source-files: CHANGELOG.md
                   , libpqtypes/missing
                   , libpqtypes/Makefile.am
                   , libpqtypes/aclocal.m4
+                  , libpqtypes/src/pqt_config.h
                   , libpqtypes/src/pqt_config.h.in
                   , libpqtypes/src/libpqtypes-int.h
                   , libpqtypes/src/libpqtypes.h

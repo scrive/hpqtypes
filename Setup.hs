@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 import Control.Monad
 import Data.Char
-
 import Distribution.PackageDescription
 import Distribution.Simple
 import Distribution.Simple.LocalBuildInfo
@@ -10,9 +10,9 @@ import Distribution.Simple.Program.Find
 import Distribution.Simple.Setup
 import Distribution.Simple.Utils
 import Distribution.Verbosity
-import System.FilePath
 import System.Directory
 import System.Exit
+import System.FilePath
 
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks {
@@ -60,8 +60,9 @@ pqTypesConfigure verbosity = do
   -- run configure to create appropriate pqt_config.h
   res <- rawSystemExitCode verbosity "env" ["./configure"]
   case res of
-    ExitFailure _ -> error "libpqtypes configure failed"
-    _             -> setCurrentDirectory dir
+    ExitFailure _ -> putStrLn "WARNING: configure failed, using static pqt_config.h"
+    _             -> return ()
+  setCurrentDirectory dir
 
 pqTypesDistclean :: Verbosity -> IO ()
 pqTypesDistclean verbosity =
