@@ -35,7 +35,7 @@ type InnerDBT m = StateT (DBState m)
 
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
-newtype DBT_ n m a = DBT { unDBT :: InnerDBT n m a }
+newtype DBT_ m n a = DBT { unDBT :: InnerDBT m n a }
   deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
 
 type DBT m = DBT_ m m
@@ -71,7 +71,7 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 ----------------------------------------
 
-instance (MonadBase IO m, MonadMask m) => MonadDB (DBT m) where
+instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = DBT . StateT $ liftBase . runQueryIO sql
   getLastQuery = DBT . gets $ dbLastQuery
 
@@ -113,9 +113,9 @@ instance MonadTransControl (DBT_ m) where
   {-# INLINE restoreT #-}
 #endif
 
-instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
+instance (m ~ n, MonadBaseControl b m) => MonadBaseControl b (DBT_ m n) where
 #if MIN_VERSION_monad_control(1,0,0)
-  type StM (DBT m) a = ComposeSt (DBT_ m) m a
+  type StM (DBT_ m n) a = ComposeSt (DBT_ m) m a
   liftBaseWith = defaultLiftBaseWith
   restoreM     = defaultRestoreM
   {-# INLINE liftBaseWith #-}
@@ -128,21 +128,21 @@ instance MonadBaseControl b m => MonadBaseControl b (DBT m) where
   {-# INLINE restoreM #-}
 #endif
 
-instance MonadError e m => MonadError e (DBT m) where
+instance (m ~ n, MonadError e m) => MonadError e (DBT_ m n) where
   throwError = lift . throwError
   catchError m h = DBT $ S.liftCatch catchError (unDBT m) (unDBT . h)
 
-instance MonadReader r m => MonadReader r (DBT m) where
+instance (m ~ n, MonadReader r m) => MonadReader r (DBT_ m n) where
   ask = lift ask
   local f = mapDBT id (local f)
   reader = lift . reader
 
-instance MonadState s m => MonadState s (DBT m) where
+instance (m ~ n, MonadState s m) => MonadState s (DBT_ m n) where
   get = lift get
   put = lift . put
   state = lift . state
 
-instance MonadWriter w m => MonadWriter w (DBT m) where
+instance (m ~ n, MonadWriter w m) => MonadWriter w (DBT_ m n) where
   writer = lift . writer
   tell = lift . tell
   listen = DBT . S.liftListen listen . unDBT
