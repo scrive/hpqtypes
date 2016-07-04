@@ -92,11 +92,6 @@
 #	include <limits.h>
 #endif
 
-/* Include linux/limits.h if available */
-#if defined(HAVE_CONFIG_H) && defined(HAVE_LINUX_LIMITS_H)
-#	include <linux/limits.h>
-#endif
-
 /* Include math.h if on windows or if we have it */
 #if defined(PQT_WIN32) || defined(HAVE_MATH_H)
 #	include <math.h>

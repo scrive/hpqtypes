@@ -108,7 +108,7 @@ CFLAGS=$save_CFLAGS
 
 AC_HEADER_STDC
 AC_CHECK_HEADERS([ \
-arpa/inet.h limits.h linux/limits.h netdb.h netinet/in.h stddef.h \
+arpa/inet.h limits.h netdb.h netinet/in.h stddef.h \
 sys/socket.h time.h math.h sys/time.h strings.h])
 
 AC_STRUCT_TIMEZONE

@@ -1,3 +1,6 @@
+# hpqtypes-1.5.1 (2016-07-04)
+* Do not use linux/limits.h
+
 # hpqtypes-1.5.0 (2016-06-21)
 * remove orphan MonadDB instances
 * turn ConnectionSource into indexed datatype

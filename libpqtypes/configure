@@ -20913,7 +20913,7 @@ $as_echo "#define STDC_HEADERS 1" >>confdefs.h
 fi
 
 for ac_header in  \
-arpa/inet.h limits.h linux/limits.h netdb.h netinet/in.h stddef.h \
+arpa/inet.h limits.h netdb.h netinet/in.h stddef.h \
 sys/socket.h time.h math.h sys/time.h strings.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
