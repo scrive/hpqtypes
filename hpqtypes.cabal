@@ -27,7 +27,7 @@ homepage:            https://github.com/scrive/hpqtypes
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive
-maintainer:          Andrzej Rybczak <andrzej@scrive.com>
+maintainer:          Andrzej Rybczak <andrzej@rybczak.net>
 category:            Database
 build-type:          Custom
 cabal-version:       >= 1.18
