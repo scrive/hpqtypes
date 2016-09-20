@@ -31,6 +31,7 @@ maintainer:          Andrzej Rybczak <andrzej@rybczak.net>, Jonathan Jouty <jona
 category:            Database
 build-type:          Custom
 cabal-version:       >= 1.18
+tested-with:        GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.2, GHC == 8.0.1
 
 extra-source-files: CHANGELOG.md
                   , examples/Catalog.hs
