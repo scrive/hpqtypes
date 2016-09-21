@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
 import Control.Applicative
@@ -108,9 +109,12 @@ instance Arbitrary ZonedTime where
 
 ----------------------------------------
 
+#if !MIN_VERSION_QuickCheck(2,9,0)
 instance Arbitrary a => Arbitrary (Identity a) where
   arbitrary = Identity <$> arbitrary
+#endif
 
+#if !MIN_VERSION_QuickCheck(2,9,0)
 instance (
     Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6
@@ -150,6 +154,7 @@ instance (
     arbitrary = (,,,,,,,,,)
       <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+#endif
 
 instance (
     Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
