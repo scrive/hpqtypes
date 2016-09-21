@@ -53,7 +53,7 @@ script:
  - cabal new-build ${TEST} ${BENCH} -v2  # -v2 provides useful information for debugging
 
  # there's no 'cabal new-test' yet, so let's emulate for now
- # - SRC_BASENAME=$(cabal info . | awk '{print $2;exit}')
+ - SRC_BASENAME=$(cabal info . | awk '{print $2;exit}')
  # - TESTS=( $(awk 'tolower($0) ~ /^test-suite / { print $2 }' *.cabal) );
  #   shopt -s globstar;
  #   RC=true; for T in ${TESTS[@]}; do echo "== $T ==";
