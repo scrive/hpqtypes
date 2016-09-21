@@ -63,10 +63,6 @@ Source-repository head
   Type:     git
   Location: git@github.com:scrive/log.git
 
-Flag tests
-  description: Build test suite
-  default: False
-
 library
   exposed-modules:     Data.Monoid.Utils
                      , Database.PostgreSQL.PQTypes
@@ -173,13 +169,9 @@ library
                     , TypeFamilies
                     , TypeOperators
                     , UndecidableInstances
-  
-Executable tests
-  if flag(tests)
-    buildable:       True
-  else
-    buildable:       False
 
+test-suite hpqtypes-tests
+  type:              exitcode-stdio-1.0
   ghc-options:       -O2 -Wall -funbox-strict-fields -threaded
 
   hs-source-dirs:    test
