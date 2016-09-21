@@ -1,0 +1,7 @@
+/dist/
+/dist-newstyle/
+/libpqtypes/Makefile
+/libpqtypes/config.log
+/libpqtypes/config.status
+/libpqtypes/libtool
+/libpqtypes/src/stamp-h1
