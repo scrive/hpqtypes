@@ -1,10 +1,7 @@
-# hpqtypes-1.5.1.1 (2016-07-04)
+# hpqtypes-1.5.1.1 (2016-09-22)
 * fix test suite compilation with GHC 8
 * fix lower bound of base version
 * fix compilation with 'cabal new-build' and Cabal < 1.24
-
-# hpqtypes-1.5.1 (2016-07-04)
-* Do not use linux/limits.h
 
 # hpqtypes-1.5.1 (2016-07-04)
 * Do not use linux/limits.h
