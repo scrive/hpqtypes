@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.5.1
+version:             1.5.1.1
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -26,8 +26,9 @@ description:         Efficient and easy-to-use bindings to (slightly modified)
 homepage:            https://github.com/scrive/hpqtypes
 license:             BSD3
 license-file:        LICENSE
-author:              Scrive
-maintainer:          Andrzej Rybczak <andrzej@rybczak.net>, Jonathan Jouty <jonathan@scrive.com>
+author:              Scrive AB
+maintainer:          Andrzej Rybczak <andrzej@rybczak.net>, Jonathan Jouty <jonathan@scrive.com>, Mikhail Glushenkov <mikhail@scrive.com>
+copyright:           Scrive AB
 category:            Database
 build-type:          Custom
 cabal-version:       >= 1.18
