@@ -10,24 +10,28 @@ description:         Efficient and easy-to-use bindings to (slightly modified)
                      along with the bindings. The differences between verbatim
                      libpqtypes and the one used by this package:
                      .
-                     * per-thread global error structures were replaced by explicit
-                       passing of these structures around so that there is no need
-                       to use bound threads.
+                     * per-thread global error structures were replaced by
+                       explicit passing of these structures around so that
+                       there is no need to use bound threads.
                      .
                      * handlers that take values to be put into the database were
                        modified to always expect pointers to objects, as opposed
                        to previous situation where primitives were being taken by
-                       value (which was convenient if the library was used directly
-                       from C, but created inconsistency problems while trying to
-                       define bindings in a sensible way).
+                       value (which was convenient if the library was used
+                       directly from C, but created inconsistency problems
+                       while trying to define bindings in a sensible way).
                      .
-                     Examples can be found in the <https://github.com/scrive/hpqtypes/tree/master/examples examples> directory.
+                     Examples can be found in the
+                     <https://github.com/scrive/hpqtypes/tree/master/examples examples>
+                     directory.
 
 homepage:            https://github.com/scrive/hpqtypes
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive AB
-maintainer:          Andrzej Rybczak <andrzej@rybczak.net>, Jonathan Jouty <jonathan@scrive.com>, Mikhail Glushenkov <mikhail@scrive.com>
+maintainer:          Andrzej Rybczak <andrzej@rybczak.net>,
+                     Jonathan Jouty <jonathan@scrive.com>,
+                     Mikhail Glushenkov <mikhail@scrive.com>
 copyright:           Scrive AB
 category:            Database
 build-type:          Custom
@@ -61,9 +65,14 @@ extra-source-files: README.md
                   , libpqtypes/src/libpqtypes-int.h
                   , libpqtypes/src/libpqtypes.h
 
-Source-repository head
-  Type:     git
-  Location: git@github.com:scrive/log.git
+source-repository head
+  type:     git
+  location: https://github.com/scrive/hpqtypes.git
+
+source-repository this
+  type:     git
+  location: https://github.com/scrive/hpqtypes.git
+  tag:      1.5.1.1
 
 library
   exposed-modules:     Data.Monoid.Utils
