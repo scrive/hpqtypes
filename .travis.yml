@@ -6,6 +6,9 @@ sudo: false
 git:
   submodules: false  # whether to recursively clone submodules
 
+services:
+  - postgresql
+
 cache:
   directories:
     - $HOME/.cabal/packages
@@ -32,6 +35,9 @@ matrix:
       compiler: ": #GHC 8.0.1"
       addons: {apt: {packages: [cabal-install-head,ghc-8.0.1], sources: [hvr-ghc]}}
 
+before_script:
+ - psql -c 'create database travis_ci_test;' -U postgres
+
 before_install:
  - unset CC
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
@@ -57,7 +63,7 @@ script:
  - TESTS=( $(awk 'tolower($0) ~ /^test-suite / { print $2 }' *.cabal) );
    shopt -s globstar;
    RC=true; for T in ${TESTS[@]}; do echo "== $T ==";
-   if dist-newstyle/build/**/$SRC_BASENAME/**/build/$T/$T; then echo "= $T OK =";
+   if dist-newstyle/build/**/$SRC_BASENAME/**/build/$T/$T 'postgresql://postgres@localhost/travis_ci_test'; then echo "= $T OK =";
    else echo "= $T FAILED ="; RC=false; fi; done; $RC
  - cabal sdist # test that a source-distribution can be generated
 
