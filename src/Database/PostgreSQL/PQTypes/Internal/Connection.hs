@@ -117,7 +117,7 @@ newtype ConnectionSource (cs :: [(* -> *) -> Constraint]) = ConnectionSource {
   unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
 }
 
--- | Default connection supplier. It estabilishes new
+-- | Default connection supplier. It establishes new
 -- database connection each time 'withConnection' is called.
 simpleSource
   :: ConnectionSettings
@@ -127,7 +127,7 @@ simpleSource cs = ConnectionSource $ ConnectionSourceM {
 }
 
 -- | Pooled source. It uses striped pool from resource-pool
--- package to cache estabilished connections and reuse them.
+-- package to cache established connections and reuse them.
 poolSource
   :: ConnectionSettings
   -> Int -- ^ Stripe count. The number of distinct sub-pools
