@@ -42,6 +42,7 @@ type DBT m = DBT_ m m
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
+{-# INLINABLE runDBT #-}
 runDBT
   :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
@@ -62,6 +63,7 @@ runDBT cs ts m = withConnection cs $ \conn -> do
       else m
 
 -- | Transform the underlying monad.
+{-# INLINABLE mapDBT #-}
 mapDBT
   :: (DBState n -> DBState m)
   -> (m (a, DBState m) -> n (b, DBState n))
@@ -81,11 +83,11 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
       Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
       Just cd -> return $ cdStats cd
 
-  getTransactionSettings = DBT . gets $ dbTransactionSettings
-  setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
-
   getQueryResult = DBT . gets $ dbQueryResult
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
+
+  getTransactionSettings = DBT . gets $ dbTransactionSettings
+  setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
 
   getNotification time = DBT . StateT $ \st -> (, st)
     <$> liftBase (getNotificationIO st time)
@@ -95,6 +97,16 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
         ts = dbTransactionSettings st
     res <- runDBT cs ts m
     return (res, st)
+
+  {-# INLINABLE runQuery #-}
+  {-# INLINABLE getLastQuery #-}
+  {-# INLINABLE getConnectionStats #-}
+  {-# INLINABLE getQueryResult #-}
+  {-# INLINABLE clearQueryResult #-}
+  {-# INLINABLE getTransactionSettings #-}
+  {-# INLINABLE setTransactionSettings #-}
+  {-# INLINABLE getNotification #-}
+  {-# INLINABLE withNewConnection #-}
 
 ----------------------------------------
 
@@ -131,19 +143,31 @@ instance (m ~ n, MonadBaseControl b m) => MonadBaseControl b (DBT_ m n) where
 instance (m ~ n, MonadError e m) => MonadError e (DBT_ m n) where
   throwError = lift . throwError
   catchError m h = DBT $ S.liftCatch catchError (unDBT m) (unDBT . h)
+  {-# INLINE throwError #-}
+  {-# INLINE catchError #-}
 
 instance (m ~ n, MonadReader r m) => MonadReader r (DBT_ m n) where
   ask = lift ask
   local f = mapDBT id (local f)
   reader = lift . reader
+  {-# INLINE ask #-}
+  {-# INLINE local #-}
+  {-# INLINE reader #-}
 
 instance (m ~ n, MonadState s m) => MonadState s (DBT_ m n) where
   get = lift get
   put = lift . put
   state = lift . state
+  {-# INLINE get #-}
+  {-# INLINE put #-}
+  {-# INLINE state #-}
 
 instance (m ~ n, MonadWriter w m) => MonadWriter w (DBT_ m n) where
   writer = lift . writer
   tell = lift . tell
   listen = DBT . S.liftListen listen . unDBT
   pass = DBT . S.liftPass pass . unDBT
+  {-# INLINE writer #-}
+  {-# INLINE tell #-}
+  {-# INLINE listen #-}
+  {-# INLINE pass #-}

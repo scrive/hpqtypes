@@ -82,6 +82,15 @@ instance (
     setTransactionSettings = lift . setTransactionSettings
     getNotification = lift . getNotification
     withNewConnection m = controlT $ \run -> withNewConnection (run m)
+    {-# INLINE runQuery #-}
+    {-# INLINE getLastQuery #-}
+    {-# INLINE getConnectionStats #-}
+    {-# INLINE getQueryResult #-}
+    {-# INLINE clearQueryResult #-}
+    {-# INLINE getTransactionSettings #-}
+    {-# INLINE setTransactionSettings #-}
+    {-# INLINE getNotification #-}
+    {-# INLINE withNewConnection #-}
 
 controlT :: (MonadTransControl t, Monad (t m), Monad m)
          => (Run t -> m (StT t a)) -> t m a

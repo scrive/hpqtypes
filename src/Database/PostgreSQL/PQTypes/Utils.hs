@@ -26,6 +26,7 @@ import Database.PostgreSQL.PQTypes.SQL.Raw
 
 -- | When given 'DBException', throw it immediately. Otherwise
 -- wrap it in 'DBException' with the current query context first.
+{-# INLINABLE throwDB #-}
 throwDB :: (Exception e, MonadDB m, MonadThrow m) => e -> m a
 throwDB e = case fromException $ toException e of
   Just (dbe::DBException) -> throwM dbe
@@ -45,12 +46,14 @@ raw = mkSQL . unRawSQL
 ----------------------------------------
 
 -- | Specialization of 'runQuery' that discards the result.
+{-# INLINABLE runQuery_ #-}
 runQuery_ :: (IsSQL sql, MonadDB m) => sql -> m ()
 runQuery_ = void . runQuery
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is in range [0, 1] and returns appropriate 'Bool' value.
 -- Otherwise, 'AffectedRowsMismatch' exception is thrown.
+{-# INLINABLE runQuery01 #-}
 runQuery01 :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Bool
 runQuery01 sql = do
   n <- runQuery sql
@@ -61,25 +64,28 @@ runQuery01 sql = do
   return $ n == 1
 
 -- | Specialization of 'runQuery01' that discards the result.
+{-# INLINABLE runQuery01_ #-}
 runQuery01_ :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
 runQuery01_ = void . runQuery01
 
 ----------------------------------------
 
 -- | Specialization of 'runQuery' to 'SQL' type.
+{-# INLINABLE runSQL #-}
 runSQL :: MonadDB m => SQL -> m Int
 runSQL = runQuery
 
 -- | Specialization of 'runQuery_' to 'SQL' type.
+{-# INLINABLE runSQL_ #-}
 runSQL_ :: MonadDB m => SQL -> m ()
 runSQL_ = runQuery_
 
 -- | Specialization of 'runQuery01' to 'SQL' type.
+{-# INLINABLE runSQL01 #-}
 runSQL01 :: (MonadDB m, MonadThrow m) => SQL -> m Bool
 runSQL01 = runQuery01
 
 -- | Specialization of 'runQuery01_' to 'SQL' type.
+{-# INLINABLE runSQL01_ #-}
 runSQL01_ :: (MonadDB m, MonadThrow m) => SQL -> m ()
 runSQL01_ = runQuery01_
-
-----------------------------------------
