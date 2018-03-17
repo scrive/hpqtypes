@@ -16,6 +16,7 @@ import TextShow
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Unsafe as BS
 import qualified Data.Foldable as F
+import qualified Data.Semigroup as SG
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -58,9 +59,12 @@ instance IsSQL SQL where
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, "$" <> showt n) $! n+1
 
+instance SG.Semigroup SQL where
+  SQL a <> SQL b = SQL (a S.>< b)
+
 instance Monoid SQL where
   mempty = mkSQL T.empty
-  SQL a `mappend` SQL b = SQL (a S.>< b)
+  mappend = (SG.<>)
 
 instance Show SQL where
   showsPrec n sql = ("SQL " ++) . (showsPrec n . concatMap conv . unSQL $ sql)

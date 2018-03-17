@@ -17,6 +17,7 @@ import Data.Typeable
 import Foreign.Storable
 import Prelude
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Semigroup as SG
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
@@ -56,9 +57,8 @@ instance Show Interval where
         1 -> show n ++ " " ++ desc
         _ -> show n ++ " " ++ desc ++ "s"
 
-instance Monoid Interval where
-  mempty = Interval 0 0 0 0 0 0 0
-  mappend a b = Interval {
+instance SG.Semigroup Interval where
+  a <> b = Interval {
     intYears = intYears a + intYears b
   , intMonths = intMonths a + intMonths b
   , intDays = intDays a + intDays b
@@ -67,6 +67,10 @@ instance Monoid Interval where
   , intSeconds = intSeconds a + intSeconds b
   , intMicroseconds = intMicroseconds a + intMicroseconds b
   }
+
+instance Monoid Interval where
+  mempty  = Interval 0 0 0 0 0 0 0
+  mappend = (SG.<>)
 
 instance Storable Interval where
   sizeOf _ = #{size PGinterval}
