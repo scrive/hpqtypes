@@ -6,3 +6,4 @@
 /libpqtypes/libtool
 /libpqtypes/src/stamp-h1
 TAGS
+.ghc.environment.*
