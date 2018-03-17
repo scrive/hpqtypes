@@ -116,6 +116,7 @@ library
                      , text >= 0.11
                      , aeson >= 0.6.2.0
                      , bytestring >= 0.9
+                     , semigroups >= 0.16
                      , time >= 1.4
                      , vector >= 0.10
                      , transformers-base >= 0.4

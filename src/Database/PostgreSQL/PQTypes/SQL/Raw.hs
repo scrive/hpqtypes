@@ -9,6 +9,7 @@ import Data.String
 import Foreign.Marshal.Alloc
 import Prelude
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Semigroup as SG
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
@@ -32,10 +33,14 @@ instance (Show row, ToRow row) => IsSQL (RawSQL row) where
 instance IsString (RawSQL ()) where
   fromString = flip RawSQL () . T.pack
 
+instance SG.Semigroup (RawSQL ()) where
+  RawSQL a () <> RawSQL b () = RawSQL (a <> b) ()
+  sconcat xs = RawSQL (SG.sconcat $ fmap (\(RawSQL s ()) -> s) xs) ()
+
 instance Monoid (RawSQL ()) where
   mempty = rawSQL T.empty ()
-  RawSQL a () `mappend` RawSQL b () = RawSQL (a `mappend` b) ()
-  mconcat xs = RawSQL (T.concat $ map (\(RawSQL s ()) -> s) xs) ()
+  mappend = (SG.<>)
+  mconcat xs = RawSQL (mconcat $ fmap (\(RawSQL s ()) -> s) xs) ()
 
 -- | Construct 'RawSQL' from 'Text' and a tuple of parameters.
 rawSQL :: (Show row, ToRow row) => T.Text -> row -> RawSQL row
