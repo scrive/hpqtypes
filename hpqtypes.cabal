@@ -38,6 +38,7 @@ build-type:          Custom
 cabal-version:       >= 1.18
 tested-with:         GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1, GHC == 8.2.2, GHC == 8.4.1
 
+
 extra-source-files: README.md
                   , CHANGELOG.md
                   , examples/Catalog.hs
@@ -64,6 +65,12 @@ extra-source-files: README.md
                   , libpqtypes/src/pqt_config.h.in
                   , libpqtypes/src/libpqtypes-int.h
                   , libpqtypes/src/libpqtypes.h
+
+custom-setup
+  setup-depends: base >= 4.7 && < 4.12,
+                 Cabal >= 1.24 && < 2.3,
+                 directory,
+                 filepath
 
 source-repository head
   type:     git
@@ -112,7 +119,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Get
 
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       base >= 4.7 && < 4.12
                      , text >= 0.11
                      , aeson >= 0.6.2.0
                      , bytestring >= 0.9
