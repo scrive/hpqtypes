@@ -17,6 +17,7 @@ import Data.Time
 import Data.Typeable
 import Data.Word
 import Prelude
+import System.Directory
 import System.Environment
 import System.Exit
 import System.Random
@@ -28,6 +29,7 @@ import Test.QuickCheck.Gen
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
@@ -487,24 +489,37 @@ dropStructures cs = runDBT cs def $ do
   runSQL_ "DROP TYPE simple_"
   runSQL_ "DROP TABLE test1_"
 
+getConnString :: IO (T.Text, [String])
+getConnString = do
+  args <- getArgs
+  if (null args) then
+    do confExists <- doesFileExist "hpqtypes-test.conf"
+       if confExists
+         then do connString <- T.strip <$> T.readFile "hpqtypes-test.conf"
+                 return (connString, [])
+         else do printUsage
+                 exitFailure
+    else return $ (T.pack . head $ args, tail args)
+  where
+    printUsage = do
+      prog <- getProgName
+      putStrLn $ "Usage:" <+> prog
+        <+> "<connection info string> [test-framework args]"
+
 main :: IO ()
 main = do
-  args <- getArgs
-  when (null args) $ do
-    prog <- getProgName
-    putStrLn $ "Usage:" <+> prog <+> "<connection info string> [test-framework args]"
-    exitFailure
-
+  (connString, args) <- getConnString
   let connSettings = def {
-          csConnInfo = T.pack $ head args
+          csConnInfo       = connString
         , csClientEncoding = Just "latin1"
         }
       ConnectionSource connSource = simpleSource connSettings
 
   createStructures connSource
-  ConnectionSource connPool <- poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
+  ConnectionSource connPool <-
+    poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
-  finally (defaultMainWithArgs (tests (gen, connPool)) $ tail args) $ do
+  finally (defaultMainWithArgs (tests (gen, connPool)) $ args) $ do
     dropStructures connSource
