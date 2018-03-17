@@ -17,7 +17,6 @@ import Data.Time
 import Data.Typeable
 import Data.Word
 import Prelude
-import System.Directory
 import System.Environment
 import System.Exit
 import System.Random
@@ -29,7 +28,6 @@ import Test.QuickCheck.Gen
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
@@ -493,10 +491,9 @@ getConnString :: IO (T.Text, [String])
 getConnString = do
   args <- getArgs
   if (null args) then
-    do confExists <- doesFileExist "hpqtypes-test.conf"
-       if confExists
-         then do connString <- T.strip <$> T.readFile "hpqtypes-test.conf"
-                 return (connString, [])
+    do isTravis <- maybe False ((==) "true") <$> lookupEnv "TRAVIS"
+       if isTravis
+         then return ("postgresql://postgres@localhost/travis_ci_test", [])
          else do printUsage
                  exitFailure
     else return $ (T.pack . head $ args, tail args)

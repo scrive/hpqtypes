@@ -204,7 +204,6 @@ test-suite hpqtypes-tests
                      , QuickCheck >= 2.5
                      , aeson >= 0.6.2.0
                      , bytestring >= 0.9
-                     , directory
                      , exceptions >= 0.6
                      , lifted-base >= 0.2
                      , monad-control >= 0.3
