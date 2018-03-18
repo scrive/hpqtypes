@@ -1,3 +1,6 @@
+# hpqtypes-1.5.2.0 (2018-03-18)
+* support GHC 8.4.1
+
 # hpqtypes-1.5.1.1 (2016-09-22)
 * fix test suite compilation with GHC 8
 * fix lower bound of base version
