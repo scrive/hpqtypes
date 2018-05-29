@@ -1,6 +1,7 @@
 -- | Mappings of types used by libpq/libpqtypes to Haskell ADTs.
 module Database.PostgreSQL.PQTypes.Internal.C.Types (
-    PGconn
+    PGcancel
+  , PGconn
   , PGparam
   , PGresult
   , PGtypeArgs
@@ -44,6 +45,7 @@ import qualified Data.Vector.Storable as V
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
 
+data PGcancel
 data PGconn
 data PGparam
 data PGresult

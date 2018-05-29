@@ -16,6 +16,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQgetisnull
   , c_PQfname
   , c_PQclear
+  , c_PQcancel
   -- * libpqtypes imports
   , c_PQfinishPtr
   , c_PQconnectdb
@@ -29,8 +30,10 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , nullStringCStringLen
   )  where
 
+import Control.Applicative
 import Foreign.C
 import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import Prelude
@@ -85,6 +88,34 @@ foreign import ccall unsafe "PQfname"
 
 foreign import ccall unsafe "PQclear"
   c_PQclear :: Ptr PGresult -> IO ()
+
+----------------------------------------
+
+foreign import ccall unsafe "PQgetCancel"
+  c_PQgetCancel :: Ptr PGconn -> IO (Ptr PGcancel)
+
+foreign import ccall unsafe "PQfreeCancel"
+  c_PQfreeCancel :: Ptr PGcancel -> IO ()
+
+foreign import ccall unsafe "PQcancel"
+  c_rawPQcancel :: Ptr PGcancel -> CString -> CInt -> IO CInt
+
+-- | Attempt to cancel currently running query. If the request is successfully
+-- dispatched Nothing is returned, otherwise a textual explanation of what
+-- happened.
+c_PQcancel :: Ptr PGconn -> IO (Maybe String)
+c_PQcancel conn = E.mask $ \restore -> do
+  cancel <- c_PQgetCancel conn
+  (`E.finally` c_PQfreeCancel cancel) . restore $ do
+    allocaBytes errbufsize $ \errbuf -> do
+      c_rawPQcancel cancel errbuf (fromIntegral errbufsize) >>= \case
+        0 -> Just <$> peekCString errbuf
+        _ -> return Nothing
+  where
+    -- Size recommended by
+    -- https://www.postgresql.org/docs/current/static/libpq-cancel.html
+    errbufsize :: Int
+    errbufsize = 256
 
 ----------------------------------------
 
