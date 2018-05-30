@@ -139,7 +139,7 @@ library
 
   hs-source-dirs:    src
 
-  ghc-options:       -O2 -Wall -funbox-strict-fields
+  ghc-options:       -Wall
 
   build-tools:       hsc2hs
   include-dirs:      libpqtypes/src
@@ -191,7 +191,7 @@ library
 
 test-suite hpqtypes-tests
   type:              exitcode-stdio-1.0
-  ghc-options:       -O2 -Wall -funbox-strict-fields -threaded
+  ghc-options:       -Wall -threaded
 
   hs-source-dirs:    test
   main-is:           Main.hs
