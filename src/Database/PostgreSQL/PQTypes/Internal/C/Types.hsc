@@ -9,6 +9,9 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types (
   , c_CONNECTION_OK, c_CONNECTION_BAD, c_CONNECTION_STARTED
   , c_CONNECTION_MADE, c_CONNECTION_AWAITING_RESPONSE, c_CONNECTION_AUTH_OK
   , c_CONNECTION_SETENV, c_CONNECTION_SSL_STARTUP, c_CONNECTION_NEEDED
+  , PostgresPollingStatusType(..)
+  , c_PGRES_POLLING_FAILED, c_PGRES_POLLING_READING, c_PGRES_POLLING_WRITING
+  , c_PGRES_POLLING_OK, c_PGRES_POLLING_ACTIVE
   , ResultFormat(..)
   , c_RESULT_TEXT, c_RESULT_BINARY
   , ExecStatusType(..)
@@ -70,6 +73,19 @@ newtype ConnStatusType = ConnStatusType CInt
 , c_CONNECTION_SSL_STARTUP = CONNECTION_SSL_STARTUP
 , c_CONNECTION_NEEDED = CONNECTION_NEEDED
 }
+
+----------------------------------------
+
+newtype PostgresPollingStatusType = PostgresPollingStatusType CInt
+  deriving Eq
+
+#{enum PostgresPollingStatusType, PostgresPollingStatusType
+ , c_PGRES_POLLING_FAILED  = PGRES_POLLING_FAILED
+ , c_PGRES_POLLING_READING = PGRES_POLLING_READING
+ , c_PGRES_POLLING_WRITING = PGRES_POLLING_WRITING
+ , c_PGRES_POLLING_OK      = PGRES_POLLING_OK
+ , c_PGRES_POLLING_ACTIVE  = PGRES_POLLING_ACTIVE
+ }
 
 ----------------------------------------
 
