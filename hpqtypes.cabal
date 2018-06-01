@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.5.2.0
+version:             1.5.3.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -79,7 +79,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/scrive/hpqtypes.git
-  tag:      1.5.2.0
+  tag:      1.5.3.0
 
 library
   exposed-modules:     Data.Monoid.Utils

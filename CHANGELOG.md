@@ -1,3 +1,9 @@
+# hpqtypes-1.5.3.0 (2018-06-04)
+* add INLINE/INLINEABLE pragmas for call site specialization
+* remove -O2 -funbox-strict-fields from ghc-options
+* make query execution interruptible with asynchronous exceptions
+* make connect interruptible with asynchronous exceptions
+
 # hpqtypes-1.5.2.0 (2018-03-18)
 * support GHC 8.4.1
 
