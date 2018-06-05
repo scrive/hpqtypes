@@ -20,6 +20,7 @@ import Prelude
 import System.Environment
 import System.Exit
 import System.Random
+import System.Timeout.Lifted
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
@@ -223,6 +224,26 @@ assertEqual preface expected actual eq =
 
 ----------------------------------------
 
+queryInterruptionTest :: TestData -> Test
+queryInterruptionTest td = testCase "Queries are interruptible" $ do
+  let sleep = "SELECT pg_sleep(2)"
+      ints  = smconcat
+        [ "WITH RECURSIVE ints(n) AS"
+        , "( VALUES (1) UNION ALL SELECT n+1 FROM ints WHERE n < 5000000"
+        , ") SELECT n FROM ints"
+        ]
+  runTestEnv td tsNoTrans $ do
+    testQuery id sleep
+    testQuery id ints
+  runTestEnv td def $ do
+    testQuery (withSavepoint "ints")  ints
+    testQuery (withSavepoint "sleep") sleep
+   where
+    testQuery m sql = timeout 500000 (m . runQuery_ $ rawSQL sql ()) >>= \case
+      Just _  -> liftBase $ do
+        assertFailure $ "Query" <+> T.unpack sql <+> "wasn't interrupted in time"
+      Nothing -> return ()
+
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $ do
   let sint = Identity (1::Int32)
@@ -355,6 +376,7 @@ tests td = [
   , readOnlyTest td
   , savepointTest td
   , notifyTest td
+  , queryInterruptionTest td
   ----------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead

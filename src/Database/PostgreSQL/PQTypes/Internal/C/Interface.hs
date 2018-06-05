@@ -16,9 +16,12 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQgetisnull
   , c_PQfname
   , c_PQclear
-  -- * libpqtypes imports
+  , c_PQcancel
+  , c_PQconnectStart
+  , c_PQconnectPoll
   , c_PQfinishPtr
-  , c_PQconnectdb
+  , c_ptr_PQfinishPtr
+  -- * libpqtypes imports
   , c_PQinitTypes
   , c_PQregisterTypes
   , c_PQparamExec
@@ -29,10 +32,11 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , nullStringCStringLen
   )  where
 
+import Control.Applicative
 import Foreign.C
 import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import Foreign.Storable
 import Prelude
 import System.Posix.Types
 import qualified Control.Exception as E
@@ -88,30 +92,45 @@ foreign import ccall unsafe "PQclear"
 
 ----------------------------------------
 
--- | May block in case of network problems, hence marked 'safe'.
-foreign import ccall safe "PQconnectdb"
-  c_rawPQconnectdb :: CString -> IO (Ptr PGconn)
+foreign import ccall unsafe "PQgetCancel"
+  c_PQgetCancel :: Ptr PGconn -> IO (Ptr PGcancel)
+
+foreign import ccall unsafe "PQfreeCancel"
+  c_PQfreeCancel :: Ptr PGcancel -> IO ()
+
+foreign import ccall unsafe "PQcancel"
+  c_rawPQcancel :: Ptr PGcancel -> CString -> CInt -> IO CInt
+
+-- | Attempt to cancel currently running query. If the request is successfully
+-- dispatched Nothing is returned, otherwise a textual explanation of what
+-- happened.
+c_PQcancel :: Ptr PGconn -> IO (Maybe String)
+c_PQcancel conn = E.mask $ \restore -> do
+  cancel <- c_PQgetCancel conn
+  (`E.finally` c_PQfreeCancel cancel) . restore $ do
+    allocaBytes errbufsize $ \errbuf -> do
+      c_rawPQcancel cancel errbuf (fromIntegral errbufsize) >>= \case
+        0 -> Just <$> peekCString errbuf
+        _ -> return Nothing
+  where
+    -- Size recommended by
+    -- https://www.postgresql.org/docs/current/static/libpq-cancel.html
+    errbufsize :: Int
+    errbufsize = 256
+
+----------------------------------------
+
+foreign import ccall unsafe "PQconnectStart"
+  c_PQconnectStart :: CString -> IO (Ptr PGconn)
+
+foreign import ccall unsafe "PQconnectPoll"
+  c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
 
 foreign import ccall unsafe "PQfinishPtr"
   c_PQfinishPtr :: Ptr (Ptr PGconn) -> IO ()
 
 foreign import ccall unsafe "&PQfinishPtr"
   c_ptr_PQfinishPtr :: FunPtr (Ptr (Ptr PGconn) -> IO ())
-
--- | Safe wrapper for 'c_rawPQconnectdb', returns
--- 'ForeignPtr' instead of 'Ptr'.
-c_PQconnectdb :: CString -> IO (ForeignPtr (Ptr PGconn))
-c_PQconnectdb conninfo = E.mask_ $ do
-  conn <- c_rawPQconnectdb conninfo
-  -- Work around a bug in GHC that causes foreign pointer
-  -- finalizers to be run multiple times under random
-  -- circumstances by providing another level of indirection
-  -- and a wrapper for PQfinish that can be safely called
-  -- multiple times.
-  connPtr <- mallocForeignPtr
-  withForeignPtr connPtr $ flip poke conn
-  addForeignPtrFinalizer c_ptr_PQfinishPtr connPtr
-  return connPtr
 
 -- libpqtypes imports
 

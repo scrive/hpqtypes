@@ -14,14 +14,16 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   ) where
 
 import Control.Applicative
-import Control.Arrow
-import Control.Concurrent.MVar
+import Control.Arrow (first)
+import Control.Concurrent
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Default.Class
+import Data.Function
 import Data.Pool
 import Data.Time.Clock
+import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
@@ -170,16 +172,16 @@ poolSource cs numStripes idleTime maxResources = do
 -- Useful if one wants to implement custom connection source.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = do
-  fconn <- BS.useAsCString (T.encodeUtf8 csConnInfo) c_PQconnectdb
+  fconn <- BS.useAsCString (T.encodeUtf8 csConnInfo) openConnection
   withForeignPtr fconn $ \connPtr -> do
     conn <- peek connPtr
     status <- c_PQstatus conn
     when (status /= c_CONNECTION_OK) $
-      throwLibPQError conn "connect"
+      throwLibPQError conn fname
     F.forM_ csClientEncoding $ \enc -> do
       res <- BS.useAsCString (T.encodeUtf8 enc) (c_PQsetClientEncoding conn)
       when (res == -1) $
-        throwLibPQError conn "connect"
+        throwLibPQError conn fname
     c_PQinitTypes conn
     registerComposites conn csComposites
     Connection <$> newMVar (Just ConnectionData {
@@ -187,6 +189,42 @@ connect ConnectionSettings{..} = do
     , cdPtr     = conn
     , cdStats   = initialStats
     })
+  where
+    fname = "connect"
+
+    openConnection :: CString -> IO (ForeignPtr (Ptr PGconn))
+    openConnection conninfo = E.mask $ \restore -> do
+      -- We want to use non-blocking C functions to be able to observe
+      -- incoming asynchronous exceptions, hence we don't use
+      -- PQconnectdb here.
+      conn <- c_PQconnectStart conninfo
+      when (conn == nullPtr) $
+        throwError "PQconnectStart returned a null pointer"
+      -- Work around a bug in GHC that causes foreign pointer
+      -- finalizers to be run multiple times under random
+      -- circumstances (see
+      -- https://ghc.haskell.org/trac/ghc/ticket/7170 for more
+      -- details) by providing another level of indirection and a
+      -- wrapper for PQfinish that can be safely called multiple
+      -- times.
+      connPtr <- mallocForeignPtr
+      withForeignPtr connPtr (`poke` conn)
+      addForeignPtrFinalizer c_ptr_PQfinishPtr connPtr
+      -- Wait until connection status is resolved (to either
+      -- established or failed state).
+      restore $ fix $ \loop -> do
+        ps <- c_PQconnectPoll conn
+        if | ps == c_PGRES_POLLING_READING -> (threadWaitRead  =<< getFd conn) >> loop
+           | ps == c_PGRES_POLLING_WRITING -> (threadWaitWrite =<< getFd conn) >> loop
+           | otherwise                     -> return connPtr
+      where
+        getFd conn = do
+          fd <- c_PQsocket conn
+          when (fd == -1) $
+            throwError "invalid file descriptor"
+          return fd
+
+        throwError = hpqTypesError . (fname ++) . (": " ++)
 
 -- | Low-level function for disconnecting from the database.
 -- Useful if one wants to implement custom connection source.
