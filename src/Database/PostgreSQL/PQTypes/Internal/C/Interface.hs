@@ -105,13 +105,11 @@ foreign import ccall unsafe "PQcancel"
 -- dispatched Nothing is returned, otherwise a textual explanation of what
 -- happened.
 c_PQcancel :: Ptr PGconn -> IO (Maybe String)
-c_PQcancel conn = E.mask $ \restore -> do
-  cancel <- c_PQgetCancel conn
-  (`E.finally` c_PQfreeCancel cancel) . restore $ do
-    allocaBytes errbufsize $ \errbuf -> do
-      c_rawPQcancel cancel errbuf (fromIntegral errbufsize) >>= \case
-        0 -> Just <$> peekCString errbuf
-        _ -> return Nothing
+c_PQcancel conn = E.bracket (c_PQgetCancel conn) c_PQfreeCancel $ \cancel -> do
+  allocaBytes errbufsize $ \errbuf -> do
+    c_rawPQcancel cancel errbuf (fromIntegral errbufsize) >>= \case
+      0 -> Just <$> peekCString errbuf
+      _ -> return Nothing
   where
     -- Size recommended by
     -- https://www.postgresql.org/docs/current/static/libpq-cancel.html
