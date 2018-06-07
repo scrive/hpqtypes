@@ -200,13 +200,12 @@ connect ConnectionSettings{..} = do
       conn <- c_PQconnectStart conninfo
       when (conn == nullPtr) $
         throwError "PQconnectStart returned a null pointer"
-      -- Work around a bug in GHC that causes foreign pointer
-      -- finalizers to be run multiple times under random
-      -- circumstances (see
-      -- https://ghc.haskell.org/trac/ghc/ticket/7170 for more
-      -- details) by providing another level of indirection and a
-      -- wrapper for PQfinish that can be safely called multiple
-      -- times.
+      -- Work around a bug in GHC that causes foreign pointer finalizers to be
+      -- run multiple times under random circumstances (see
+      -- https://ghc.haskell.org/trac/ghc/ticket/7170 for more details; note
+      -- that the bug was fixed in GHC 8.0.1, but we still want to support
+      -- previous versions) by providing another level of indirection and a
+      -- wrapper for PQfinish that can be safely called multiple times.
       connPtr <- mallocForeignPtr
       withForeignPtr connPtr (`poke` conn)
       addForeignPtrFinalizer c_ptr_PQfinishPtr connPtr
