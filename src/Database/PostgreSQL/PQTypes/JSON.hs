@@ -22,7 +22,7 @@ newtype JSON json = JSON { unJSON :: json }
   deriving (Eq, Functor, Ord, Show, Typeable)
 
 instance PQFormat (JSON json) where
-  pqFormat = const $ BS.pack "%json"
+  pqFormat = BS.pack "%json"
 
 instance FromSQL (JSON BS.ByteString) where
   type PQBase (JSON BS.ByteString) = PGbytea
@@ -55,7 +55,7 @@ newtype JSONB jsonb = JSONB { unJSONB :: jsonb }
   deriving (Eq, Functor, Ord, Show, Typeable)
 
 instance PQFormat (JSONB jsonb) where
-  pqFormat = const $ BS.pack "%jsonb"
+  pqFormat = BS.pack "%jsonb"
 
 instance FromSQL (JSONB BS.ByteString) where
   type PQBase (JSONB BS.ByteString) = PGbytea

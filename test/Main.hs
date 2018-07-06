@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Main where
 
@@ -75,7 +76,10 @@ runTimes !n m = case n of
 ----------------------------------------
 
 newtype AsciiChar = AsciiChar { unAsciiChar :: Char }
-  deriving (Eq, Show, Typeable, PQFormat)
+  deriving (Eq, Show, Typeable)
+
+instance PQFormat AsciiChar where
+  pqFormat = pqFormat @ Char
 
 instance ToSQL AsciiChar where
   type PQDest AsciiChar = PQDest Char
@@ -143,7 +147,7 @@ data Simple = Simple (Maybe Int32) (Maybe Day)
 type instance CompositeRow Simple = (Maybe Int32, Maybe Day)
 
 instance PQFormat Simple where
-  pqFormat _ = "%simple_"
+  pqFormat = "%simple_"
 instance CompositeFromSQL Simple where
   toComposite (a, b) = Simple a b
 instance CompositeToSQL Simple where
@@ -158,7 +162,7 @@ data Nested = Nested (Maybe Double) (Maybe Simple)
 type instance CompositeRow Nested = (Maybe Double, Maybe (Composite Simple))
 
 instance PQFormat Nested where
-  pqFormat _ = "%nested_"
+  pqFormat = "%nested_"
 instance CompositeFromSQL Nested where
   toComposite (a, b) = Nested a (unComposite <$> b)
 instance CompositeToSQL Nested where
@@ -354,9 +358,9 @@ xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
 
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
-rowTest td r = testCase ("Putting row of length" <+> show (pqVariables r) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
+rowTest td _r = testCase ("Putting row of length" <+> show (pqVariables @ row) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
   row :: row <- randomValue 100
-  let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables r]
+  let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables @ row]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
   row' <- fetchOne id
   assertEqual "Row doesn't change after getting through database" row row' (==)

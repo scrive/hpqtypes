@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.SQL (
     SQL
   , mkSQL
@@ -54,8 +55,8 @@ instance IsSQL SQL where
     where
       f param err nums chunk = case chunk of
         SqlString s -> return s
-        SqlParam v -> toSQL v pa $ \base ->
-          BS.unsafeUseAsCString (pqFormat0 v) $ \fmt -> do
+        SqlParam (v::t) -> toSQL v pa $ \base ->
+          BS.unsafeUseAsCString (pqFormat0 @ t) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, "$" <> showt n) $! n+1
 

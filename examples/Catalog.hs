@@ -43,7 +43,7 @@ data Book = Book {
 type instance CompositeRow Book = (Int64, String, Int32)
 
 instance PQFormat Book where
-  pqFormat _ = "%book_"
+  pqFormat = "%book_"
 
 instance CompositeFromSQL Book where
   toComposite (bid, name, year) = Book {
