@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.ToRow (
     ToRow(..)
   , toRow'
@@ -21,7 +22,7 @@ verify :: Ptr PGerror -> CInt -> IO ()
 verify err = verifyPQTRes err "toRow"
 
 withFormat :: forall row. ToRow row => row -> (CString -> IO ()) -> IO ()
-withFormat = const $ BS.unsafeUseAsCString $ pqFormat0 (undefined::row)
+withFormat = const $ BS.unsafeUseAsCString $ pqFormat0 @row
 
 ----------------------------------------
 

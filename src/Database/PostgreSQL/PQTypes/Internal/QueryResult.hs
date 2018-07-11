@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.Internal.QueryResult (
     QueryResult(..)
   , ntuples
@@ -56,10 +57,10 @@ foldImpl strict initCtr termCtr advCtr f iacc (QueryResult (SomeSQL ctx) fres g)
     -- FrowRow and FromSQL instances are (the ones provided
     -- by the library fulfil this requirement).
     rowlen <- fromIntegral <$> c_PQnfields res
-    when (rowlen /= pqVariables row) $ E.throwIO DBException {
+    when (rowlen /= pqVariablesP rowp) $ E.throwIO DBException {
       dbeQueryContext = ctx
     , dbeError = RowLengthMismatch {
-        lengthExpected  = pqVariables row
+        lengthExpected  = pqVariablesP rowp
       , lengthDelivered = rowlen
       }
     }
@@ -69,7 +70,8 @@ foldImpl strict initCtr termCtr advCtr f iacc (QueryResult (SomeSQL ctx) fres g)
       worker res err i n iacc
   where
     -- ⊥ of existential type hidden in QueryResult
-    row = let _ = g row in row
+    row      = let _ = g row in row
+    rowp     = pure row
 
     apply = if strict then ($!) else ($)
 

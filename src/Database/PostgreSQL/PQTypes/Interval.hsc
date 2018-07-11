@@ -93,7 +93,7 @@ instance Storable Interval where
     #{poke PGinterval, usecs} ptr intMicroseconds
 
 instance PQFormat Interval where
-  pqFormat = const $ BS.pack "%interval"
+  pqFormat = BS.pack "%interval"
 
 instance FromSQL Interval where
   type PQBase Interval = Interval

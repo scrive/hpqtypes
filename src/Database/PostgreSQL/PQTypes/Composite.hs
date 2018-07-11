@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.Composite (
     Composite(..)
   , unComposite
@@ -49,7 +50,7 @@ class (PQFormat t, ToRow (CompositeRow t)) => CompositeToSQL t where
   fromComposite :: t -> CompositeRow t
 
 instance PQFormat t => PQFormat (Composite t) where
-  pqFormat = const $ pqFormat (undefined::t)
+  pqFormat = pqFormat @t
 
 instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult

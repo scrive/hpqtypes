@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.FromRow (
     FromRow(..)
   , fromRow'
@@ -43,7 +44,7 @@ verify :: Ptr PGerror -> CInt -> IO ()
 verify err = verifyPQTRes err "fromRow"
 
 withFormat :: forall row. FromRow row => (CString -> IO row) -> IO row
-withFormat = BS.unsafeUseAsCString $ pqFormat0 (undefined::row)
+withFormat = BS.unsafeUseAsCString $ pqFormat0 @row
 
 ----------------------------------------
 
@@ -67,7 +68,7 @@ instance (
       <$> fromRow res err b  i
       <*> fromRow res err b' i
       where
-        b' = b + fromIntegral (pqVariables (undefined::row1))
+        b' = b + fromIntegral (pqVariables @row1)
 
 instance FromRow () where
   fromRow _ _ _ _ = return ()

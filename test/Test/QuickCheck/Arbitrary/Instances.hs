@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeApplications #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
 import Control.Applicative
@@ -20,7 +21,10 @@ import qualified Data.Vector as V
 import Database.PostgreSQL.PQTypes
 
 newtype String0 = String0 { unString0 :: String }
-  deriving (Eq, Ord, Show, Typeable, PQFormat)
+  deriving (Eq, Ord, Show, Typeable)
+
+instance PQFormat String0 where
+  pqFormat = pqFormat @String
 
 instance FromSQL String0 where
   type PQBase String0 = PQBase String

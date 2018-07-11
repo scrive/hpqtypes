@@ -1,3 +1,7 @@
+# hpqtypes-1.6.0.0 (2018-??-??)
+* Convert the PQFormat class to TypeApplications instead of 'undefined :: t'.
+* Drop support for GHC < 8.
+
 # hpqtypes-1.5.3.0 (2018-06-04)
 * add INLINE/INLINEABLE pragmas for call site specialization
 * remove -O2 -funbox-strict-fields from ghc-options

@@ -18,7 +18,7 @@ newtype XML = XML { unXML :: Text }
   deriving (Eq, Ord, Read, Show, Typeable)
 
 instance PQFormat XML where
-  pqFormat = const $ BSC.pack "%xml"
+  pqFormat = BSC.pack "%xml"
 
 instance FromSQL XML where
   type PQBase XML = PGbytea

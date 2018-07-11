@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Database.PostgreSQL.PQTypes.Array (
     -- * Array1
     Array1(..)
@@ -47,7 +48,7 @@ unArray1 :: Array1 a -> [a]
 unArray1 (Array1 a) = a
 
 instance PQFormat t => PQFormat (Array1 t) where
-  pqFormat _ = pqFormat (undefined::t) `BS.append` BS.pack "[]"
+  pqFormat = pqFormat @t `BS.append` BS.pack "[]"
 
 instance FromSQL t => FromSQL (Array1 t) where
   type PQBase (Array1 t) = PGarray
@@ -79,7 +80,7 @@ unCompositeArray1 :: CompositeArray1 a -> [a]
 unCompositeArray1 (CompositeArray1 a) = a
 
 instance PQFormat t => PQFormat (CompositeArray1 t) where
-  pqFormat _ = pqFormat (undefined::Array1 t)
+  pqFormat = pqFormat @(Array1 t)
 
 instance CompositeFromSQL t => FromSQL (CompositeArray1 t) where
   type PQBase (CompositeArray1 t) = PGarray
@@ -109,7 +110,7 @@ putArray1 :: forall t r. PQFormat t
           -- along with its format and puts it into inner 'PGparam'.
           -> IO r
 putArray1 arr param conv putItem = do
-  pqFormat0 (undefined::t) `BS.unsafeUseAsCString` (forM_ arr . putItem)
+  pqFormat0 @t `BS.unsafeUseAsCString` (forM_ arr . putItem)
   putAsPtr (PGarray {
     pgArrayNDims = 0
   , pgArrayLBound = V.empty
@@ -135,7 +136,7 @@ getArray1 con PGarray{..} getItem = flip E.finally (c_PQclear pgArrayRes) $
       }
     else do
       size <- c_PQntuples pgArrayRes
-      alloca $ \err -> alloca $ \ptr -> pqFormat0 (undefined::t)
+      alloca $ \err -> alloca $ \ptr -> pqFormat0 @t
         `BS.unsafeUseAsCString` loop [] (size - 1) err ptr
   where
     loop :: [t] -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
@@ -156,7 +157,7 @@ unArray2 :: Array2 a -> [[a]]
 unArray2 (Array2 a) = a
 
 instance PQFormat t => PQFormat (Array2 t) where
-  pqFormat _ = pqFormat (undefined::Array1 t)
+  pqFormat = pqFormat @(Array1 t)
 
 instance FromSQL t => FromSQL (Array2 t) where
   type PQBase (Array2 t) = PGarray
@@ -188,7 +189,7 @@ unCompositeArray2 :: CompositeArray2 a -> [[a]]
 unCompositeArray2 (CompositeArray2 a) = a
 
 instance PQFormat t => PQFormat (CompositeArray2 t) where
-  pqFormat _ = pqFormat (undefined::Array2 t)
+  pqFormat = pqFormat @(Array2 t)
 
 instance CompositeFromSQL t => FromSQL (CompositeArray2 t) where
   type PQBase (CompositeArray2 t) = PGarray
@@ -218,7 +219,7 @@ putArray2 :: forall t r. PQFormat t
           -- along with its format and puts it into inner 'PGparam'.
           -> IO r
 putArray2 arr param conv putItem = do
-  dims <- pqFormat0 (undefined::t) `BS.unsafeUseAsCString` loop arr 0 0
+  dims <- pqFormat0 @t `BS.unsafeUseAsCString` loop arr 0 0
   putAsPtr (PGarray {
     pgArrayNDims = 2
   , pgArrayLBound = V.fromList [1, 1]
@@ -261,7 +262,7 @@ getArray2 con PGarray{..} getItem = flip E.finally (c_PQclear pgArrayRes) $ do
     else do
       let dim2 = pgArrayDims V.! 1
       size <- c_PQntuples pgArrayRes
-      alloca $ \ptr -> alloca $ \err -> pqFormat0 (undefined::t)
+      alloca $ \ptr -> alloca $ \err -> pqFormat0 @t
         `BS.unsafeUseAsCString` loop [] dim2 size err ptr
   where
     loop :: [[t]] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
