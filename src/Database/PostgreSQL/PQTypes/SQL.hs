@@ -56,7 +56,7 @@ instance IsSQL SQL where
       f param err nums chunk = case chunk of
         SqlString s -> return s
         SqlParam (v::t) -> toSQL v pa $ \base ->
-          BS.unsafeUseAsCString (pqFormat0 @ t) $ \fmt -> do
+          BS.unsafeUseAsCString (pqFormat0 @t) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> return . (, "$" <> showt n) $! n+1
 

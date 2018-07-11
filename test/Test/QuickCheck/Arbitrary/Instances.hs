@@ -24,7 +24,7 @@ newtype String0 = String0 { unString0 :: String }
   deriving (Eq, Ord, Show, Typeable)
 
 instance PQFormat String0 where
-  pqFormat = pqFormat @ String
+  pqFormat = pqFormat @String
 
 instance FromSQL String0 where
   type PQBase String0 = PQBase String

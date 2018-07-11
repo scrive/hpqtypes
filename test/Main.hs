@@ -79,7 +79,7 @@ newtype AsciiChar = AsciiChar { unAsciiChar :: Char }
   deriving (Eq, Show, Typeable)
 
 instance PQFormat AsciiChar where
-  pqFormat = pqFormat @ Char
+  pqFormat = pqFormat @Char
 
 instance ToSQL AsciiChar where
   type PQDest AsciiChar = PQDest Char
@@ -358,9 +358,9 @@ xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
 
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
-rowTest td _r = testCase ("Putting row of length" <+> show (pqVariables @ row) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
+rowTest td _r = testCase ("Putting row of length" <+> show (pqVariables @row) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
   row :: row <- randomValue 100
-  let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables @ row]
+  let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables @row]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
   row' <- fetchOne id
   assertEqual "Row doesn't change after getting through database" row row' (==)

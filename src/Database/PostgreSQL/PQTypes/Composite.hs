@@ -50,7 +50,7 @@ class (PQFormat t, ToRow (CompositeRow t)) => CompositeToSQL t where
   fromComposite :: t -> CompositeRow t
 
 instance PQFormat t => PQFormat (Composite t) where
-  pqFormat = pqFormat @ t
+  pqFormat = pqFormat @t
 
 instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
