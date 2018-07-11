@@ -1,5 +1,6 @@
-# hpqtypes-1.6.0.0 (2018-??-??)
-* Convert the PQFormat class to TypeApplications instead of 'undefined :: t'.
+# hpqtypes-1.6.0.0 (2018-07-11)
+* Convert the PQFormat class to use TypeApplications instead of
+  an 'undefined :: t' argument.
 * Drop support for GHC < 8.
 
 # hpqtypes-1.5.3.0 (2018-06-04)
