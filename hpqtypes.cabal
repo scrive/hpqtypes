@@ -191,6 +191,9 @@ library
                     , TypeFamilies
                     , TypeOperators
                     , UndecidableInstances
+  other-extensions:   AllowAmbiguousTypes
+                    , CPP
+                    , TypeApplications
 
 test-suite hpqtypes-tests
   type:              exitcode-stdio-1.0
