@@ -40,7 +40,8 @@ import Test.QuickCheck.Compat
 type InnerTestEnv = StateT QCGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
-  deriving (Applicative, Functor, Monad, MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow)
+  deriving ( Applicative, Functor, Monad
+           , MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow )
 
 instance MonadBaseControl IO TestEnv where
 #if MIN_VERSION_monad_control(1,0,0)
@@ -249,7 +250,8 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
       Nothing -> return ()
 
 autocommitTest :: TestData -> Test
-autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $ do
+autocommitTest td = testCase "Autocommit mode works" .
+                    runTestEnv td tsNoTrans $ do
   let sint = Identity (1::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
@@ -258,7 +260,8 @@ autocommitTest td = testCase "Autocommit mode works" . runTestEnv td tsNoTrans $
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
 readOnlyTest :: TestData -> Test
-readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td def{tsPermissions = ReadOnly} $ do
+readOnlyTest td = testCase "Read only transaction mode works" .
+                  runTestEnv td def{tsPermissions = ReadOnly} $ do
   let sint = Identity (2::Int32)
   eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   case eres :: Either DBException () of
@@ -269,7 +272,8 @@ readOnlyTest td = testCase "Read only transaction mode works" . runTestEnv td de
   assertEqual "SELECT works in read only mode" n 0 (==)
 
 savepointTest :: TestData -> Test
-savepointTest td = testCase "Savepoint support works" . runTestEnv td def $ do
+savepointTest td = testCase "Savepoint support works" .
+                   runTestEnv td def $ do
   let int1 = 3 :: Int32
       int2 = 4 :: Int32
 
@@ -288,7 +292,8 @@ savepointTest td = testCase "Savepoint support works" . runTestEnv td def $ do
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int1)
   withSavepoint (Savepoint "test") $ do
     runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" (Identity int2)
-  runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
+  runQuery_ $ rawSQL
+    "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
   res2 <- fetchMany runIdentity
   assertEqual "Result of all queries is visible" res2 [int1, int2] (==)
 
@@ -318,7 +323,10 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
     forkNewConn = void . fork . withNewConnection
 
 transactionTest :: TestData -> IsolationLevel -> Test
-transactionTest td lvl = testCase ("Auto transaction works by default with isolation level" <+> show lvl) . runTestEnv td def{tsIsolationLevel = lvl} $ do
+transactionTest td lvl = testCase
+                         ("Auto transaction works by default with isolation level"
+                          <+> show lvl) .
+                         runTestEnv td def{tsIsolationLevel = lvl} $ do
   let sint = Identity (5::Int32)
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
@@ -328,7 +336,9 @@ transactionTest td lvl = testCase ("Auto transaction works by default with isola
 
 nullTest :: forall t. (Show t, ToSQL t, FromSQL t, Typeable t)
          => TestData -> t -> Test
-nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (typeOf t) <+> "fails if NULL is provided") . runTestEnv td def $ do
+nullTest td t = testCase ("Attempt to get non-NULL value of type"
+                          <+> show (typeOf t) <+> "fails if NULL is provided") .
+                runTestEnv td def $ do
   runSQL_ $ "SELECT" <?> (Nothing::Maybe t)
   eres  <- try $ fetchOne runIdentity
   case eres :: Either DBException t of
@@ -337,7 +347,11 @@ nullTest td t = testCase ("Attempt to get non-NULL value of type" <+> show (type
 
 putGetTest :: forall t. (Arbitrary t, Show t, ToSQL t, FromSQL t, Typeable t)
            => TestData -> Int -> t -> (t -> t -> Bool) -> Test
-putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+> "through database doesn't change its value") . runTestEnv td def . runTimes 1000 $ do
+putGetTest td n t eq = testCase
+                       ("Putting value of type"
+                         <+> show (typeOf t)
+                         <+> "through database doesn't change its value") .
+                       runTestEnv td def . runTimes 1000 $ do
   v :: t <- randomValue n
   --liftBase . putStrLn . show $ v
   runSQL_ $ "SELECT" <?> v
@@ -345,7 +359,8 @@ putGetTest td n t eq = testCase ("Putting value of type" <+> show (typeOf t) <+>
   assertEqual "Value doesn't change after getting through database" v v' eq
 
 xmlTest :: TestData -> Test
-xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
+xmlTest td  = testCase "Put and get XML value works" .
+              runTestEnv td def $ do
   runSQL_ $ "SET CLIENT_ENCODING TO 'UTF8'"
   let v = XML "some<tag>stringå</tag>"
   runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
@@ -358,7 +373,10 @@ xmlTest td  = testCase "Put and get XML value works" . runTestEnv td def $ do
 
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
         => TestData -> row -> Test
-rowTest td _r = testCase ("Putting row of length" <+> show (pqVariables @row) <+> "through database works") . runTestEnv td def . runTimes 100 $ do
+rowTest td _r = testCase ("Putting row of length"
+                          <+> show (pqVariables @row)
+                          <+> "through database works") .
+                runTestEnv td def . runTimes 100 $ do
   row :: row <- randomValue 100
   let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables @row]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
