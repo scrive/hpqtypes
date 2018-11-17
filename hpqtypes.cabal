@@ -95,6 +95,7 @@ library
                      , Database.PostgreSQL.PQTypes.ToSQL
                      , Database.PostgreSQL.PQTypes.Transaction
                      , Database.PostgreSQL.PQTypes.Class
+                     , Database.PostgreSQL.PQTypes.Cursor
                      , Database.PostgreSQL.PQTypes.Format
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.Notification

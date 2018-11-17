@@ -227,14 +227,66 @@ assertEqual preface expected actual eq =
 
 ----------------------------------------
 
+sqlGenInts :: Int32 -> SQL
+sqlGenInts n = smconcat
+  [ "WITH RECURSIVE ints(n) AS"
+  , "( VALUES (1) UNION ALL SELECT n+1 FROM ints WHERE n <" <?> n
+  , ") SELECT n FROM ints"
+  ]
+
+cursorTest :: TestData -> Test
+cursorTest td = testGroup "Cursors"
+  [ basicCursorWorks
+  , scrollableCursorWorks
+  , withHoldCursorWorks
+  ]
+  where
+    basicCursorWorks = testCase "Basic cursor works" $ do
+      runTestEnv td def . withCursor "ints" mempty (sqlGenInts 5) $ \cursor -> do
+        xs <- (`fix` []) $ \loop acc -> cursorFetch cursor CD_Next >>= \case
+          0 -> return $ reverse acc
+          1 -> do
+            (n::Int32) <- fetchOne runIdentity
+            loop $ n : acc
+          n -> error $ "Unexpected number of rows: " ++ show n
+        assertEqual "Data fetched correctly" [1..5] xs (==)
+
+    scrollableCursorWorks = testCase "Cursor declared as SCROLL works" $ do
+      runTestEnv td def . withCursor "ints" scroll (sqlGenInts 10) $ \cursor -> do
+        checkMove cursor CD_Next         1
+        checkMove cursor CD_Prior        0
+        checkMove cursor CD_First        1
+        checkMove cursor CD_Last         1
+        checkMove cursor CD_Backward_All 9
+        checkMove cursor CD_Forward_All  10
+        checkMove cursor (CD_Absolute 0) 0
+        checkMove cursor (CD_Relative 0) 0
+        checkMove cursor (CD_Forward 5)  5
+        checkMove cursor (CD_Backward 5) 4
+
+        cursorFetch_ cursor CD_Forward_All
+        xs1::[Int32] <- fetchMany runIdentity
+        assertEqual "xs1 is correct" [1..10] xs1 (==)
+        cursorFetch_ cursor CD_Backward_All
+        xs2::[Int32] <- fetchMany runIdentity
+        assertEqual "xs2 is correct" (reverse [1..10]) xs2 (==)
+      where
+        checkMove cursor cd expected = do
+          moved <- cursorMove cursor cd
+          assertEqual ("Moving cursor with" <+> show cd
+                       <+> "would fetch a correct amount of rows")
+            expected moved (==)
+
+    withHoldCursorWorks = testCase "Cursor declared as WITH HOLD works" $ do
+      runTestEnv td tsNoTrans . withCursor "ints" withHold (sqlGenInts 10) $ \cursor -> do
+        cursorFetch_ cursor CD_Forward_All
+        sum_::Int32 <- sum . fmap runIdentity <$> queryResult
+        assertEqual "sum_ is correct" 55 sum_ (==)
+
 queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
   let sleep = "SELECT pg_sleep(2)"
-      ints  = smconcat
-        [ "WITH RECURSIVE ints(n) AS"
-        , "( VALUES (1) UNION ALL SELECT n+1 FROM ints WHERE n < 5000000"
-        , ") SELECT n FROM ints"
-        ]
+      ints  = sqlGenInts 5000000
   runTestEnv td tsNoTrans $ do
     testQuery id sleep
     testQuery id ints
@@ -242,9 +294,9 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
     testQuery (withSavepoint "ints")  ints
     testQuery (withSavepoint "sleep") sleep
    where
-    testQuery m sql = timeout 500000 (m . runQuery_ $ rawSQL sql ()) >>= \case
+    testQuery m sql = timeout 500000 (m $ runSQL_ sql) >>= \case
       Just _  -> liftBase $ do
-        assertFailure $ "Query" <+> T.unpack sql <+> "wasn't interrupted in time"
+        assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
       Nothing -> return ()
 
 autocommitTest :: TestData -> Test
@@ -397,6 +449,7 @@ tests td = [
   , savepointTest td
   , notifyTest td
   , queryInterruptionTest td
+  , cursorTest td
   ----------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
