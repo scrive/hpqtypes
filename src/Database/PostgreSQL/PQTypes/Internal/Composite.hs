@@ -7,7 +7,6 @@ import Foreign.ForeignPtr.Unsafe
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
-import Prelude
 import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface

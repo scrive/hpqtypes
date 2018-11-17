@@ -7,12 +7,10 @@ module Database.PostgreSQL.PQTypes.SQL (
   , isSqlEmpty
   ) where
 
-import Control.Applicative
 import Control.Concurrent.MVar
 import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
-import Prelude
 import TextShow
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Unsafe as BS

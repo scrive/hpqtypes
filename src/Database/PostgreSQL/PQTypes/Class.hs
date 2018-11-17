@@ -4,10 +4,8 @@ module Database.PostgreSQL.PQTypes.Class (
     MonadDB(..)
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
-import Prelude
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection

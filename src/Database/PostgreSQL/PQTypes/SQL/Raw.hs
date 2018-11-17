@@ -4,10 +4,8 @@ module Database.PostgreSQL.PQTypes.SQL.Raw (
   , unRawSQL
   ) where
 
-import Data.Monoid
 import Data.String
 import Foreign.Marshal.Alloc
-import Prelude
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Semigroup as SG
 import qualified Data.Text as T
@@ -34,7 +32,7 @@ instance IsString (RawSQL ()) where
   fromString = flip RawSQL () . T.pack
 
 instance SG.Semigroup (RawSQL ()) where
-  RawSQL a () <> RawSQL b () = RawSQL (a <> b) ()
+  RawSQL a () <> RawSQL b () = RawSQL (a SG.<> b) ()
   sconcat xs = RawSQL (SG.sconcat $ fmap (\(RawSQL s ()) -> s) xs) ()
 
 instance Monoid (RawSQL ()) where

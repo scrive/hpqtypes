@@ -9,13 +9,10 @@ module Database.PostgreSQL.PQTypes.Interval (
   , imicroseconds
   ) where
 
-import Control.Applicative
 import Data.Int
 import Data.List
-import Data.Monoid
 import Data.Typeable
 import Foreign.Storable
-import Prelude
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Semigroup as SG
 
@@ -23,8 +20,6 @@ import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.ToSQL
-
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
 
 #include <libpqtypes.h>
 

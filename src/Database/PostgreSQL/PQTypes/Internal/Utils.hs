@@ -15,7 +15,6 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
   , unexpectedNULL
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Data.ByteString.Unsafe
 import Foreign.C
@@ -25,7 +24,6 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 import GHC.Exts
-import Prelude
 import qualified Control.Exception as E
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

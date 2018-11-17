@@ -4,7 +4,6 @@ module Database.PostgreSQL.PQTypes.Internal.Error.Code (
   ) where
 
 import Data.Typeable
-import Prelude
 
 -- | SQL error code. Reference:
 -- <http://www.postgresql.org/docs/devel/static/errcodes-appendix.html>.

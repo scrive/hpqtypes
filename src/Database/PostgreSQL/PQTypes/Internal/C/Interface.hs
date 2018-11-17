@@ -32,12 +32,10 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , nullStringCStringLen
   )  where
 
-import Control.Applicative
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import Prelude
 import System.Posix.Types
 import qualified Control.Exception as E
 

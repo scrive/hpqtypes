@@ -7,10 +7,8 @@ module Database.PostgreSQL.PQTypes.Composite (
   , CompositeToSQL(..)
   ) where
 
-import Control.Applicative
 import Data.Typeable
 import Foreign.Ptr
-import Prelude
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Format

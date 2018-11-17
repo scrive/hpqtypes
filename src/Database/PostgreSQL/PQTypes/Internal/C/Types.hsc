@@ -35,18 +35,14 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types (
   , PGtimestamp(..)
   ) where
 
-import Control.Applicative
 import Data.ByteString.Unsafe
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-import Prelude
 import qualified Data.ByteString as BS
 import qualified Data.Vector.Storable as V
-
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
 
 data PGcancel
 data PGconn
