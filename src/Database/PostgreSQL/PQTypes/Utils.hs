@@ -14,7 +14,6 @@ module Database.PostgreSQL.PQTypes.Utils (
 
 import Control.Monad
 import Control.Monad.Catch
-import Prelude
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Error

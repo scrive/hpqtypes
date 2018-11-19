@@ -14,14 +14,12 @@ module Database.PostgreSQL.PQTypes.Array (
   , unCompositeArray2
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Data.Typeable
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Unsafe as BS

@@ -11,7 +11,6 @@ import Data.String
 import Data.Typeable
 import Foreign.Ptr
 import Foreign.Storable
-import Prelude
 import System.Posix.Types
 import System.Timeout
 import qualified Control.Exception as E
@@ -25,8 +24,6 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Raw
-
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__);}, y__)
 
 #include <libpq-fe.h>
 

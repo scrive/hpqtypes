@@ -8,7 +8,6 @@ module Database.PostgreSQL.PQTypes.Transaction.Settings (
 
 import Data.Default.Class
 import Data.Typeable
-import Prelude
 import qualified Control.Exception as E
 
 -- | Predicate that determines whether the transaction has to be restarted.

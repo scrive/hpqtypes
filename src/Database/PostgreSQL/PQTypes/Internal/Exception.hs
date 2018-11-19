@@ -5,7 +5,6 @@ module Database.PostgreSQL.PQTypes.Internal.Exception (
   ) where
 
 import Data.Typeable
-import Prelude
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.SQL.Class

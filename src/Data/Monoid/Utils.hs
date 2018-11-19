@@ -7,9 +7,7 @@ module Data.Monoid.Utils (
   ) where
 
 import Data.List
-import Data.Monoid
 import Data.String
-import Prelude
 
 -- | Generalization of 'intercalate' to arbitrary 'Monoid'.
 {-# INLINE mintercalate #-}

@@ -1,12 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 import Control.Monad
 import Data.Char
 import Distribution.PackageDescription
 import Distribution.Simple
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Program
-import Distribution.Simple.Program.Find
 import Distribution.Simple.Setup
 import Distribution.Simple.Utils
 import Distribution.Verbosity
@@ -41,7 +39,7 @@ pgconfigProgram = (simpleProgram "pgconfig") {
 psqlBuildInfo :: Verbosity -> LocalBuildInfo -> IO BuildInfo
 psqlBuildInfo verbosity lbi = do
   (pgconfigProg, _) <- requireProgram verbosity pgconfigProgram (withPrograms lbi)
-  let pgconfig = rawSystemProgramStdout verbosity pgconfigProg
+  let pgconfig = getProgramOutput verbosity pgconfigProg
 
   incDir <- pgconfig ["--includedir"]
   libDir <- pgconfig ["--libdir"]

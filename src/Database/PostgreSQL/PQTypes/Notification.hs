@@ -8,7 +8,6 @@ module Database.PostgreSQL.PQTypes.Notification (
   ) where
 
 import Data.Text (Text)
-import Prelude
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class

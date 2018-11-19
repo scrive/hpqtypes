@@ -4,13 +4,11 @@ module Database.PostgreSQL.PQTypes.FromRow (
   , fromRow'
   ) where
 
-import Control.Applicative
 import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString.Unsafe as BS
 

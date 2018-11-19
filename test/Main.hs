@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Main where
 
-import Control.Applicative
 import Control.Concurrent.Lifted
 import Control.Monad
 import Control.Monad.Base
@@ -17,7 +16,6 @@ import Data.Maybe
 import Data.Time
 import Data.Typeable
 import Data.Word
-import Prelude
 import System.Environment
 import System.Exit
 import System.Random

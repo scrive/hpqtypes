@@ -2,12 +2,9 @@ module Database.PostgreSQL.PQTypes.Internal.Query (
     runQueryIO
   ) where
 
-import Control.Applicative
 import Control.Concurrent.Async
-import Control.Monad
 import Foreign.ForeignPtr
 import Foreign.Ptr
-import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 

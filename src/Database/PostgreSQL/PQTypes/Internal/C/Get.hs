@@ -5,7 +5,6 @@ module Database.PostgreSQL.PQTypes.Internal.C.Get where
 
 import Foreign.C
 import Foreign.Ptr
-import Prelude
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 

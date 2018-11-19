@@ -13,7 +13,6 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   , disconnect
   ) where
 
-import Control.Applicative
 import Control.Arrow (first)
 import Control.Concurrent
 import Control.Monad
@@ -28,7 +27,6 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import GHC.Exts
-import Prelude
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
