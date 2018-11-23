@@ -115,7 +115,7 @@ withCursor
   -> m r
 withCursor name scroll hold sql k = bracket_
   (runQuery_ declareCursor)
-  (runQuery_ $ "CLOSE" <+> unCursorName name)
+  (runQuery_ closeCursor)
   (k $ Cursor name sql)
   where
     declareCursor = smconcat
@@ -130,6 +130,17 @@ withCursor name scroll hold sql k = bracket_
           NoHold -> "WITHOUT HOLD"
       , "FOR"
       , sql
+      ]
+
+    -- Because the cursor might potentially be closed within the continuation
+    -- (either by an explicit CLOSE or finishing the current transaction), we
+    -- need to supress a potential 'InvalidCursorName' exception.
+    closeCursor = smconcat
+      [ "DO $$"
+      , "BEGIN"
+      , "  EXECUTE 'CLOSE" <+> unCursorName name <> "';"
+      , "EXCEPTION WHEN invalid_cursor_name THEN"
+      , "END $$"
       ]
 
 -- | Version of 'withCursor' without the @sql@ type parameter for convenience.

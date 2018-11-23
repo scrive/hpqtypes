@@ -242,6 +242,7 @@ cursorTest td = testGroup "Cursors"
   [ basicCursorWorks
   , scrollableCursorWorks
   , withHoldCursorWorks
+  , doubleCloseWorks
   ]
   where
     basicCursorWorks = testCase "Basic cursor works" $ do
@@ -285,6 +286,11 @@ cursorTest td = testGroup "Cursors"
         cursorFetch_ cursor CD_Forward_All
         sum_::Int32 <- sum . fmap runIdentity <$> queryResult
         assertEqualEq "sum_ is correct" 55 sum_
+
+    doubleCloseWorks = testCase "Double CLOSE works on a cursor" $ do
+      runTestEnv td def . withCursorSQL "ints" def NoHold "SELECT 1" $ \_cursor -> do
+        -- Commiting a transaction closes the cursor
+        commit
 
 queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
