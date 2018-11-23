@@ -246,34 +246,36 @@ cursorTest td = testGroup "Cursors"
   ]
   where
     basicCursorWorks = testCase "Basic cursor works" $ do
-      runTestEnv td def . withCursor "ints" def def (sqlGenInts 5) $ \cursor -> do
-        xs <- (`fix` []) $ \loop acc -> cursorFetch cursor CD_Next >>= \case
-          0 -> return $ reverse acc
-          1 -> do
-            (n::Int32) <- fetchOne runIdentity
-            loop $ n : acc
-          n -> error $ "Unexpected number of rows: " ++ show n
-        assertEqualEq "Data fetched correctly" [1..5] xs
+      runTestEnv td def $ do
+        withCursor "ints" NoScroll NoHold (sqlGenInts 5) $ \cursor -> do
+          xs <- (`fix` []) $ \loop acc -> cursorFetch cursor CD_Next >>= \case
+            0 -> return $ reverse acc
+            1 -> do
+              (n::Int32) <- fetchOne runIdentity
+              loop $ n : acc
+            n -> error $ "Unexpected number of rows: " ++ show n
+          assertEqualEq "Data fetched correctly" [1..5] xs
 
     scrollableCursorWorks = testCase "Cursor declared as SCROLL works" $ do
-      runTestEnv td def . withCursor "ints" Scroll def (sqlGenInts 10) $ \cursor -> do
-        checkMove cursor CD_Next         1
-        checkMove cursor CD_Prior        0
-        checkMove cursor CD_First        1
-        checkMove cursor CD_Last         1
-        checkMove cursor CD_Backward_All 9
-        checkMove cursor CD_Forward_All  10
-        checkMove cursor (CD_Absolute 0) 0
-        checkMove cursor (CD_Relative 0) 0
-        checkMove cursor (CD_Forward 5)  5
-        checkMove cursor (CD_Backward 5) 4
+      runTestEnv td def $ do
+        withCursor "ints" Scroll NoHold (sqlGenInts 10) $ \cursor -> do
+          checkMove cursor CD_Next         1
+          checkMove cursor CD_Prior        0
+          checkMove cursor CD_First        1
+          checkMove cursor CD_Last         1
+          checkMove cursor CD_Backward_All 9
+          checkMove cursor CD_Forward_All  10
+          checkMove cursor (CD_Absolute 0) 0
+          checkMove cursor (CD_Relative 0) 0
+          checkMove cursor (CD_Forward 5)  5
+          checkMove cursor (CD_Backward 5) 4
 
-        cursorFetch_ cursor CD_Forward_All
-        xs1::[Int32] <- fetchMany runIdentity
-        assertEqualEq "xs1 is correct" [1..10] xs1
-        cursorFetch_ cursor CD_Backward_All
-        xs2::[Int32] <- fetchMany runIdentity
-        assertEqualEq "xs2 is correct" (reverse [1..10]) xs2
+          cursorFetch_ cursor CD_Forward_All
+          xs1::[Int32] <- fetchMany runIdentity
+          assertEqualEq "xs1 is correct" [1..10] xs1
+          cursorFetch_ cursor CD_Backward_All
+          xs2::[Int32] <- fetchMany runIdentity
+          assertEqualEq "xs2 is correct" (reverse [1..10]) xs2
       where
         checkMove cursor cd expected = do
           moved <- cursorMove cursor cd
@@ -282,15 +284,17 @@ cursorTest td = testGroup "Cursors"
             expected moved
 
     withHoldCursorWorks = testCase "Cursor declared as WITH HOLD works" $ do
-      runTestEnv td tsNoTrans . withCursor "ints" def Hold (sqlGenInts 10) $ \cursor -> do
-        cursorFetch_ cursor CD_Forward_All
-        sum_::Int32 <- sum . fmap runIdentity <$> queryResult
-        assertEqualEq "sum_ is correct" 55 sum_
+      runTestEnv td tsNoTrans $ do
+        withCursor "ints" NoScroll Hold (sqlGenInts 10) $ \cursor -> do
+          cursorFetch_ cursor CD_Forward_All
+          sum_::Int32 <- sum . fmap runIdentity <$> queryResult
+          assertEqualEq "sum_ is correct" 55 sum_
 
     doubleCloseWorks = testCase "Double CLOSE works on a cursor" $ do
-      runTestEnv td def . withCursorSQL "ints" def NoHold "SELECT 1" $ \_cursor -> do
-        -- Commiting a transaction closes the cursor
-        commit
+      runTestEnv td def $ do
+        withCursorSQL "ints" NoScroll NoHold "SELECT 1" $ \_cursor -> do
+          -- Commiting a transaction closes the cursor
+          commit
 
 queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do

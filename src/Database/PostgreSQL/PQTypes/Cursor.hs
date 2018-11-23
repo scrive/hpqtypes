@@ -16,7 +16,6 @@ module Database.PostgreSQL.PQTypes.Cursor
 
 import Control.Monad
 import Control.Monad.Catch
-import Data.Default.Class
 import Data.String
 
 import Data.Monoid.Utils
@@ -43,10 +42,6 @@ instance Show sql => Show (CursorName sql) where
 data Scroll = Scroll | NoScroll
   deriving (Eq, Ord, Show)
 
--- | Cursors are not scrollable by default.
-instance Default Scroll where
-  def = NoScroll
-
 -- | Defines whether a cursor will be declared as @WITH HOLD@ or @WITHOUT HOLD@.
 -- Cursors declared as @WITH HOLD@ can only be declared within a transaction
 -- block and they're automatically closed once the transaction finishes,
@@ -54,10 +49,6 @@ instance Default Scroll where
 -- even if no transaction is active.
 data Hold = Hold | NoHold
   deriving (Eq, Ord, Show)
-
--- | Cursors are declared as @WITH HOLD@ by default.
-instance Default Hold where
-  def = Hold
 
 -- | Data representing a created cursor.
 data Cursor sql = Cursor !(CursorName sql) !sql
