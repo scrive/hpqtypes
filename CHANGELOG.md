@@ -1,3 +1,8 @@
+# hpqtypes-1.6.1.0 (2018-11-23)
+* Add support for cursors.
+* Don't explicitly derive Typeable for data types.
+* Add support for GHC 8.6.*.
+
 # hpqtypes-1.6.0.0 (2018-07-11)
 * Convert the PQFormat class to use TypeApplications instead of
   an 'undefined :: t' argument.
