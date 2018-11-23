@@ -33,20 +33,20 @@ data DetailedQueryError = DetailedQueryError {
 , qeSourceFile        :: !(Maybe String)
 , qeSourceLine        :: !(Maybe Int)
 , qeSourceFunction    :: !(Maybe String)
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 -- | Simple SQL query error. Thrown when there is no
 -- PGresult object corresponding to query execution.
 newtype QueryError = QueryError String
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Internal error in this library.
 newtype HPQTypesError = HPQTypesError String
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Internal error in libpq/libpqtypes library.
 newtype LibPQError = LibPQError String
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Data conversion error. Since it's polymorphic in error type,
 -- it nicely reports arbitrarily nested conversion errors.
@@ -59,7 +59,7 @@ data ConversionError = forall e. E.Exception e => ConversionError {
 , convRow        :: !Int
 -- | Exact error.
 , convError      :: !e
-} deriving Typeable
+}
 
 deriving instance Show ConversionError
 
@@ -70,7 +70,7 @@ data ArrayItemError = forall e. E.Exception e => ArrayItemError {
   arrItemIndex :: !Int
 -- | Exact error.
 , arrItemError :: !e
-} deriving Typeable
+}
 
 deriving instance Show ArrayItemError
 
@@ -80,7 +80,7 @@ data InvalidValue t = InvalidValue {
   ivValue       :: t
 -- Optional list of valid values.
 , ivValidValues :: Maybe [t]
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 -- | Range error for various data types.
 data RangeError t = RangeError {
@@ -88,7 +88,7 @@ data RangeError t = RangeError {
   reRange :: [(t, t)]
 -- | Provided value which is not in above range.
 , reValue :: t
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 -- | Array dimenstion mismatch error.
 data ArrayDimensionMismatch = ArrayDimensionMismatch {
@@ -96,7 +96,7 @@ data ArrayDimensionMismatch = ArrayDimensionMismatch {
   arrDimExpected  :: !Int
 -- | Dimension provided by the database.
 , arrDimDelivered :: !Int
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 -- | Row length mismatch error.
 data RowLengthMismatch = RowLengthMismatch {
@@ -104,7 +104,7 @@ data RowLengthMismatch = RowLengthMismatch {
   lengthExpected  :: !Int
 -- | Length delivered by the database.
 , lengthDelivered :: !Int
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 -- | Affected/returned rows mismatch error.
 data AffectedRowsMismatch = AffectedRowsMismatch {
@@ -114,7 +114,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch {
   rowsExpected  :: ![(Int, Int)]
 -- | Number of affected/returned rows by the database.
 , rowsDelivered :: !Int
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 instance E.Exception DetailedQueryError
 instance E.Exception QueryError

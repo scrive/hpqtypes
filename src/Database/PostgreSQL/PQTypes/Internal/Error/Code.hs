@@ -3,8 +3,6 @@ module Database.PostgreSQL.PQTypes.Internal.Error.Code (
   , stringToErrorCode
   ) where
 
-import Data.Typeable
-
 -- | SQL error code. Reference:
 -- <http://www.postgresql.org/docs/devel/static/errcodes-appendix.html>.
 data ErrorCode
@@ -284,7 +282,7 @@ data ErrorCode
   | IndexCorrupted
   -- Unknown error code
   | UnknownErrorCode String
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Convert 'String' to corresponding 'ErrorCode'.
 stringToErrorCode :: String -> ErrorCode

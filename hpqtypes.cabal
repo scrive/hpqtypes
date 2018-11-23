@@ -171,7 +171,6 @@ library
   default-extensions: BangPatterns
                     , ConstraintKinds
                     , DataKinds
-                    , DeriveDataTypeable
                     , DeriveFunctor
                     , ExistentialQuantification
                     , FlexibleContexts
@@ -229,7 +228,6 @@ test-suite hpqtypes-tests
   default-extensions: BangPatterns
                     , ConstraintKinds
                     , DataKinds
-                    , DeriveDataTypeable
                     , DeriveFunctor
                     , ExistentialQuantification
                     , FlexibleContexts

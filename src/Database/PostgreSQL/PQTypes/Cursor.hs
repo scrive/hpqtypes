@@ -18,7 +18,6 @@ import Control.Monad
 import Control.Monad.Catch
 import Data.Default.Class
 import Data.String
-import Data.Typeable
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
@@ -28,7 +27,7 @@ import Database.PostgreSQL.PQTypes.Utils
 
 -- | Name of a cursor.
 newtype CursorName sql = CursorName { unCursorName :: sql }
-  deriving (Eq, Ord, Typeable)
+  deriving (Eq, Ord)
 
 instance IsString sql => IsString (CursorName sql) where
   fromString = CursorName . fromString
@@ -42,7 +41,7 @@ instance Show sql => Show (CursorName sql) where
 -- SCROLL@. Scrollable cursors can be scrolled in all directions, otherwise only
 -- forward.
 data Scroll = Scroll | NoScroll
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Cursors are not scrollable by default.
 instance Default Scroll where
@@ -54,7 +53,7 @@ instance Default Scroll where
 -- otherwise they're independent of the current transaction and can be declared
 -- even if no transaction is active.
 data Hold = Hold | NoHold
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Cursors are declared as @WITH HOLD@ by default.
 instance Default Hold where
@@ -62,7 +61,7 @@ instance Default Hold where
 
 -- | Data representing a created cursor.
 data Cursor sql = Cursor !(CursorName sql) !sql
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 ----------------------------------------
 
@@ -80,7 +79,7 @@ data CursorDirection
   | CD_Relative Int
   | CD_Forward  Int
   | CD_Backward Int
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 cursorDirectionToSQL :: (IsString sql, IsSQL sql, Monoid sql) => CursorDirection -> sql
 cursorDirectionToSQL = \case

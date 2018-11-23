@@ -7,13 +7,11 @@ module Database.PostgreSQL.PQTypes.Transaction.Settings (
   ) where
 
 import Data.Default.Class
-import Data.Typeable
 import qualified Control.Exception as E
 
 -- | Predicate that determines whether the transaction has to be restarted.
 data RestartPredicate = forall e. E.Exception e
                      => RestartPredicate (e -> Integer -> Bool)
-  deriving Typeable
 
 instance Show RestartPredicate where
   showsPrec _ RestartPredicate{} = (++) "RestartPredicate"
@@ -39,13 +37,13 @@ data TransactionSettings = TransactionSettings {
 , tsRestartPredicate :: !(Maybe RestartPredicate)
 -- | Permissions of all transactions.
 , tsPermissions      :: !Permissions
-} deriving (Show, Typeable)
+} deriving Show
 
 data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializable
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 data Permissions = DefaultPermissions | ReadOnly | ReadWrite
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 -- | Default transaction settings.
 instance Default TransactionSettings where

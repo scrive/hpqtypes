@@ -7,7 +7,6 @@ import Data.Aeson
 import Data.Char
 import Data.Scientific
 import Data.Time
-import Data.Typeable
 import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
@@ -19,7 +18,7 @@ import qualified Data.Vector as V
 import Database.PostgreSQL.PQTypes
 
 newtype String0 = String0 { unString0 :: String }
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 instance PQFormat String0 where
   pqFormat = pqFormat @String

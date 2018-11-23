@@ -8,7 +8,6 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Fix
 import Data.String
-import Data.Typeable
 import Foreign.Ptr
 import Foreign.Storable
 import System.Posix.Types
@@ -34,7 +33,7 @@ foreign import ccall unsafe "PQnotifies"
 
 -- | Representation of notification channel.
 newtype Channel = Channel (RawSQL ())
-  deriving (Eq, Ord, Typeable)
+  deriving (Eq, Ord)
 
 instance IsString Channel where
   fromString = Channel . fromString
@@ -52,7 +51,7 @@ data Notification = Notification {
 , ntChannel :: !Channel
   -- | Notification payload string.
 , ntPayload :: !T.Text
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show)
 
 instance Storable Notification where
   sizeOf _ = #{size PGnotify}

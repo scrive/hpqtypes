@@ -11,7 +11,6 @@ module Database.PostgreSQL.PQTypes.Interval (
 
 import Data.Int
 import Data.List
-import Data.Typeable
 import Foreign.Storable
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Semigroup as SG
@@ -34,7 +33,7 @@ data Interval = Interval {
 , intMinutes       :: !Int32
 , intSeconds       :: !Int32
 , intMicroseconds  :: !Int32
-} deriving (Eq, Ord, Typeable)
+} deriving (Eq, Ord)
 
 instance Show Interval where
   showsPrec _ Interval{..} = (++) . intercalate ", " $ filter (not . null) [

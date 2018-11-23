@@ -4,7 +4,6 @@ module Database.PostgreSQL.PQTypes.JSON (
   ) where
 
 import Data.Aeson
-import Data.Typeable
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
@@ -17,7 +16,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Wrapper for (de)serializing underlying type as 'json'.
 newtype JSON json = JSON { unJSON :: json }
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSON json) where
   pqFormat = BS.pack "%json"
@@ -50,7 +49,7 @@ instance ToSQL (JSON Value) where
 
 -- | Wrapper for (de)serializing underlying type as 'jsonb'.
 newtype JSONB jsonb = JSONB { unJSONB :: jsonb }
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSONB jsonb) where
   pqFormat = BS.pack "%jsonb"
