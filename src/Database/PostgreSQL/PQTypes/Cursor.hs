@@ -129,7 +129,7 @@ withCursor name scroll hold sql k = bracket_
     closeCursor = smconcat
       [ "DO $$"
       , "BEGIN"
-      , "  EXECUTE 'CLOSE" <+> unCursorName name <> "';"
+      , "  EXECUTE 'CLOSE" <+> unCursorName name <+> "';"
       , "EXCEPTION WHEN invalid_cursor_name THEN"
       , "END $$"
       ]
