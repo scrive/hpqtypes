@@ -242,7 +242,7 @@ cursorTest td = testGroup "Cursors"
   ]
   where
     basicCursorWorks = testCase "Basic cursor works" $ do
-      runTestEnv td def . withCursor "ints" mempty (sqlGenInts 5) $ \cursor -> do
+      runTestEnv td def . withCursor "ints" def def (sqlGenInts 5) $ \cursor -> do
         xs <- (`fix` []) $ \loop acc -> cursorFetch cursor CD_Next >>= \case
           0 -> return $ reverse acc
           1 -> do
@@ -252,7 +252,7 @@ cursorTest td = testGroup "Cursors"
         assertEqual "Data fetched correctly" [1..5] xs (==)
 
     scrollableCursorWorks = testCase "Cursor declared as SCROLL works" $ do
-      runTestEnv td def . withCursor "ints" scroll (sqlGenInts 10) $ \cursor -> do
+      runTestEnv td def . withCursor "ints" Scroll def (sqlGenInts 10) $ \cursor -> do
         checkMove cursor CD_Next         1
         checkMove cursor CD_Prior        0
         checkMove cursor CD_First        1
@@ -278,7 +278,7 @@ cursorTest td = testGroup "Cursors"
             expected moved (==)
 
     withHoldCursorWorks = testCase "Cursor declared as WITH HOLD works" $ do
-      runTestEnv td tsNoTrans . withCursor "ints" withHold (sqlGenInts 10) $ \cursor -> do
+      runTestEnv td tsNoTrans . withCursor "ints" def Hold (sqlGenInts 10) $ \cursor -> do
         cursorFetch_ cursor CD_Forward_All
         sum_::Int32 <- sum . fmap runIdentity <$> queryResult
         assertEqual "sum_ is correct" 55 sum_ (==)

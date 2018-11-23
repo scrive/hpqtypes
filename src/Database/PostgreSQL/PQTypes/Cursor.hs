@@ -1,8 +1,7 @@
 module Database.PostgreSQL.PQTypes.Cursor
   ( CursorName(..)
-  , CursorSettings
-  , scroll
-  , withHold
+  , Scroll(..)
+  , Hold(..)
   , Cursor
   , CursorDirection(..)
   , cursorName
@@ -17,9 +16,9 @@ module Database.PostgreSQL.PQTypes.Cursor
 
 import Control.Monad
 import Control.Monad.Catch
+import Data.Default.Class
 import Data.String
 import Data.Typeable
-import qualified Data.Semigroup as SG
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
@@ -39,36 +38,27 @@ instance Show sql => Show (CursorName sql) where
 
 ----------------------------------------
 
--- | Settings for a cursor. To adjust the settings use corresponding Monoid
--- instance. Default (empty) settings define the cursor as @NO SCROLL@ and
--- @WITHOUT HOLD@ and they can be adjusted using respectively 'scroll' and
--- 'withHold'.
-data CursorSettings = CursorSettings
-  { csScroll   :: !Bool
-  , csWithHold :: !Bool
-  }
+-- | Defines whether a cursor will be declared as @SCROLL@ or @NO
+-- SCROLL@. Scrollable cursors can be scrolled in all directions, otherwise only
+-- forward.
+data Scroll = Scroll | NoScroll
+  deriving (Eq, Ord, Show, Typeable)
 
-instance SG.Semigroup CursorSettings where
-  a <> b = CursorSettings { csScroll   = csScroll a || csScroll b
-                          , csWithHold = csWithHold a || csWithHold b
-                          }
+-- | Cursors are not scrollable by default.
+instance Default Scroll where
+  def = NoScroll
 
-instance Monoid CursorSettings where
-  mempty = CursorSettings False False
+-- | Defines whether a cursor will be declared as @WITH HOLD@ or @WITHOUT HOLD@.
+-- Cursors declared as @WITH HOLD@ can only be declared within a transaction
+-- block and they're automatically closed once the transaction finishes,
+-- otherwise they're independent of the current transaction and can be declared
+-- even if no transaction is active.
+data Hold = Hold | NoHold
+  deriving (Eq, Ord, Show, Typeable)
 
--- | Declare cursor as @SCROLL@. Cursors declared as such can be scrolled in all
--- directions, otherwise only forward.
-scroll :: CursorSettings
-scroll = CursorSettings True False
-
--- | Declare cursor as @WITH HOLD@. Cursors NOT declared as such can only be
--- declared within a transaction block and they're automatically closed once the
--- transaction finishes, otherwise they're independent of the current
--- transaction and can be declared even if no transaction is active.
-withHold :: CursorSettings
-withHold = CursorSettings False True
-
-----------------------------------------
+-- | Cursors are declared as @WITH HOLD@ by default.
+instance Default Hold where
+  def = Hold
 
 -- | Data representing a created cursor.
 data Cursor sql = Cursor !(CursorName sql) !sql
@@ -119,11 +109,12 @@ cursorQuery (Cursor _ query) = query
 withCursor
   :: (IsString sql, IsSQL sql, Monoid sql, MonadDB m, MonadMask m)
   => CursorName sql
-  -> CursorSettings
+  -> Scroll
+  -> Hold
   -> sql
   -> (Cursor sql -> m r)
   -> m r
-withCursor name CursorSettings{..} sql k = bracket_
+withCursor name scroll hold sql k = bracket_
   (runQuery_ declareCursor)
   (runQuery_ $ "CLOSE" <+> unCursorName name)
   (k $ Cursor name sql)
@@ -131,9 +122,13 @@ withCursor name CursorSettings{..} sql k = bracket_
     declareCursor = smconcat
       [ "DECLARE"
       , unCursorName name
-      , if csScroll then "SCROLL" else "NO SCROLL"
+      , case scroll of
+          Scroll   -> "SCROLL"
+          NoScroll -> "NO SCROLL"
       , "CURSOR"
-      , if csWithHold then "WITH HOLD" else "WITHOUT HOLD"
+      , case hold of
+          Hold   -> "WITH HOLD"
+          NoHold -> "WITHOUT HOLD"
       , "FOR"
       , sql
       ]
@@ -142,7 +137,8 @@ withCursor name CursorSettings{..} sql k = bracket_
 withCursorSQL
   :: (MonadDB m, MonadMask m)
   => CursorName SQL
-  -> CursorSettings
+  -> Scroll
+  -> Hold
   -> SQL
   -> (Cursor SQL -> m r)
   -> m r
