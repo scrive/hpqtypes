@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.6.0.0
+version:             1.6.1.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -79,7 +79,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/scrive/hpqtypes.git
-  tag:      1.6.0.0
+  tag:      1.6.1.0
 
 library
   exposed-modules:     Data.Monoid.Utils
@@ -95,6 +95,7 @@ library
                      , Database.PostgreSQL.PQTypes.ToSQL
                      , Database.PostgreSQL.PQTypes.Transaction
                      , Database.PostgreSQL.PQTypes.Class
+                     , Database.PostgreSQL.PQTypes.Cursor
                      , Database.PostgreSQL.PQTypes.Format
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.Notification
@@ -170,7 +171,6 @@ library
   default-extensions: BangPatterns
                     , ConstraintKinds
                     , DataKinds
-                    , DeriveDataTypeable
                     , DeriveFunctor
                     , ExistentialQuantification
                     , FlexibleContexts
@@ -228,7 +228,6 @@ test-suite hpqtypes-tests
   default-extensions: BangPatterns
                     , ConstraintKinds
                     , DataKinds
-                    , DeriveDataTypeable
                     , DeriveFunctor
                     , ExistentialQuantification
                     , FlexibleContexts

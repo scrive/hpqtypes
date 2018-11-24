@@ -40,6 +40,7 @@ module Database.PostgreSQL.PQTypes (
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Class
   , module Database.PostgreSQL.PQTypes.Composite
+  , module Database.PostgreSQL.PQTypes.Cursor
   , module Database.PostgreSQL.PQTypes.Fold
   , module Database.PostgreSQL.PQTypes.Format
   , module Database.PostgreSQL.PQTypes.FromRow
@@ -63,6 +64,7 @@ import Data.Functor.Identity
 import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Composite
+import Database.PostgreSQL.PQTypes.Cursor
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow

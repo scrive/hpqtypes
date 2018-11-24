@@ -12,7 +12,6 @@ import Data.Functor.Identity
 import Data.Int
 import Data.Proxy
 import Data.Time
-import Data.Typeable
 import Data.Word
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
@@ -53,7 +52,7 @@ pqVariablesP _ = pqVariables @t
 
 -- | Cartesian product of rows.
 data a :*: b = a :*: b
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 instance (PQFormat t1, PQFormat t2) => PQFormat (t1 :*: t2) where
   pqFormat    = pqFormat @t1 `BS.append` pqFormat @t2

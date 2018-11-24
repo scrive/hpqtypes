@@ -15,7 +15,6 @@ module Database.PostgreSQL.PQTypes.Array (
   ) where
 
 import Control.Monad
-import Data.Typeable
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -39,7 +38,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | One dimensional array of non-composite elements.
 newtype Array1 a = Array1 [a]
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 -- | Extract list of elements from 'Array1'.
 unArray1 :: Array1 a -> [a]
@@ -71,7 +70,7 @@ instance ToSQL t => ToSQL (Array1 t) where
 
 -- | One dimensional array of composite elements.
 newtype CompositeArray1 a = CompositeArray1 [a]
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 -- | Extract list of elements from 'CompositeArray1'.
 unCompositeArray1 :: CompositeArray1 a -> [a]
@@ -148,7 +147,7 @@ getArray1 con PGarray{..} getItem = flip E.finally (c_PQclear pgArrayRes) $
 
 -- | Two dimensional array of non-composite elements.
 newtype Array2 a = Array2 [[a]]
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 -- | Extract list of elements from 'Array2'.
 unArray2 :: Array2 a -> [[a]]
@@ -180,7 +179,7 @@ instance ToSQL t => ToSQL (Array2 t) where
 
 -- | Two dimensional array of composite elements.
 newtype CompositeArray2 a = CompositeArray2 [[a]]
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 -- | Extract list of elements from 'CompositeArray2'.
 unCompositeArray2 :: CompositeArray2 a -> [[a]]

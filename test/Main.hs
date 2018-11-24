@@ -75,7 +75,7 @@ runTimes !n m = case n of
 ----------------------------------------
 
 newtype AsciiChar = AsciiChar { unAsciiChar :: Char }
-  deriving (Eq, Show, Typeable)
+  deriving (Eq, Show)
 
 instance PQFormat AsciiChar where
   pqFormat = pqFormat @Char
@@ -141,7 +141,7 @@ arbitraryArray2 arr2 = do
 ----------------------------------------
 
 data Simple = Simple (Maybe Int32) (Maybe Day)
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 type instance CompositeRow Simple = (Maybe Int32, Maybe Day)
 
@@ -156,7 +156,7 @@ instance Arbitrary Simple where
   arbitrary = Simple <$> arbitrary <*> arbitrary
 
 data Nested = Nested (Maybe Double) (Maybe Simple)
-  deriving (Eq, Ord, Show, Typeable)
+  deriving (Eq, Ord, Show)
 
 type instance CompositeRow Nested = (Maybe Double, Maybe (Composite Simple))
 
@@ -225,16 +225,81 @@ assertEqual preface expected actual eq =
       , "expected: " ++ show expected ++ "\n but got: " ++ show actual
       ]
 
+assertEqualEq :: (Eq a, Show a, MonadBase IO m) => String -> a -> a -> m ()
+assertEqualEq preface expected actual = assertEqual preface expected actual (==)
+
 ----------------------------------------
+
+sqlGenInts :: Int32 -> SQL
+sqlGenInts n = smconcat
+  [ "WITH RECURSIVE ints(n) AS"
+  , "( VALUES (1) UNION ALL SELECT n+1 FROM ints WHERE n <" <?> n
+  , ") SELECT n FROM ints"
+  ]
+
+cursorTest :: TestData -> Test
+cursorTest td = testGroup "Cursors"
+  [ basicCursorWorks
+  , scrollableCursorWorks
+  , withHoldCursorWorks
+  , doubleCloseWorks
+  ]
+  where
+    basicCursorWorks = testCase "Basic cursor works" $ do
+      runTestEnv td def $ do
+        withCursor "ints" NoScroll NoHold (sqlGenInts 5) $ \cursor -> do
+          xs <- (`fix` []) $ \loop acc -> cursorFetch cursor CD_Next >>= \case
+            0 -> return $ reverse acc
+            1 -> do
+              (n::Int32) <- fetchOne runIdentity
+              loop $ n : acc
+            n -> error $ "Unexpected number of rows: " ++ show n
+          assertEqualEq "Data fetched correctly" [1..5] xs
+
+    scrollableCursorWorks = testCase "Cursor declared as SCROLL works" $ do
+      runTestEnv td def $ do
+        withCursor "ints" Scroll NoHold (sqlGenInts 10) $ \cursor -> do
+          checkMove cursor CD_Next         1
+          checkMove cursor CD_Prior        0
+          checkMove cursor CD_First        1
+          checkMove cursor CD_Last         1
+          checkMove cursor CD_Backward_All 9
+          checkMove cursor CD_Forward_All  10
+          checkMove cursor (CD_Absolute 0) 0
+          checkMove cursor (CD_Relative 0) 0
+          checkMove cursor (CD_Forward 5)  5
+          checkMove cursor (CD_Backward 5) 4
+
+          cursorFetch_ cursor CD_Forward_All
+          xs1::[Int32] <- fetchMany runIdentity
+          assertEqualEq "xs1 is correct" [1..10] xs1
+          cursorFetch_ cursor CD_Backward_All
+          xs2::[Int32] <- fetchMany runIdentity
+          assertEqualEq "xs2 is correct" (reverse [1..10]) xs2
+      where
+        checkMove cursor cd expected = do
+          moved <- cursorMove cursor cd
+          assertEqualEq ("Moving cursor with" <+> show cd
+                         <+> "would fetch a correct amount of rows")
+            expected moved
+
+    withHoldCursorWorks = testCase "Cursor declared as WITH HOLD works" $ do
+      runTestEnv td tsNoTrans $ do
+        withCursor "ints" NoScroll Hold (sqlGenInts 10) $ \cursor -> do
+          cursorFetch_ cursor CD_Forward_All
+          sum_::Int32 <- sum . fmap runIdentity <$> queryResult
+          assertEqualEq "sum_ is correct" 55 sum_
+
+    doubleCloseWorks = testCase "Double CLOSE works on a cursor" $ do
+      runTestEnv td def $ do
+        withCursorSQL "ints" NoScroll NoHold "SELECT 1" $ \_cursor -> do
+          -- Commiting a transaction closes the cursor
+          commit
 
 queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
   let sleep = "SELECT pg_sleep(2)"
-      ints  = smconcat
-        [ "WITH RECURSIVE ints(n) AS"
-        , "( VALUES (1) UNION ALL SELECT n+1 FROM ints WHERE n < 5000000"
-        , ") SELECT n FROM ints"
-        ]
+      ints  = sqlGenInts 5000000
   runTestEnv td tsNoTrans $ do
     testQuery id sleep
     testQuery id ints
@@ -242,9 +307,9 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
     testQuery (withSavepoint "ints")  ints
     testQuery (withSavepoint "sleep") sleep
    where
-    testQuery m sql = timeout 500000 (m . runQuery_ $ rawSQL sql ()) >>= \case
+    testQuery m sql = timeout 500000 (m $ runSQL_ sql) >>= \case
       Just _  -> liftBase $ do
-        assertFailure $ "Query" <+> T.unpack sql <+> "wasn't interrupted in time"
+        assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
       Nothing -> return ()
 
 autocommitTest :: TestData -> Test
@@ -254,7 +319,7 @@ autocommitTest td = testCase "Autocommit mode works" .
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
-    assertEqual "Other connection sees autocommited data" n 1 (==)
+    assertEqualEq "Other connection sees autocommited data" 1 n
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
 readOnlyTest :: TestData -> Test
@@ -267,7 +332,7 @@ readOnlyTest td = testCase "Read only transaction mode works" .
     Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"
   rollback
   n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
-  assertEqual "SELECT works in read only mode" n 0 (==)
+  assertEqualEq "SELECT works in read only mode" 0 n
 
 savepointTest :: TestData -> Test
 savepointTest td = testCase "Savepoint support works" .
@@ -282,7 +347,7 @@ savepointTest td = testCase "Savepoint support works" .
     runSQL_ "SELECT * FROM table_that_is_not_there"
   runQuery_ $ rawSQL "SELECT a FROM test1_ WHERE a IN ($1, $2)" (int1, int2)
   res1 <- fetchMany runIdentity
-  assertEqual "Part of transaction was rolled back" res1 [int1] (==)
+  assertEqualEq "Part of transaction was rolled back" [int1] res1
 
   rollback
 
@@ -293,7 +358,7 @@ savepointTest td = testCase "Savepoint support works" .
   runQuery_ $ rawSQL
     "SELECT a FROM test1_ WHERE a IN ($1, $2) ORDER BY a" (int1, int2)
   res2 <- fetchMany runIdentity
-  assertEqual "Result of all queries is visible" res2 [int1, int2] (==)
+  assertEqualEq "Result of all queries is visible" [int1, int2] res2
 
 notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
@@ -302,19 +367,19 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
   mnt1 <- getNotification 100000
   liftBase $ assertBool "Notification received" (isJust mnt1)
   let Just nt1 = mnt1
-  assertEqual "Channels are equal" chan (ntChannel nt1) (==)
-  assertEqual "Payloads are equal" payload (ntPayload nt1) (==)
+  assertEqualEq "Channels are equal" chan (ntChannel nt1)
+  assertEqualEq "Payloads are equal" payload (ntPayload nt1)
 
   unlisten chan
   forkNewConn $ notify chan payload
   mnt2 <- getNotification 100000
-  assertEqual "No notification received after unlisten" Nothing mnt2 (==)
+  assertEqualEq "No notification received after unlisten" Nothing mnt2
 
   listen chan
   unlistenAll
   forkNewConn $ notify chan payload
   mnt3 <- getNotification 100000
-  assertEqual "No notification received after unlistenAll" Nothing mnt3 (==)
+  assertEqualEq "No notification received after unlistenAll" Nothing mnt3
   where
     chan = "test_channel"
     payload = "test_payload"
@@ -329,7 +394,7 @@ transactionTest td lvl = testCase
   runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
   withNewConnection $ do
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
-    assertEqual "Other connection doesn't see uncommited data" n 0 (==)
+    assertEqualEq "Other connection doesn't see uncommited data" 0 n
   rollback
 
 nullTest :: forall t. (Show t, ToSQL t, FromSQL t, Typeable t)
@@ -363,10 +428,10 @@ xmlTest td  = testCase "Put and get XML value works" .
   let v = XML "some<tag>stringå</tag>"
   runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
   v' <- fetchOne runIdentity
-  assertEqual "XML value correct" v v' (==)
+  assertEqualEq "XML value correct" v v'
   runSQL_ $ "SELECT" <?> v
   v'' <- fetchOne runIdentity
-  assertEqual "XML value correct" v v'' (==)
+  assertEqualEq "XML value correct" v v''
   runSQL_ $ "SET CLIENT_ENCODING TO 'latin-1'"
 
 rowTest :: forall row. (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
@@ -379,7 +444,7 @@ rowTest td _r = testCase ("Putting row of length"
   let fmt = mintercalate ", " $ map (T.append "$" . showt) [1..pqVariables @row]
   runQuery_ $ rawSQL ("SELECT" <+> fmt) row
   row' <- fetchOne id
-  assertEqual "Row doesn't change after getting through database" row row' (==)
+  assertEqualEq "Row doesn't change after getting through database" row row'
 
 _printTime :: MonadBase IO m => m a -> m a
 _printTime m = do
@@ -397,6 +462,7 @@ tests td = [
   , savepointTest td
   , notifyTest td
   , queryInterruptionTest td
+  , cursorTest td
   ----------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead

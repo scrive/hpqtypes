@@ -7,7 +7,6 @@ module Database.PostgreSQL.PQTypes.Composite (
   , CompositeToSQL(..)
   ) where
 
-import Data.Typeable
 import Foreign.Ptr
 import qualified Control.Exception as E
 
@@ -22,7 +21,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Wrapper for (de)serializing composite types.
 newtype Composite a = Composite a
-  deriving (Eq, Functor, Ord, Show, Typeable)
+  deriving (Eq, Functor, Ord, Show)
 
 -- | Extract underlying value.
 unComposite :: Composite a -> a
