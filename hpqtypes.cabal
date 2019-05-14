@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.6.1.0
+version:             1.7.0.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -136,7 +136,6 @@ library
                      , transformers >= 0.2.2
                      , containers >= 0.4.0.0
                      , exceptions >= 0.6
-                     , data-default-class
                      , text-show >= 2
 
   hs-source-dirs:    src

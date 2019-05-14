@@ -1,3 +1,8 @@
+# hpqtypes-1.7.0.0 (2019-??-??)
+* Remove the `Default` instances for `ConnectionSettings` and
+  `TransactionSettings`. Use `defaultConnectionSettings` and
+  `defaultTransactionsettings` instead.
+
 # hpqtypes-1.6.1.0 (2018-11-24)
 * Add support for cursors.
 * Remove explicit 'deriving Typeable' from all data types.
