@@ -82,7 +82,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/scrive/hpqtypes.git
-  tag:      1.6.1.0
+  tag:      1.7.0.0
 
 library
   exposed-modules:     Data.Monoid.Utils
