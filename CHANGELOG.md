@@ -1,15 +1,18 @@
-# hpqtypes-1.7.0.0 (2019-??-??)
+# hpqtypes-1.7.0.0 (2019-05-21)
 * Remove the `Default` instances for `ConnectionSettings` and
-  `TransactionSettings`. Use `defaultConnectionSettings` and
-  `defaultTransactionsettings` instead.
+  `TransactionSettings`; use `defaultConnectionSettings` and
+  `defaultTransactionsettings` instead
+  ([#15](https://github.com/scrive/hpqtypes/pull/15)).
 
 # hpqtypes-1.6.1.0 (2018-11-24)
-* Add support for cursors.
-* Remove explicit 'deriving Typeable' from all data types.
+* Add support for cursors
+  ([#13](https://github.com/scrive/hpqtypes/pull/13)).
+* Remove explicit `deriving Typeable` from all data types.
 
 # hpqtypes-1.6.0.0 (2018-07-11)
-* Convert the PQFormat class to use TypeApplications instead of
-  an 'undefined :: t' argument.
+* Convert the `PQFormat` class to use `TypeApplications` instead of an
+  `undefined :: t` argument
+  ([#11](https://github.com/scrive/hpqtypes/pull/11)).
 * Support GHC 8.6.
 * Drop support for GHC < 8.
 
