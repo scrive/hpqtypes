@@ -4,7 +4,7 @@ module Database.PostgreSQL.PQTypes.Internal.Connection (
   , withConnectionData
   , ConnectionStats(..)
   , ConnectionSettings(..)
-  , def
+  , defaultConnectionSettings
   , ConnectionSourceM(..)
   , ConnectionSource(..)
   , simpleSource
@@ -18,7 +18,6 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
-import Data.Default.Class
 import Data.Function
 import Data.Pool
 import Data.Time.Clock
@@ -52,11 +51,12 @@ data ConnectionSettings = ConnectionSettings {
 -- | Default connection settings. Note that all strings sent to PostgreSQL by
 -- the library are encoded as UTF-8, so don't alter client encoding unless you
 -- know what you're doing.
-instance Default ConnectionSettings where
-  def = ConnectionSettings {
-    csConnInfo = T.empty
+defaultConnectionSettings :: ConnectionSettings
+defaultConnectionSettings =
+  ConnectionSettings
+  { csConnInfo       = T.empty
   , csClientEncoding = Just "UTF-8"
-  , csComposites = []
+  , csComposites     = []
   }
 
 ----------------------------------------

@@ -3,10 +3,9 @@ module Database.PostgreSQL.PQTypes.Transaction.Settings (
   , TransactionSettings(..)
   , IsolationLevel(..)
   , Permissions(..)
-  , def
+  , defaultTransactionSettings
   ) where
 
-import Data.Default.Class
 import qualified Control.Exception as E
 
 -- | Predicate that determines whether the transaction has to be restarted.
@@ -46,9 +45,10 @@ data Permissions = DefaultPermissions | ReadOnly | ReadWrite
   deriving (Eq, Ord, Show)
 
 -- | Default transaction settings.
-instance Default TransactionSettings where
-  def = TransactionSettings {
-    tsAutoTransaction  = True
+defaultTransactionSettings :: TransactionSettings
+defaultTransactionSettings =
+  TransactionSettings
+  { tsAutoTransaction  = True
   , tsIsolationLevel   = DefaultLevel
   , tsRestartPredicate = Nothing
   , tsPermissions      = DefaultPermissions
