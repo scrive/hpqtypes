@@ -430,7 +430,6 @@ uuidTest :: TestData -> Test
 uuidTest td = testCase "UUID encoding / decoding test" $ do
   let uuidStr = "550e8400-e29b-41d4-a716-446655440000"
       (Just uuid) = U.fromText uuidStr
-  liftBase . putStrLn $ "uuid: " <> T.unpack uuidStr
   runTestEnv td defaultTransactionSettings $ do
     runSQL_ $ mkSQL $ "SELECT '" <> uuidStr <> "' :: uuid"
     uuid2 <- fetchOne runIdentity
