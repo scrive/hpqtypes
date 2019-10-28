@@ -14,7 +14,7 @@ import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import qualified Data.UUID as U
+import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
 

@@ -28,7 +28,7 @@ import Test.QuickCheck.Gen
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
-import qualified Data.UUID as U
+import qualified Data.UUID.Types as U
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes

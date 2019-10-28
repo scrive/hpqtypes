@@ -13,7 +13,7 @@ import Data.Int
 import Data.Proxy
 import Data.Time
 import Data.Word
-import Data.UUID
+import Data.UUID.Types
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
