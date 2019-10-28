@@ -13,6 +13,7 @@ import Data.Int
 import Data.Proxy
 import Data.Time
 import Data.Word
+import Data.UUID
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
@@ -102,6 +103,9 @@ instance PQFormat T.Text where
 
 instance PQFormat TL.Text where
   pqFormat = BS.pack "%btext"
+
+instance PQFormat UUID where
+  pqFormat = BS.pack "%uuid"
 
 -- BYTEA
 

@@ -8,12 +8,14 @@ import Data.Text.Encoding
 import Data.Time
 import Data.Word
 import Foreign.C
+import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+import qualified Data.UUID as U
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -94,6 +96,14 @@ instance FromSQL TL.Text where
 instance FromSQL String where
   type PQBase String = PGbytea
   fromSQL mbytea = T.unpack <$> fromSQL mbytea
+
+instance FromSQL U.UUID where
+  -- pqt_get_uuid expects **char consist of 16 bytes of data
+  type PQBase U.UUID = Ptr PGuuid
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just wordsPtr) = do
+    (PGuuid w1 w2 w3 w4) <- peek wordsPtr
+    return $ U.fromWords w1 w2 w3 w4
 
 -- BYTEA
 

@@ -30,11 +30,14 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types (
   , PGregisterType(..)
   , PGarray(..)
   , PGbytea(..)
+  , PGuuid(..)
   , PGdate(..)
   , PGtime(..)
   , PGtimestamp(..)
   ) where
 
+import Data.Bits
+import Data.Word
 import Data.ByteString.Unsafe
 import Foreign.C
 import Foreign.ForeignPtr
@@ -235,6 +238,62 @@ instance Storable PGbytea where
     #{poke PGbytea, data} ptr pgByteaData
 
 ----------------------------------------
+
+-- PGuuid C type is *char, but in actual expects the array
+-- to be 16 bytes. The bytes are encoded directly from the
+-- hex representation of the UUID, which is different from
+-- the default binary encoding from Data.UUID.
+data PGuuid = PGuuid {
+  w1 :: !Word32,
+  w2 :: !Word32,
+  w3 :: !Word32,
+  w4 :: !Word32
+} deriving Show
+
+instance Storable PGuuid where
+  sizeOf _ = 16
+  alignment _ = 4
+
+  peekByteOff p off =
+    PGuuid
+      <$> peekWord32Off p off
+      <*> peekWord32Off p (off+4)
+      <*> peekWord32Off p (off+8)
+      <*> peekWord32Off p (off+12)
+    where
+      peekWord8Off :: Ptr a -> Int -> IO Word8
+      peekWord8Off = peekByteOff
+
+      peekWord32Off :: Ptr a -> Int -> IO Word32
+      peekWord32Off p' off' = do
+        b1 <- fromIntegral <$> peekWord8Off p' off'
+        b2 <- fromIntegral <$> peekWord8Off p' (off'+1)
+        b3 <- fromIntegral <$> peekWord8Off p' (off'+2)
+        b4 <- fromIntegral <$> peekWord8Off p' (off'+3)
+        return $
+          (b1 `shiftL` 24) .|.
+          (b2 `shiftL` 16) .|.
+          (b3 `shiftL` 8) .|.
+          b4
+  {-# INLINE peekByteOff #-}
+
+  pokeByteOff p off (PGuuid w1 w2 w3 w4) =
+    do
+      pokeWord32Off p off w1
+      pokeWord32Off p (off+4) w2
+      pokeWord32Off p (off+8) w3
+      pokeWord32Off p (off+12) w4
+      where
+        pokeWord8Off :: Ptr a -> Int -> Word8 -> IO ()
+        pokeWord8Off = pokeByteOff
+
+        pokeWord32Off :: Ptr a -> Int -> Word32 -> IO ()
+        pokeWord32Off p' off' word = do
+          pokeWord8Off p' off' $ fromIntegral (word `shiftR` 24)
+          pokeWord8Off p' (off'+1) $ fromIntegral (word `shiftR` 16)
+          pokeWord8Off p' (off'+2) $ fromIntegral (word `shiftR` 8)
+          pokeWord8Off p' (off'+3) $ fromIntegral word
+  {-# INLINE pokeByteOff #-}
 
 data PGdate = PGdate {
   pgDateIsBC :: !CInt

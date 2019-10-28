@@ -28,6 +28,7 @@ import Test.QuickCheck.Gen
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import qualified Data.UUID as U
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
@@ -425,6 +426,20 @@ putGetTest td n t eq = testCase
   v' <- fetchOne runIdentity
   assertEqual "Value doesn't change after getting through database" v v' eq
 
+uuidTest :: TestData -> Test
+uuidTest td = testCase "UUID encoding / decoding test" $ do
+  let uuidStr = "550e8400-e29b-41d4-a716-446655440000"
+      (Just uuid) = U.fromText uuidStr
+  liftBase . putStrLn $ "uuid: " <> T.unpack uuidStr
+  runTestEnv td defaultTransactionSettings $ do
+    runSQL_ $ mkSQL $ "SELECT '" <> uuidStr <> "' :: uuid"
+    uuid2 <- fetchOne runIdentity
+    assertEqual "UUID is decoded correctly" uuid uuid2 (==)
+
+    runQuery_ $ rawSQL " SELECT $1 :: text" (Identity uuid)
+    uuidStr2 <- fetchOne runIdentity
+    assertEqual "UUID is encoded correctly" uuidStr uuidStr2 (==)
+
 xmlTest :: TestData -> Test
 xmlTest td  = testCase "Put and get XML value works" .
               runTestEnv td defaultTransactionSettings $ do
@@ -467,7 +482,8 @@ tests td = [
   , notifyTest td
   , queryInterruptionTest td
   , cursorTest td
-  ----------------------------------------
+  , uuidTest td
+  ------------------------------------
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
   , transactionTest td Serializable
@@ -483,6 +499,7 @@ tests td = [
   , nullTest td (u::String)
   , nullTest td (u::BS.ByteString)
   , nullTest td (u::T.Text)
+  , nullTest td (u::U.UUID)
   , nullTest td (u::JSON Value)
   , nullTest td (u::JSONB Value)
   , nullTest td (u::XML)
@@ -508,6 +525,7 @@ tests td = [
   , putGetTest td 1000 (u::String0) (==)
   , putGetTest td 1000 (u::BS.ByteString) (==)
   , putGetTest td 1000 (u::T.Text) (==)
+  , putGetTest td 1000 (u::U.UUID) (==)
   , putGetTest td 50 (u::JSON Value) (==)
   , putGetTest td 50 (u::JSONB Value) (==)
   , putGetTest td 20 (u::Array1 (JSON Value)) (==)
@@ -577,8 +595,8 @@ tests td = [
   , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString))
   , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text))
   , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString))
-  , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day))
-  , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32))
+  , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, U.UUID))
+  , rowTest td (u::(Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, Day, Array1 Int32, Composite Simple, CompositeArray1 Simple, Composite Nested, CompositeArray1 Nested, Int16, Int32, Int64, Float, Double, Bool, AsciiChar, Word8, String0, BS.ByteString, T.Text, BS.ByteString, U.UUID, Day))
   ]
   where
     u = undefined
