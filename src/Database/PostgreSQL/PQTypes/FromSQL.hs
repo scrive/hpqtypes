@@ -8,7 +8,6 @@ import Data.Text.Encoding
 import Data.Time
 import Data.Word
 import Foreign.C
-import Foreign.Ptr
 import Foreign.Storable
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
@@ -98,12 +97,9 @@ instance FromSQL String where
   fromSQL mbytea = T.unpack <$> fromSQL mbytea
 
 instance FromSQL U.UUID where
-  -- pqt_get_uuid expects **char consist of 16 bytes of data
-  type PQBase U.UUID = Ptr PGuuid
+  type PQBase U.UUID = PGuuid
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just wordsPtr) = do
-    (PGuuid w1 w2 w3 w4) <- peek wordsPtr
-    return $ U.fromWords w1 w2 w3 w4
+  fromSQL (Just (PGuuid w1 w2 w3 w4)) = return $ U.fromWords w1 w2 w3 w4
 
 -- BYTEA
 

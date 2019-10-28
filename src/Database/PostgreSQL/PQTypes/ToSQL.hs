@@ -2,7 +2,6 @@ module Database.PostgreSQL.PQTypes.ToSQL (
     ParamAllocator(..)
   , ToSQL(..)
   , putAsPtr
-  , PGuuid (..)
   ) where
 
 import Data.ByteString.Unsafe
@@ -112,12 +111,10 @@ instance ToSQL String where
   toSQL = toSQL . T.pack
 
 instance ToSQL U.UUID where
-  -- pqt_put_uuid expects a *char consist of 16 bytes of data
   type PQDest U.UUID = PGuuid
-  toSQL uuid _ =
-    case U.toWords uuid of
-      (w1, w2, w3, w4) ->
-        putAsPtr $ PGuuid w1 w2 w3 w4
+  toSQL uuid _ = putAsPtr $ PGuuid w1 w2 w3 w4
+    where
+      (w1, w2, w3, w4) = U.toWords uuid
 
 -- BYTEA
 

@@ -115,46 +115,31 @@ pqt_get_money(PGtypeArgs *args)
 int
 pqt_put_uuid(PGtypeArgs *args)
 {
-	PGuuid uuid = va_arg(args->ap, PGuuid);
+	PGuuid *uuid = va_arg(args->ap, PGuuid *);
 	PUTNULLCHK(args, uuid);
-	args->put.out = uuid;
-	return 16;
+	args->put.out = uuid->data;
+	return sizeof(uuid->data);
 }
 
 int
 pqt_get_uuid(PGtypeArgs *args)
 {
 	DECLVALUE(args);
+	DECLLENGTH(args);
 	PGuuid *uuid = va_arg(args->ap, PGuuid *);
 
 	CHKGETVALS(args, uuid);
 
 	if (args->format == TEXTFMT)
-	{
-		int i;
-		char buf[128];
-		char *p = buf;
-		DECLLENGTH(args);
+		return args->errorf(args, "text format is not supported");
 
-		/* format: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 */
-		for (i=0; i < valuel; i++)
-		{
-			if (value[i] != '-')
-			{
-				*p++ = (pqt_hex_to_dec(value[i]) << 4) | pqt_hex_to_dec(value[i+1]);
-				i++;
-			}
-		}
+	if (valuel != sizeof(uuid->data))
+		return args->errorf(args,
+		                    "invalid data: %d bytes expected, %d given",
+		                    sizeof(uuid->data),
+		                    valuel);
 
-		*uuid = (char *) PQresultAlloc(args->get.result, p - buf);
-		if (!*uuid)
-			RERR_MEM(args);
-
-		memcpy(*uuid, buf, p - buf);
-		return 0;
-	}
-
-	*uuid = value;
+	memcpy(uuid->data, value, valuel);
 	return 0;
 }
 

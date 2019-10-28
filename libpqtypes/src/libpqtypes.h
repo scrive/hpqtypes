@@ -148,7 +148,19 @@ struct pg_typeargs
 typedef char *PGtext;
 typedef char *PGvarchar;
 typedef char *PGbpchar;
-typedef char *PGuuid;
+
+typedef union
+{
+	struct
+	{
+		unsigned w1;
+		unsigned w2;
+		unsigned w3;
+		unsigned w4;
+	};
+	char data[16];
+} PGuuid;
+
 typedef struct
 {
   int len;
