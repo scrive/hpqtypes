@@ -25,11 +25,11 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 -- | Representation of a query result. Provides 'Functor'
 -- and 'Foldable' instances for data transformation and
 -- extraction appropriately.
-data QueryResult t = forall row. FromRow row => QueryResult {
-  qrSQL     :: !SomeSQL
-, qrResult  :: !(ForeignPtr PGresult)
-, qrFromRow :: !(row -> t)
-}
+data QueryResult t = forall row. FromRow row => QueryResult
+  { qrSQL     :: !SomeSQL
+  , qrResult  :: !(ForeignPtr PGresult)
+  , qrFromRow :: !(row -> t)
+  }
 
 instance Functor QueryResult where
   f `fmap` QueryResult ctx fres g = QueryResult ctx fres (f . g)

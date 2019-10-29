@@ -160,11 +160,11 @@ instance Storable PGerror where
 
 ----------------------------------------
 
-data PGregisterType = PGregisterType {
-  pgRegisterTypeTypName :: !CString
-, pgRegisterTypeTypPut  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
-, pgRegisterTypeTypGet  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
-} deriving Show
+data PGregisterType = PGregisterType
+  { pgRegisterTypeTypName :: !CString
+  , pgRegisterTypeTypPut  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
+  , pgRegisterTypeTypGet  :: !(FunPtr (Ptr PGtypeArgs -> IO CInt))
+  } deriving Show
 
 instance Storable PGregisterType where
   sizeOf _ = #{size PGregisterType}
@@ -183,13 +183,13 @@ instance Storable PGregisterType where
 c_MAXDIM :: Int
 c_MAXDIM = #{const MAXDIM}
 
-data PGarray = PGarray {
-  pgArrayNDims  :: !CInt
-, pgArrayLBound :: !(V.Vector CInt)
-, pgArrayDims   :: !(V.Vector CInt)
-, pgArrayParam  :: !(Ptr PGparam)
-, pgArrayRes    :: !(Ptr PGresult)
-} deriving Show
+data PGarray = PGarray
+  { pgArrayNDims  :: !CInt
+  , pgArrayLBound :: !(V.Vector CInt)
+  , pgArrayDims   :: !(V.Vector CInt)
+  , pgArrayParam  :: !(Ptr PGparam)
+  , pgArrayRes    :: !(Ptr PGresult)
+  } deriving Show
 
 instance Storable PGarray where
   sizeOf _ = #{size PGarray}
@@ -224,10 +224,10 @@ instance Storable PGarray where
 
 ----------------------------------------
 
-data PGbytea = PGbytea {
-  pgByteaLen  :: !CInt
-, pgByteaData :: !CString
-} deriving Show
+data PGbytea = PGbytea
+  { pgByteaLen  :: !CInt
+  , pgByteaData :: !CString
+  } deriving Show
 
 instance Storable PGbytea where
   sizeOf _ = #{size PGbytea}
@@ -268,15 +268,15 @@ instance Storable PGuuid where
     #{poke PGuuid, w3} ptr $ htonl pgUuidW3
     #{poke PGuuid, w4} ptr $ htonl pgUuidW4
 
-data PGdate = PGdate {
-  pgDateIsBC :: !CInt
-, pgDateYear :: !CInt
-, pgDateMon  :: !CInt
-, pgDateMDay :: !CInt
-, pgDateJDay :: !CInt
-, pgDateYDay :: !CInt
-, pgDateWDay :: !CInt
-} deriving Show
+data PGdate = PGdate
+  { pgDateIsBC :: !CInt
+  , pgDateYear :: !CInt
+  , pgDateMon  :: !CInt
+  , pgDateMDay :: !CInt
+  , pgDateJDay :: !CInt
+  , pgDateYDay :: !CInt
+  , pgDateWDay :: !CInt
+  } deriving Show
 
 instance Storable PGdate where
   sizeOf _ = #{size PGdate}
@@ -300,16 +300,16 @@ instance Storable PGdate where
 
 ----------------------------------------
 
-data PGtime = PGtime {
-  pgTimeHour   :: !CInt
-, pgTimeMin    :: !CInt
-, pgTimeSec    :: !CInt
-, pgTimeUSec   :: !CInt
-, pgTimeWithTZ :: !CInt
-, pgTimeIsDST  :: !CInt
-, pgTimeGMTOff :: !CInt
-, pgTimeTZAbbr :: !BS.ByteString
-} deriving Show
+data PGtime = PGtime
+  { pgTimeHour   :: !CInt
+  , pgTimeMin    :: !CInt
+  , pgTimeSec    :: !CInt
+  , pgTimeUSec   :: !CInt
+  , pgTimeWithTZ :: !CInt
+  , pgTimeIsDST  :: !CInt
+  , pgTimeGMTOff :: !CInt
+  , pgTimeTZAbbr :: !BS.ByteString
+  } deriving Show
 
 instance Storable PGtime where
   sizeOf _ = #{size PGtime}
@@ -338,11 +338,11 @@ instance Storable PGtime where
 
 ----------------------------------------
 
-data PGtimestamp = PGtimestamp {
-  pgTimestampEpoch :: !CLLong
-, pgTimestampDate  :: !PGdate
-, pgTimestampTime  :: !PGtime
-} deriving Show
+data PGtimestamp = PGtimestamp
+  { pgTimestampEpoch :: !CLLong
+  , pgTimestampDate  :: !PGdate
+  , pgTimestampTime  :: !PGtime
+  } deriving Show
 
 instance Storable PGtimestamp where
   sizeOf _ = #{size PGtimestamp}

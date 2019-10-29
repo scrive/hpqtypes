@@ -25,15 +25,15 @@ import Database.PostgreSQL.PQTypes.ToSQL
 ----------------------------------------
 
 -- | Representation of INTERVAL PostgreSQL type.
-data Interval = Interval {
-  intYears         :: !Int32
-, intMonths        :: !Int32
-, intDays          :: !Int32
-, intHours         :: !Int32
-, intMinutes       :: !Int32
-, intSeconds       :: !Int32
-, intMicroseconds  :: !Int32
-} deriving (Eq, Ord)
+data Interval = Interval
+  { intYears         :: !Int32
+  , intMonths        :: !Int32
+  , intDays          :: !Int32
+  , intHours         :: !Int32
+  , intMinutes       :: !Int32
+  , intSeconds       :: !Int32
+  , intMicroseconds  :: !Int32
+  } deriving (Eq, Ord)
 
 instance Show Interval where
   showsPrec _ Interval{..} = (++) . intercalate ", " $ filter (not . null) [

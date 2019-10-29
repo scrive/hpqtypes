@@ -33,11 +33,11 @@ getConnSettings = do
 ----------------------------------------
 
 -- | Representation of a book.
-data Book = Book {
-  bookID       :: Int64
-, bookName     :: String
-, bookYear     :: Int32
-} deriving (Read, Show)
+data Book = Book
+  { bookID       :: Int64
+  , bookName     :: String
+  , bookYear     :: Int32
+  } deriving (Read, Show)
 
 -- | Intermediate representation of 'Book'.
 type instance CompositeRow Book = (Int64, String, Int32)
