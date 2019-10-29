@@ -30,11 +30,13 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types (
   , PGregisterType(..)
   , PGarray(..)
   , PGbytea(..)
+  , PGuuid(..)
   , PGdate(..)
   , PGtime(..)
   , PGtimestamp(..)
   ) where
 
+import Data.Word
 import Data.ByteString.Unsafe
 import Foreign.C
 import Foreign.ForeignPtr
@@ -52,6 +54,9 @@ data PGtypeArgs
 
 #include <libpqtypes.h>
 #include <libpq-fe.h>
+
+foreign import ccall unsafe htonl :: Word32 -> Word32
+foreign import ccall unsafe ntohl :: Word32 -> Word32
 
 ----------------------------------------
 
@@ -235,6 +240,33 @@ instance Storable PGbytea where
     #{poke PGbytea, data} ptr pgByteaData
 
 ----------------------------------------
+
+-- Same as the UUID type from uuid-types package except for the Storable
+-- instance: PostgreSQL expects the binary representation to be encoded in
+-- network byte order (as per RFC 4122), whereas Storable instance of UUID
+-- preserves host byte order, so we need to have our own version.
+data PGuuid = PGuuid
+  { pgUuidW1 :: !Word32
+  , pgUuidW2 :: !Word32
+  , pgUuidW3 :: !Word32
+  , pgUuidW4 :: !Word32
+  } deriving Show
+
+instance Storable PGuuid where
+  sizeOf _ = #{size PGuuid}
+  alignment _ = #{alignment PGuuid}
+
+  peek ptr = PGuuid
+    <$> (ntohl <$> #{peek PGuuid, w1} ptr)
+    <*> (ntohl <$> #{peek PGuuid, w2} ptr)
+    <*> (ntohl <$> #{peek PGuuid, w3} ptr)
+    <*> (ntohl <$> #{peek PGuuid, w4} ptr)
+
+  poke ptr PGuuid{..} = do
+    #{poke PGuuid, w1} ptr $ htonl pgUuidW1
+    #{poke PGuuid, w2} ptr $ htonl pgUuidW2
+    #{poke PGuuid, w3} ptr $ htonl pgUuidW3
+    #{poke PGuuid, w4} ptr $ htonl pgUuidW4
 
 data PGdate = PGdate {
   pgDateIsBC :: !CInt

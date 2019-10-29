@@ -14,6 +14,7 @@ import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
 
@@ -50,6 +51,13 @@ instance Arbitrary BS.ByteString where
 
 instance Arbitrary T.Text where
   arbitrary = T.pack . unString0 <$> arbitrary
+
+uuidFromWords :: (Word32, Word32, Word32, Word32) -> U.UUID
+uuidFromWords (a,b,c,d) = U.fromWords a b c d
+
+instance Arbitrary U.UUID where
+  arbitrary = uuidFromWords <$> arbitrary
+  shrink = map uuidFromWords . shrink . U.toWords
 
 ----------------------------------------
 

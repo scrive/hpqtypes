@@ -1,3 +1,6 @@
+# hpqtypes-1.8.0.0 (2019-10-28)
+* Implement `UUID` format ([#17](https://github.com/scrive/hpqtypes/pull/17)).
+
 # hpqtypes-1.7.0.0 (2019-05-21)
 * Remove the `Default` instances for `ConnectionSettings` and
   `TransactionSettings`; use `defaultConnectionSettings` and
