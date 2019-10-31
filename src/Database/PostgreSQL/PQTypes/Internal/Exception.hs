@@ -10,12 +10,12 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 
 -- | Main exception type. All exceptions thrown by
 -- the library are additionally wrapped in this type.
-data DBException = forall e sql. (E.Exception e, Show sql) => DBException {
--- | Last SQL query that was executed.
-  dbeQueryContext :: !sql
--- | Specific error.
-, dbeError        :: !e
-}
+data DBException = forall e sql. (E.Exception e, Show sql) => DBException
+  { -- | Last SQL query that was executed.
+    dbeQueryContext :: !sql
+    -- | Specific error.
+  , dbeError        :: !e
+  }
 
 deriving instance Show DBException
 

@@ -44,14 +44,14 @@ instance Show Channel where
 ----------------------------------------
 
 -- | Representation of a notification sent by PostgreSQL.
-data Notification = Notification {
--- | Process ID of notifying server.
-  ntPID     :: !CPid
-  -- | Notification channel name.
-, ntChannel :: !Channel
-  -- | Notification payload string.
-, ntPayload :: !T.Text
-} deriving (Eq, Ord, Show)
+data Notification = Notification
+  { -- | Process ID of notifying server.
+    ntPID     :: !CPid
+    -- | Notification channel name.
+  , ntChannel :: !Channel
+    -- | Notification payload string.
+  , ntPayload :: !T.Text
+  } deriving (Eq, Ord, Show)
 
 instance Storable Notification where
   sizeOf _ = #{size PGnotify}

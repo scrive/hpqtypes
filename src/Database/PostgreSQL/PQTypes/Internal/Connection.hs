@@ -38,15 +38,15 @@ import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Utils
 
-data ConnectionSettings = ConnectionSettings {
--- | Connection info string.
-  csConnInfo       :: !T.Text
--- | Client-side encoding. If set to 'Nothing', database encoding is used.
-, csClientEncoding :: !(Maybe T.Text)
--- | A list of composite types to register. In order to be able to
--- (de)serialize specific composite types, you need to register them.
-, csComposites     :: ![T.Text]
-} deriving (Eq, Ord, Show)
+data ConnectionSettings = ConnectionSettings
+  { -- | Connection info string.
+    csConnInfo       :: !T.Text
+    -- | Client-side encoding. If set to 'Nothing', database encoding is used.
+  , csClientEncoding :: !(Maybe T.Text)
+    -- | A list of composite types to register. In order to be able to
+    -- (de)serialize specific composite types, you need to register them.
+  , csComposites     :: ![T.Text]
+  } deriving (Eq, Ord, Show)
 
 -- | Default connection settings. Note that all strings sent to PostgreSQL by
 -- the library are encoded as UTF-8, so don't alter client encoding unless you
@@ -62,16 +62,16 @@ defaultConnectionSettings =
 ----------------------------------------
 
 -- | Simple connection statistics.
-data ConnectionStats = ConnectionStats {
--- | Number of queries executed so far.
-  statsQueries :: !Int
--- | Number of rows fetched from the database.
-, statsRows    :: !Int
--- | Number of values fetched from the database.
-, statsValues  :: !Int
--- | Number of parameters sent to the database.
-, statsParams  :: !Int
-} deriving (Eq, Ord, Show)
+data ConnectionStats = ConnectionStats
+  { -- | Number of queries executed so far.
+    statsQueries :: !Int
+    -- | Number of rows fetched from the database.
+  , statsRows    :: !Int
+    -- | Number of values fetched from the database.
+  , statsValues  :: !Int
+    -- | Number of parameters sent to the database.
+  , statsParams  :: !Int
+  } deriving (Eq, Ord, Show)
 
 -- | Initial connection statistics.
 initialStats :: ConnectionStats
