@@ -1,3 +1,6 @@
+# hpqtypes-1.8.0.1 (2020-02-06)
+* Make poolSource work properly with shortcircuiting monad transformers.
+
 # hpqtypes-1.8.0.0 (2019-10-31)
 * Implement `UUID` format ([#17](https://github.com/scrive/hpqtypes/pull/17)).
 * Support GHC 8.8.
