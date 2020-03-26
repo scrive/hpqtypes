@@ -34,7 +34,7 @@ type InnerDBT m = StateT (DBState m)
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
 newtype DBT_ m n a = DBT { unDBT :: InnerDBT m n a }
-  deriving (Alternative, Applicative, Functor, Monad, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
+  deriving (Alternative, Applicative, Functor, Monad, MonadFail, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
 
 type DBT m = DBT_ m m
 
