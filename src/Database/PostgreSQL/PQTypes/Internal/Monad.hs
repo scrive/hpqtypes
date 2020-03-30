@@ -10,6 +10,7 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.Error.Class
 import Control.Monad.Reader.Class
 import Control.Monad.State.Strict
