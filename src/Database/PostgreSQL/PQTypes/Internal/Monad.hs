@@ -10,13 +10,13 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.Error.Class
 import Control.Monad.Reader.Class
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import qualified Control.Monad.Trans.State.Strict as S
+import qualified Control.Monad.Fail as MF
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -35,7 +35,7 @@ type InnerDBT m = StateT (DBState m)
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
 newtype DBT_ m n a = DBT { unDBT :: InnerDBT m n a }
-  deriving (Alternative, Applicative, Functor, Monad, MonadFail, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
+  deriving (Alternative, Applicative, Functor, Monad, MF.MonadFail, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
 
 type DBT m = DBT_ m m
 
