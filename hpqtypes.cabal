@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.8.0.1
+version:             1.9.0.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -39,7 +39,7 @@ copyright:           Scrive AB
 category:            Database
 build-type:          Custom
 cabal-version:       1.24
-tested-with:         GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.1
+tested-with:         GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.1 || ==8.10.1
 
 
 extra-source-files: README.md
