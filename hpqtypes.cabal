@@ -71,7 +71,7 @@ extra-source-files: README.md
 
 custom-setup
   setup-depends: base  >= 4.9  && < 4.15,
-                 Cabal >= 1.24 && < 3.1,
+                 Cabal >= 1.24 && < 3.3,
                  directory,
                  filepath
 
