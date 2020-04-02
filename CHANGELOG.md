@@ -1,3 +1,6 @@
+# hpqtypes-1.9.0.0 (2020-04-02)
+* Support GHC 8.8 and 8.10.
+
 # hpqtypes-1.8.0.1 (2020-02-06)
 * Make poolSource work properly with shortcircuiting monad transformers.
 
