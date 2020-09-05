@@ -1,3 +1,6 @@
+# hpqtypes-1.9.0.1 (2020-09-04)
+* Remove upper bounds of dependencies.
+
 # hpqtypes-1.9.0.0 (2020-04-02)
 * Support GHC 8.8 and 8.10.
 
