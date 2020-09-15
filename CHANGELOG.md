@@ -1,3 +1,6 @@
+# hpqtypes-1.9.1.0 (2020-09-14)
+* Expose aesonFromSQL and aesonToSQL for convenience.
+
 # hpqtypes-1.9.0.1 (2020-09-04)
 * Remove upper bounds of dependencies.
 

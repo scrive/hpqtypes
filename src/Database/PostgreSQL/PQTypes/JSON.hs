@@ -1,6 +1,9 @@
-module Database.PostgreSQL.PQTypes.JSON (
-    JSON(..)
+{-# LANGUAGE TypeApplications #-}
+module Database.PostgreSQL.PQTypes.JSON
+  ( JSON(..)
   , JSONB(..)
+  , aesonFromSQL
+  , aesonToSQL
   ) where
 
 import Data.Aeson
@@ -39,11 +42,11 @@ instance ToSQL (JSON BSL.ByteString) where
 
 instance FromSQL (JSON Value) where
   type PQBase (JSON Value) = PGbytea
-  fromSQL = valueFromSQL JSON
+  fromSQL = fmap JSON . aesonFromSQL
 
 instance ToSQL (JSON Value) where
   type PQDest (JSON Value) = PGbytea
-  toSQL = valueToSQL unJSON
+  toSQL = aesonToSQL . unJSON
 
 ----------------------------------------
 
@@ -72,24 +75,31 @@ instance ToSQL (JSONB BSL.ByteString) where
 
 instance FromSQL (JSONB Value) where
   type PQBase (JSONB Value) = PGbytea
-  fromSQL = valueFromSQL JSONB
+  fromSQL = fmap JSONB . aesonFromSQL
 
 instance ToSQL (JSONB Value) where
   type PQDest (JSONB Value) = PGbytea
-  toSQL = valueToSQL unJSONB
+  toSQL = aesonToSQL . unJSONB
 
 ----------------------------------------
 
-valueFromSQL :: (Value -> json) -> Maybe PGbytea -> IO json
-valueFromSQL jsonCon mbase = do
+-- | Helper for defining 'FromSQL' instance for a type with 'FromJSON' instance.
+--
+-- @since 1.9.1.0
+aesonFromSQL :: FromJSON t => Maybe PGbytea -> IO t
+aesonFromSQL mbase = do
   evalue <- eitherDecodeStrict' <$> fromSQL mbase
   case evalue of
-    Left err -> E.throwIO . E.ErrorCall $ "valueFromSQL: " ++ err
-    Right value -> return $ jsonCon value
+    Left err -> E.throwIO . E.ErrorCall $ "aesonFromSQL: " ++ err
+    Right value -> return value
 
-valueToSQL :: (json -> Value)
-           -> json
-           -> ParamAllocator
-           -> (Ptr PGbytea -> IO r)
-           -> IO r
-valueToSQL jsonDecon = toSQL . BSL.toStrict . encode . jsonDecon
+-- | Helper for defining 'ToSQL' instance for a type with 'ToJSON' instance.
+--
+-- @since 1.9.1.0
+aesonToSQL
+  :: ToJSON t
+  => t
+  -> ParamAllocator
+  -> (Ptr PGbytea -> IO r)
+  -> IO r
+aesonToSQL = toSQL . BSL.toStrict . encode
