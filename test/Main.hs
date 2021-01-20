@@ -617,15 +617,11 @@ dropStructures cs = runDBT cs defaultTransactionSettings $ do
   runSQL_ "DROP TABLE test1_"
 
 getConnString :: IO (T.Text, [String])
-getConnString = do
-  args <- getArgs
-  if (null args) then
-    do isTravis <- maybe False ((==) "true") <$> lookupEnv "TRAVIS"
-       if isTravis
-         then return ("postgresql://postgres@localhost/travis_ci_test", [])
-         else do printUsage
-                 exitFailure
-    else return $ (T.pack . head $ args, tail args)
+getConnString = getArgs >>= \case
+  connString : args -> return (T.pack connString, args)
+  [] -> lookupEnv "GITHUB_ACTIONS" >>= \case
+    Just "true" -> return ("host=postgres user=postgres password=postgres", [])
+    _           -> printUsage >> exitFailure
   where
     printUsage = do
       prog <- getProgName
