@@ -73,7 +73,7 @@ instance Show SQL where
 
 ----------------------------------------
 
--- | Convert 'ByteString' to 'SQL'.
+-- | Convert a 'Text' SQL string to the 'SQL' type.
 mkSQL :: T.Text -> SQL
 mkSQL = SQL . S.singleton . SqlString
 
