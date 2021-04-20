@@ -1,3 +1,7 @@
+# hpqtypes-1.9.2.2 (2021-11-18)
+* Add runQuery1_, runSQL1_, runQueryNot0_, runSQLNot0_ to ensure the query has
+  affected either exactly one row or at least one row.
+
 # hpqtypes-1.9.2.1 (2021-11-04)
 * Improve an SQL query that gets information about composite types.
 
