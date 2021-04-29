@@ -91,7 +91,7 @@ runQueryNot0_ :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
 runQueryNot0_ sql = do
   n <- runQuery sql
   when (n == 0) $ throwDB AffectedRowsMismatch {
-    rowsExpected = []
+    rowsExpected = [(1, maxBound)]
   , rowsDelivered = 0
   }
 
