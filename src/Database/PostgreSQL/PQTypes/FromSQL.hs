@@ -3,6 +3,7 @@ module Database.PostgreSQL.PQTypes.FromSQL (
   ) where
 
 import Data.Int
+import Data.Kind (Type)
 import Data.Ratio
 import Data.Text.Encoding
 import Data.Time
@@ -24,7 +25,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 -- type to Haskell type\" transformation.
 class (PQFormat t, Storable (PQBase t)) => FromSQL t where
   -- | Base type (used by libpqtypes).
-  type PQBase t :: *
+  type PQBase t :: Type
   -- | Convert value of base type to target one.
   fromSQL :: Maybe (PQBase t) -- ^ base value (Nothing if NULL was delivered)
           -> IO t

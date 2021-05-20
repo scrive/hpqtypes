@@ -17,6 +17,7 @@ module Database.PostgreSQL.PQTypes.Internal.Utils (
 
 import Control.Monad
 import Data.ByteString.Unsafe
+import Data.Kind (Type)
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
@@ -32,7 +33,8 @@ import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
 
-type family MkConstraint (m :: * -> *) (cs :: [(* -> *) -> Constraint]) :: Constraint where
+type family MkConstraint (m :: Type -> Type)
+                         (cs :: [(Type -> Type) -> Constraint]) :: Constraint where
   MkConstraint m '[] = ()
   MkConstraint m (c ': cs) = (c m, MkConstraint m cs)
 

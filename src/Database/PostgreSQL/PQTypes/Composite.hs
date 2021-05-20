@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.Composite (
   , CompositeToSQL(..)
   ) where
 
+import Data.Kind (Type)
 import Foreign.Ptr
 import qualified Control.Exception as E
 
@@ -34,7 +35,7 @@ unComposite (Composite a) = a
 -- As an example, consider the type defined as (a INTEGER, b DATE).
 -- Then its CompositeRow instance could be (Maybe Int32, Maybe Day),
 -- (Maybe Int32, Day), (Int32, Maybe Day) or (Int32, Day).
-type family CompositeRow t :: *
+type family CompositeRow t :: Type
 
 -- | Class which represents \"from SQL to composite\" transformation.
 class (PQFormat t, FromRow (CompositeRow t)) => CompositeFromSQL t where
