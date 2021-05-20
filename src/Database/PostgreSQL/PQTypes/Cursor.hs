@@ -43,10 +43,11 @@ data Scroll = Scroll | NoScroll
   deriving (Eq, Ord, Show)
 
 -- | Defines whether a cursor will be declared as @WITH HOLD@ or @WITHOUT HOLD@.
--- Cursors declared as @WITH HOLD@ can only be declared within a transaction
--- block and they're automatically closed once the transaction finishes,
--- otherwise they're independent of the current transaction and can be declared
--- even if no transaction is active.
+--
+-- From the PostgreSQL manual: WITH HOLD specifies that the cursor can continue
+-- to be used after the transaction that created it successfully commits.
+-- WITHOUT HOLD specifies that the cursor cannot be used outside of the
+-- transaction that created it.
 data Hold = Hold | NoHold
   deriving (Eq, Ord, Show)
 
