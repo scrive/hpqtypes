@@ -6,6 +6,7 @@ module Database.PostgreSQL.PQTypes.ToSQL (
 
 import Data.ByteString.Unsafe
 import Data.Int
+import Data.Kind (Type)
 import Data.Text.Encoding
 import Data.Time
 import Data.Word
@@ -31,7 +32,7 @@ newtype ParamAllocator = ParamAllocator (forall r. (Ptr PGparam -> IO r) -> IO r
 -- to SQL (libpqtypes) type\" transformation.
 class PQFormat t => ToSQL t where
   -- | Destination type (used by libpqtypes).
-  type PQDest t :: *
+  type PQDest t :: Type
   -- | Put supplied value into inner 'PGparam'.
   toSQL :: t -- ^ Value to be put.
         -> ParamAllocator -- ^ 'PGparam' allocator.

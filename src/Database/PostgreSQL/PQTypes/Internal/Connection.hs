@@ -20,6 +20,7 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Function
+import Data.Kind (Type)
 import Data.Pool
 import Data.Time.Clock
 import Foreign.C.String
@@ -114,7 +115,7 @@ newtype ConnectionSourceM m = ConnectionSourceM {
 }
 
 -- | Wrapper for a polymorphic connection source.
-newtype ConnectionSource (cs :: [(* -> *) -> Constraint]) = ConnectionSource {
+newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSource {
   unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
 }
 

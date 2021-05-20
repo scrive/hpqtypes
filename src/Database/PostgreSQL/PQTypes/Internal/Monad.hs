@@ -82,7 +82,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
       Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
       Just cd -> return $ cdStats cd
 
-  getQueryResult = DBT . gets $ dbQueryResult
+  getQueryResult = DBT . gets $ \st -> dbQueryResult st
   clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
