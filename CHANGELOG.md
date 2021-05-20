@@ -1,3 +1,7 @@
+# hpqtypes-1.9.2.0 (2021-04-21)
+* Add runQuery1_, runSQL1_, runQueryNot0_, runSQLNot0_ to ensure the query has
+  affected either exactly one row or at least one row.
+
 # hpqtypes-1.9.1.0 (2020-09-14)
 * Expose aesonFromSQL and aesonToSQL for convenience.
 
