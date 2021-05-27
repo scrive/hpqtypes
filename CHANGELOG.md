@@ -1,3 +1,6 @@
+# hpqtypes-1.9.1.1 (2021-05-27)
+* Support GHC 9.0.
+
 # hpqtypes-1.9.1.0 (2020-09-14)
 * Expose aesonFromSQL and aesonToSQL for convenience.
 
