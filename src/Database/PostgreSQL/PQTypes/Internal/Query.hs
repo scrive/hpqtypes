@@ -73,7 +73,7 @@ runQueryIO sql st = do
             rethrowWithContext sql . E.toException $
               HPQTypesError ("PQcancel failed: " ++ err)
   return (affected, st {
-    dbLastQuery = SomeSQL sql
+    dbLastQuery = if dbRecordLastQuery st then SomeSQL sql else dbLastQuery st
   , dbQueryResult = Just QueryResult {
       qrSQL = SomeSQL sql
     , qrResult = res

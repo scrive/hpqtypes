@@ -19,6 +19,8 @@ data DBState m = DBState
   , dbTransactionSettings :: !TransactionSettings
     -- | Last SQL query that was executed.
   , dbLastQuery           :: !SomeSQL
+    -- | Whether running query should override 'dbLastQuery'.
+  , dbRecordLastQuery     :: !Bool
     -- | Current query result.
   , dbQueryResult         :: !(forall row. FromRow row => Maybe (QueryResult row))
   }
