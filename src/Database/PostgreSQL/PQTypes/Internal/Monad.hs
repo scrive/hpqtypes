@@ -54,6 +54,7 @@ runDBT cs ts m = withConnection cs $ \conn -> do
   , dbConnectionSource = cs
   , dbTransactionSettings = ts
   , dbLastQuery = SomeSQL (mempty::SQL)
+  , dbRecordLastQuery = True
   , dbQueryResult = Nothing
   }
   where
@@ -75,6 +76,11 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = DBT . StateT $ liftBase . runQueryIO sql
   getLastQuery = DBT . gets $ dbLastQuery
+
+  withFrozenLastQuery callback = DBT . StateT $ \st -> do
+    let st' = st { dbRecordLastQuery = False }
+    (x, st'') <- runStateT (unDBT callback) st'
+    pure (x, st'' { dbRecordLastQuery = dbRecordLastQuery st })
 
   getConnectionStats = do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
@@ -99,6 +105,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
 
   {-# INLINABLE runQuery #-}
   {-# INLINABLE getLastQuery #-}
+  {-# INLINABLE withFrozenLastQuery #-}
   {-# INLINABLE getConnectionStats #-}
   {-# INLINABLE getQueryResult #-}
   {-# INLINABLE clearQueryResult #-}
