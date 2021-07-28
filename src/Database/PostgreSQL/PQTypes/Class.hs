@@ -89,7 +89,3 @@ instance (
     {-# INLINE setTransactionSettings #-}
     {-# INLINE getNotification #-}
     {-# INLINE withNewConnection #-}
-
-controlT :: (MonadTransControl t, Monad (t m), Monad m)
-         => (Run t -> m (StT t a)) -> t m a
-controlT f = liftWith f >>= restoreT . return
