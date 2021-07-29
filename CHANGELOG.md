@@ -1,3 +1,6 @@
+# hpqtypes-1.9.1.2 (2021-07-29)
+* Fix compilation issues caused by ambiguos occurence of `controlT`.
+
 # hpqtypes-1.9.1.1 (2021-05-27)
 * Support GHC 9.0.
 
