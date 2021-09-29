@@ -22,6 +22,9 @@ class (Applicative m, Monad m) => MonadDB m where
   runQuery :: IsSQL sql => sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
+  -- | Subsequent queries in the callback do not alter the result of
+  -- 'getLastQuery'.
+  withFrozenLastQuery :: m a -> m a
 
   -- | Get current connection statistics.
   getConnectionStats :: m ConnectionStats
@@ -73,6 +76,7 @@ instance (
   ) => MonadDB (t m) where
     runQuery = lift . runQuery
     getLastQuery = lift getLastQuery
+    withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
     getConnectionStats = lift getConnectionStats
     getQueryResult = lift getQueryResult
     clearQueryResult = lift clearQueryResult
@@ -82,6 +86,7 @@ instance (
     withNewConnection m = controlT $ \run -> withNewConnection (run m)
     {-# INLINE runQuery #-}
     {-# INLINE getLastQuery #-}
+    {-# INLINE withFrozenLastQuery #-}
     {-# INLINE getConnectionStats #-}
     {-# INLINE getQueryResult #-}
     {-# INLINE clearQueryResult #-}
