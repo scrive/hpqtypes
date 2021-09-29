@@ -1,3 +1,6 @@
+# hpqtypes-1.9.2.0 (2021-09-29)
+* Add method withFrozenLastQuery to (temporarily) stop recording queries.
+
 # hpqtypes-1.9.1.2 (2021-07-29)
 * Fix compilation issues caused by ambiguos occurence of `controlT`.
 
