@@ -939,30 +939,16 @@ static int getTypeParams(PGconn *conn, PGerror *err, PGregisterType *types, int 
 "(" \
 "  SELECT * FROM information_schema._pg_expandarray(%text[])" \
 ")," \
-"curpath AS" \
-"(" \
-"  SELECT * FROM information_schema._pg_expandarray(current_schemas(true))" \
-")," \
 "composites AS" \
 "(" \
-"  SELECT n.n AS idx, n.x AS nspname, t.x AS typname" \
-"    FROM nspnames n LEFT JOIN typnames t ON n.n = t.n" \
-"      AND n.x IS NOT NULL" \
-"      WHERE t.x IS NOT NULL" \
-"  UNION ALL" \
-"  SELECT n.n AS idx," \
-"  (" \
-"    SELECT n.nspname from pg_type nt JOIN pg_namespace n ON " \
-         "nt.typnamespace = n.oid" \
-"      JOIN curpath c ON c.x = n.nspname" \
-"      WHERE nt.typname = t.x" \
-"      ORDER BY c.n LIMIT 1" \
-"  ) AS nspname, t.x AS typname" \
-"    FROM nspnames n LEFT JOIN typnames t ON n.n = t.n" \
-"      AND n.x IS NULL" \
-"      WHERE t.x IS NOT NULL" \
+  "SELECT t.n as idx, " \
+"          to_regtype(CASE WHEN n.x IS NULL" \
+"                     THEN quote_ident(t.x)" \
+"                     ELSE quote_ident(n.x) || '.' || quote_ident(t.x)" \
+"                     END) AS typoid" \
+"  FROM nspnames n JOIN typnames t USING (n)" \
 ")" \
-"SELECT idx, t.oid AS typoid, a.oid AS arroid, t.typlen," \
+"SELECT c.idx, t.oid AS typoid, a.oid AS arroid, t.typlen," \
 " (" \
 "   CASE WHEN %bool THEN (" \
 "   SELECT array_to_string" \
@@ -983,8 +969,8 @@ static int getTypeParams(PGconn *conn, PGerror *err, PGregisterType *types, int 
 "    ), ' ')" \
 "  ) ELSE NULL END) AS arr_props" \
 "  FROM composites c" \
-"  JOIN pg_type t ON t.typname = c.typname" \
-"  JOIN pg_namespace n ON t.typnamespace = n.oid AND n.nspname = c.nspname" \
+"  JOIN pg_type t ON t.oid = c.typoid" \
+"  JOIN pg_namespace n ON t.typnamespace = n.oid" \
 "  JOIN pg_type a ON a.oid = t.typarray" \
 "  ORDER BY idx;"
 
