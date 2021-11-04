@@ -1,3 +1,6 @@
+# hpqtypes-1.9.2.1 (2021-11-04)
+* Improve an SQL query that gets information about composite types.
+
 # hpqtypes-1.9.2.0 (2021-09-29)
 * Add method withFrozenLastQuery to (temporarily) stop recording queries.
 
