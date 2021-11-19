@@ -4,6 +4,7 @@ module Database.PostgreSQL.PQTypes.Internal.Exception (
   , rethrowWithContext
   ) where
 
+import Control.Monad.Catch
 import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.SQL.Class

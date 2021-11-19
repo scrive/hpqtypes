@@ -93,6 +93,7 @@ library
                      , Database.PostgreSQL.PQTypes.Utils
                      , Database.PostgreSQL.PQTypes.FromSQL
                      , Database.PostgreSQL.PQTypes.Array
+                     , Database.PostgreSQL.PQTypes.Exception
                      , Database.PostgreSQL.PQTypes.Fold
                      , Database.PostgreSQL.PQTypes.FromRow
                      , Database.PostgreSQL.PQTypes.JSON

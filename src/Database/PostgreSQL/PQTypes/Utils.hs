@@ -6,8 +6,12 @@ module Database.PostgreSQL.PQTypes.Utils (
   , runQuery01OrElse
   , runQuery01_
   , runQuery01OrElse_
-  , runQuery1_
-  , runQuery1OrElse_
+  , runQuery1
+  , runQuery1OrElse
+  , runQueryAndFetch1
+  , runQueryAndFetch1OrElse
+  , runQueryNot0
+  , runQueryNot0OrElse
   , runQueryNot0_
   , runQueryNot0OrElse_
   , runSQL
@@ -16,8 +20,12 @@ module Database.PostgreSQL.PQTypes.Utils (
   , runSQL01OrElse
   , runSQL01_
   , runSQL01OrElse_
-  , runSQL1_
-  , runSQL1OrElse_
+  , runSQL1
+  , runSQL1OrElse
+  , runSQLAndFetch1
+  , runSQLAndFetch1OrElse
+  , runSQLNot0
+  , runSQLNot0OrElse
   , runSQLNot0_
   , runSQLNot0OrElse_
   -- Internal.Utils
@@ -28,27 +36,15 @@ import Control.Monad
 import Control.Monad.Catch
 
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Exception
+import Database.PostgreSQL.PQTypes.Fold
+import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
-
--- | When given 'DBException', throw it immediately. Otherwise
--- wrap it in 'DBException' with the current query context first.
-{-# INLINABLE throwDB #-}
-throwDB :: (Exception e, MonadDB m, MonadThrow m) => e -> m a
-throwDB e = case fromException $ toException e of
-  Just (dbe::DBException) -> throwM dbe
-  Nothing -> do
-    SomeSQL sql <- getLastQuery
-    throwM DBException {
-      dbeQueryContext = sql
-    , dbeError = e
-    }
-
-----------------------------------------
 
 -- | Convert 'RawSQL' () to 'SQL'.
 raw :: RawSQL () -> SQL
@@ -66,10 +62,19 @@ runQuery_ = void . runQuery
 -- Otherwise, the given exception is thrown.
 {-# INLINABLE runQuery01OrElse #-}
 runQuery01OrElse
-  :: (Exception e, IsSQL sql, MonadDB m, MonadThrow m) => (Int -> e) -> sql -> m Bool
+  :: (IsSQL sql, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> sql
+  -> m Bool
 runQuery01OrElse f sql = do
   n <- runQuery sql
-  when (n > 1) $ throwDB (f n)
+  let exc =
+        AffectedRowsMismatch
+          { rowsExpected = [(0, 1)]
+          , rowsDelivered = n
+          }
+  when (n > 1) $ do
+    withFrozenLastQuery $ f exc
   return $ n == 1
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
@@ -77,16 +82,15 @@ runQuery01OrElse f sql = do
 -- Otherwise, 'AffectedRowsMismatch' exception is thrown.
 {-# INLINABLE runQuery01 #-}
 runQuery01 :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Bool
-runQuery01 = runQuery01OrElse $ \n ->
-  AffectedRowsMismatch {
-    rowsExpected = [(0, 1)]
-  , rowsDelivered = n
-  }
+runQuery01 = runQuery01OrElse throwDB
 
 -- | Specialization of 'runQuery01OrElse' that discards the result.
 {-# INLINABLE runQuery01OrElse_ #-}
 runQuery01OrElse_
-  :: (Exception e, IsSQL sql, MonadDB m, MonadThrow m) => (Int -> e) -> sql -> m ()
+  :: (IsSQL sql, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> sql
+  -> m ()
 runQuery01OrElse_ f = void . runQuery01OrElse f
 
 -- | Specialization of 'runQuery01' that discards the result.
@@ -97,44 +101,102 @@ runQuery01_ = void . runQuery01
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is exactly 1.
 -- Otherwise, the given exception is thrown.
-{-# INLINABLE runQuery1OrElse_ #-}
-runQuery1OrElse_
-  :: (Exception e, IsSQL sql, MonadDB m, MonadThrow m) => (Int -> e) -> sql -> m ()
-runQuery1OrElse_ f sql = do
+{-# INLINABLE runQueryAndFetch1OrElse #-}
+runQueryAndFetch1OrElse
+  :: (IsSQL sql, FromRow row, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m a)
+  -> (row -> a)
+  -> sql
+  -> m a
+runQueryAndFetch1OrElse f decoder sql = do
   n <- runQuery sql
-  when (n /= 1) $ throwDB (f n)
+  let exc =
+        AffectedRowsMismatch
+          { rowsExpected = [(1, 1)]
+          , rowsDelivered = n
+          }
+  case n of
+    0 -> withFrozenLastQuery $ f exc
+    1 -> fetchOne decoder
+    _ -> throwDB exc
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is exactly 1.
 -- Otherwise, 'AffectedRowsMismatch' exception is thrown.
-{-# INLINABLE runQuery1_ #-}
-runQuery1_ :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
-runQuery1_ = runQuery1OrElse_ $ \n ->
-  AffectedRowsMismatch {
-    rowsExpected = [(1, 1)]
-  , rowsDelivered = n
-  }
+{-# INLINABLE runQueryAndFetch1 #-}
+runQueryAndFetch1
+  :: (IsSQL sql, FromRow row, MonadDB m, MonadThrow m)
+  => (row -> a)
+  -> sql
+  -> m a
+runQueryAndFetch1 = runQueryAndFetch1OrElse throwDB
+
+-- | Specialization of 'runQuery' that checks whether affected/returned
+-- number of rows is exactly 1.
+-- Otherwise, the given exception is thrown.
+{-# INLINABLE runQuery1OrElse #-}
+runQuery1OrElse
+  :: (IsSQL sql, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> sql
+  -> m ()
+runQuery1OrElse f sql = do
+  n <- runQuery sql
+  let exc =
+        AffectedRowsMismatch
+          { rowsExpected = [(1, 1)]
+          , rowsDelivered = n
+          }
+  case n of
+    0 -> withFrozenLastQuery $ f exc
+    1 -> pure ()
+    _ -> throwDB exc
+
+-- | Specialization of 'runQuery' that checks whether affected/returned
+-- number of rows is exactly 1.
+-- Otherwise, 'AffectedRowsMismatch' exception is thrown.
+{-# INLINABLE runQuery1 #-}
+runQuery1 :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
+runQuery1 = runQuery1OrElse throwDB
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is greater than 0.
 -- Otherwise, the given exception is thrown.
-{-# INLINABLE runQueryNot0OrElse_ #-}
-runQueryNot0OrElse_
-  :: (Exception e, IsSQL sql, MonadDB m, MonadThrow m) => (Int -> e) -> sql -> m ()
-runQueryNot0OrElse_ f sql = do
+{-# INLINABLE runQueryNot0OrElse #-}
+runQueryNot0OrElse
+  :: (IsSQL sql, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> sql
+  -> m Int
+runQueryNot0OrElse f sql = do
   n <- runQuery sql
-  when (n == 0) $ throwDB (f n)
+  let exc =
+        AffectedRowsMismatch
+          { rowsExpected = [(1, maxBound)]
+          , rowsDelivered = n
+          }
+  when (n == 0) $ do
+    withFrozenLastQuery $ f exc
+  return n
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is greater than 0.
 -- Otherwise, 'AffectedRowsMismatch' exception is thrown.
+{-# INLINABLE runQueryNot0 #-}
+runQueryNot0 :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Int
+runQueryNot0 = runQueryNot0OrElse throwDB
+
+{-# INLINABLE runQueryNot0OrElse_ #-}
+runQueryNot0OrElse_
+  :: (IsSQL sql, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> sql
+  -> m ()
+runQueryNot0OrElse_ f sql = void $ runQueryNot0OrElse f sql
+
 {-# INLINABLE runQueryNot0_ #-}
 runQueryNot0_ :: (IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
-runQueryNot0_ = runQueryNot0OrElse_ $ \n ->
-  AffectedRowsMismatch {
-    rowsExpected = [(1, maxBound)]
-  , rowsDelivered = 0
-  }
+runQueryNot0_ = void . runQueryNot0
 
 ----------------------------------------
 
@@ -156,7 +218,10 @@ runSQL01 = runQuery01
 -- | Specialization of 'runQuery01OrElse' to 'SQL' type.
 {-# INLINABLE runSQL01OrElse #-}
 runSQL01OrElse
-  :: (Exception e, MonadDB m, MonadThrow m) => (Int -> e) -> SQL -> m Bool
+  :: (MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> SQL
+  -> m Bool
 runSQL01OrElse = runQuery01OrElse
 
 -- | Specialization of 'runQuery01_' to 'SQL' type.
@@ -167,27 +232,66 @@ runSQL01_ = runQuery01_
 -- | Specialization of 'runQuery01OrElse_' to 'SQL' type.
 {-# INLINABLE runSQL01OrElse_ #-}
 runSQL01OrElse_
-  :: (Exception e, MonadDB m, MonadThrow m) => (Int -> e) -> SQL -> m ()
+  :: (MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> SQL
+  -> m ()
 runSQL01OrElse_ = runQuery01OrElse_
 
--- | Specialization of 'runQuery1_' to 'SQL' type.
-{-# INLINABLE runSQL1_ #-}
-runSQL1_ :: (MonadDB m, MonadThrow m) => SQL -> m ()
-runSQL1_ = runQuery1_
+-- | Specialization of 'runQuery1' to 'SQL' type.
+{-# INLINABLE runSQLAndFetch1 #-}
+runSQLAndFetch1
+  :: (FromRow row, MonadDB m, MonadThrow m) => (row -> a) -> SQL -> m a
+runSQLAndFetch1 = runQueryAndFetch1
 
--- | Specialization of 'runQuery1OrElse_' to 'SQL' type.
-{-# INLINABLE runSQL1OrElse_ #-}
-runSQL1OrElse_
-  :: (Exception e, MonadDB m, MonadThrow m) => (Int -> e) -> SQL -> m ()
-runSQL1OrElse_ = runQuery1OrElse_
+-- | Specialization of 'runQuery1OrElse' to 'SQL' type.
+{-# INLINABLE runSQLAndFetch1OrElse #-}
+runSQLAndFetch1OrElse
+  :: (FromRow row, MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m a)
+  -> (row -> a)
+  -> SQL
+  -> m a
+runSQLAndFetch1OrElse = runQueryAndFetch1OrElse
+
+-- | Specialization of 'runQuery1' to 'SQL' type.
+{-# INLINABLE runSQL1 #-}
+runSQL1 :: (MonadDB m, MonadThrow m) => SQL -> m ()
+runSQL1 = runQuery1
+
+-- | Specialization of 'runQuery1OrElse' to 'SQL' type.
+{-# INLINABLE runSQL1OrElse #-}
+runSQL1OrElse
+  :: (MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> SQL
+  -> m ()
+runSQL1OrElse = runQuery1OrElse
+
+-- | Specialization of 'runQueryNot0' to 'SQL' type.
+{-# INLINABLE runSQLNot0 #-}
+runSQLNot0 :: (MonadDB m, MonadThrow m) => SQL -> m Int
+runSQLNot0 = runQueryNot0
+
+-- | Specialization of 'runQueryNot0OrElse' to 'SQL' type.
+{-# INLINABLE runSQLNot0OrElse #-}
+runSQLNot0OrElse
+  :: (MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> SQL
+  -> m Int
+runSQLNot0OrElse = runQueryNot0OrElse
 
 -- | Specialization of 'runQueryNot0_' to 'SQL' type.
 {-# INLINABLE runSQLNot0_ #-}
 runSQLNot0_ :: (MonadDB m, MonadThrow m) => SQL -> m ()
-runSQLNot0_ = runQuery01_
+runSQLNot0_ = runQueryNot0_
 
 -- | Specialization of 'runQueryNot0OrElse_' to 'SQL' type.
 {-# INLINABLE runSQLNot0OrElse_ #-}
 runSQLNot0OrElse_
-  :: (Exception e, MonadDB m, MonadThrow m) => (Int -> e) -> SQL -> m ()
-runSQLNot0OrElse_ = runQuery01OrElse_
+  :: (MonadDB m, MonadThrow m)
+  => (forall e. Exception e => e -> m ())
+  -> SQL
+  -> m ()
+runSQLNot0OrElse_ = runQueryNot0OrElse_

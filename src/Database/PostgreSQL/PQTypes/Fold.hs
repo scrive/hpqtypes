@@ -12,10 +12,11 @@ import Control.Monad.Catch
 import qualified Data.Foldable as F
 
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Exception
 import Database.PostgreSQL.PQTypes.FromRow
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
-import Database.PostgreSQL.PQTypes.Utils
 
 -- | Get current 'QueryResult' or throw an exception if there isn't one.
 {-# INLINABLE queryResult #-}
