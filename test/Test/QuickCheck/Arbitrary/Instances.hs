@@ -3,17 +3,25 @@
 {-# LANGUAGE TypeApplications #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
+#if !MIN_VERSION_aeson(2,0,3)
 import Data.Aeson
+#endif
 import Data.Char
+#if !MIN_VERSION_aeson(2,0,3)
 import Data.Scientific
+#endif
 import Data.Time
 import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
+#if !MIN_VERSION_aeson(2,0,3)
 import qualified Data.HashMap.Strict as HM
+#endif
 import qualified Data.Text as T
+#if !MIN_VERSION_aeson(2,0,3)
 import qualified Data.Vector as V
+#endif
 import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
@@ -61,6 +69,7 @@ instance Arbitrary U.UUID where
 
 ----------------------------------------
 
+#if !MIN_VERSION_aeson(2,0,3)
 instance Arbitrary Scientific where
   arbitrary = scientific <$> arbitrary <*> ((`mod` 100) <$> arbitrary)
 
@@ -88,6 +97,7 @@ instance Arbitrary Value where
 
           subValue = value (i-1) n
           shortListOf = fmap (take depth) . listOf
+#endif
 
 ----------------------------------------
 
