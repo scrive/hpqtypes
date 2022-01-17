@@ -3,26 +3,21 @@
 {-# LANGUAGE TypeApplications #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
-#if !MIN_VERSION_aeson(2,0,3)
-import Data.Aeson
-#endif
 import Data.Char
-#if !MIN_VERSION_aeson(2,0,3)
-import Data.Scientific
-#endif
 import Data.Time
 import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
-#if !MIN_VERSION_aeson(2,0,3)
-import qualified Data.HashMap.Strict as HM
-#endif
 import qualified Data.Text as T
+import qualified Data.UUID.Types as U
+
 #if !MIN_VERSION_aeson(2,0,3)
+import Data.Aeson
+import Data.Scientific
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
 #endif
-import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
 
