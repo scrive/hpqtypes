@@ -3,7 +3,6 @@
 {-# LANGUAGE TypeApplications #-}
 module Test.QuickCheck.Arbitrary.Instances where
 
-import Data.Aeson
 import Data.Char
 import Data.Scientific
 import Data.Time
@@ -11,10 +10,14 @@ import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
-import qualified Data.Vector as V
 import qualified Data.UUID.Types as U
+
+#if !MIN_VERSION_aeson(2,0,1)
+import Data.Aeson
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Vector as V
+#endif
 
 import Database.PostgreSQL.PQTypes
 
@@ -64,6 +67,7 @@ instance Arbitrary U.UUID where
 instance Arbitrary Scientific where
   arbitrary = scientific <$> arbitrary <*> ((`mod` 100) <$> arbitrary)
 
+#if !MIN_VERSION_aeson(2,0,1)
 instance Arbitrary Value where
   arbitrary = value depth depth
     where
@@ -88,6 +92,7 @@ instance Arbitrary Value where
 
           subValue = value (i-1) n
           shortListOf = fmap (take depth) . listOf
+#endif
 
 ----------------------------------------
 
