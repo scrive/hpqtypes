@@ -11,12 +11,12 @@ import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import qualified Data.ByteString as BS
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
+import qualified Test.QuickCheck.Compat as Compat
 
 newtype String0 = String0 { unString0 :: String }
   deriving (Eq, Ord, Show)
@@ -64,8 +64,8 @@ instance Arbitrary U.UUID where
 instance Arbitrary Scientific where
   arbitrary = scientific <$> arbitrary <*> ((`mod` 100) <$> arbitrary)
 
-instance Arbitrary Value where
-  arbitrary = value depth depth
+instance Arbitrary Compat.Value0 where
+  arbitrary = Compat.mkValue0 <$> value depth depth
     where
       depth :: Int
       depth = 3
@@ -76,7 +76,7 @@ instance Arbitrary Value where
         | otherwise = oneof $ leafs ++ branches
         where
           branches = [
-              Object . HM.fromList <$> shortListOf ((,) <$> arbitrary <*> subValue)
+              Object . Compat.fromList <$> shortListOf ((,) <$> arbitrary <*> subValue)
             , Array  . V.fromList  <$> shortListOf subValue
             ]
           leafs = [

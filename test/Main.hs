@@ -528,7 +528,7 @@ tests td = [
   , putGetTest td 50 (u::JSON Value) (==)
   , putGetTest td 50 (u::JSONB Value) (==)
   , putGetTest td 20 (u::Array1 (JSON Value)) (==)
-  , putGetTest td 20 (u::Array1 (JSONB Value)) (==)
+  , putGetTest td 20 (u::Array1 (JSONB Value0)) (==)
   , putGetTest td 50 (u::Interval) (==)
   , putGetTest td 1000000 (u::Day) (==)
   , putGetTest td 10000 (u::TimeOfDay) eqTOD

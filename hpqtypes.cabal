@@ -228,6 +228,7 @@ test-suite hpqtypes-tests
                      , unordered-containers
                      , vector
                      , uuid-types
+                     , hashable
 
   default-language:  Haskell2010
   default-extensions: BangPatterns
