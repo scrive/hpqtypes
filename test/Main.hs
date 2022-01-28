@@ -526,7 +526,7 @@ tests td = [
   , putGetTest td 1000 (u::T.Text) (==)
   , putGetTest td 1000 (u::U.UUID) (==)
   , putGetTest td 50 (u::JSON Value) (==)
-  , putGetTest td 50 (u::JSONB Value) (==)
+  , putGetTest td 50 (u::JSONB Value0) (==)
   , putGetTest td 20 (u::Array1 (JSON Value)) (==)
   , putGetTest td 20 (u::Array1 (JSONB Value0)) (==)
   , putGetTest td 50 (u::Interval) (==)
