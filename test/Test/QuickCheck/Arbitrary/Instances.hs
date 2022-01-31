@@ -80,7 +80,7 @@ instance Arbitrary Compat.Value0 where
             , Array  . V.fromList  <$> shortListOf subValue
             ]
           leafs = [
-              String <$> arbitrary
+              String <$> (arbitrary :: Gen T.Text)
             , Number <$> arbitrary
             , Bool   <$> arbitrary
             , pure Null
