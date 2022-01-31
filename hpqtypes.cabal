@@ -211,6 +211,8 @@ test-suite hpqtypes-tests
                      , base >= 4.9 && < 5
                      , HUnit >= 1.2
                      , QuickCheck >= 2.5
+                     -- See https://github.com/scrive/hpqtypes/pull/36#discussion_r788608718
+                     -- for the reason why some versions need to be excluded
                      , aeson >= 0.6.2.0 && < 2.0 || >= 2.0.3.0
                      , bytestring >= 0.9
                      , exceptions >= 0.6
