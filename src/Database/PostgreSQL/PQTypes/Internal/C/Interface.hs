@@ -43,60 +43,60 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 
 -- libpq imports
 
-foreign import ccall unsafe "PQfreemem"
+foreign import capi unsafe "libpq-fe.h PQfreemem"
   c_PQfreemem :: Ptr a -> IO ()
 
-foreign import ccall unsafe "PQstatus"
+foreign import capi unsafe "libpq-fe.h PQstatus"
   c_PQstatus :: Ptr PGconn -> IO ConnStatusType
 
-foreign import ccall unsafe "PQerrorMessage"
+foreign import capi unsafe "libpq-fe.h PQerrorMessage"
   c_PQerrorMessage :: Ptr PGconn -> IO CString
 
-foreign import ccall unsafe "PQsetClientEncoding"
+foreign import capi unsafe "libpq-fe.h PQsetClientEncoding"
   c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
 
-foreign import ccall unsafe "PQsocket"
+foreign import capi unsafe "libpq-fe.h PQsocket"
   c_PQsocket :: Ptr PGconn -> IO Fd
 
-foreign import ccall unsafe "PQconsumeInput"
+foreign import capi unsafe "libpq-fe.h PQconsumeInput"
   c_PQconsumeInput :: Ptr PGconn -> IO CInt
 
-foreign import ccall unsafe "PQresultStatus"
+foreign import capi unsafe "libpq-fe.h PQresultStatus"
   c_PQresultStatus :: Ptr PGresult -> IO ExecStatusType
 
-foreign import ccall unsafe "PQresultErrorField"
+foreign import capi unsafe "libpq-fe.h PQresultErrorField"
   c_PQresultErrorField :: Ptr PGresult -> ErrorField -> IO CString
 
-foreign import ccall unsafe "PQresultErrorMessage"
+foreign import capi unsafe "libpq-fe.h PQresultErrorMessage"
   c_PQresultErrorMessage :: Ptr PGresult -> IO CString
 
-foreign import ccall unsafe "PQntuples"
+foreign import capi unsafe "libpq-fe.h PQntuples"
   c_PQntuples :: Ptr PGresult -> IO CInt
 
-foreign import ccall unsafe "PQnfields"
+foreign import capi unsafe "libpq-fe.h PQnfields"
   c_PQnfields :: Ptr PGresult -> IO CInt
 
-foreign import ccall unsafe "PQcmdTuples"
+foreign import capi unsafe "libpq-fe.h PQcmdTuples"
   c_PQcmdTuples :: Ptr PGresult -> IO CString
 
-foreign import ccall unsafe "PQgetisnull"
+foreign import capi unsafe "libpq-fe.h PQgetisnull"
   c_PQgetisnull :: Ptr PGresult -> CInt -> CInt -> IO CInt
 
-foreign import ccall unsafe "PQfname"
+foreign import capi unsafe "libpq-fe.h PQfname"
   c_PQfname :: Ptr PGresult -> CInt -> IO CString
 
-foreign import ccall unsafe "PQclear"
+foreign import capi unsafe "libpq-fe.h PQclear"
   c_PQclear :: Ptr PGresult -> IO ()
 
 ----------------------------------------
 
-foreign import ccall unsafe "PQgetCancel"
+foreign import capi unsafe "libpq-fe.h PQgetCancel"
   c_PQgetCancel :: Ptr PGconn -> IO (Ptr PGcancel)
 
-foreign import ccall unsafe "PQfreeCancel"
+foreign import capi unsafe "libpq-fe.h PQfreeCancel"
   c_PQfreeCancel :: Ptr PGcancel -> IO ()
 
-foreign import ccall unsafe "PQcancel"
+foreign import capi unsafe "libpq-fe.h PQcancel"
   c_rawPQcancel :: Ptr PGcancel -> CString -> CInt -> IO CInt
 
 -- | Attempt to cancel currently running query. If the request is successfully
@@ -116,38 +116,38 @@ c_PQcancel conn = E.bracket (c_PQgetCancel conn) c_PQfreeCancel $ \cancel -> do
 
 ----------------------------------------
 
-foreign import ccall unsafe "PQconnectStart"
+foreign import capi unsafe "libpq-fe.h PQconnectStart"
   c_PQconnectStart :: CString -> IO (Ptr PGconn)
 
-foreign import ccall unsafe "PQconnectPoll"
+foreign import capi unsafe "libpq-fe.h PQconnectPoll"
   c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
 
-foreign import ccall unsafe "PQfinishPtr"
+foreign import capi unsafe "libpqtypes.h PQfinishPtr"
   c_PQfinishPtr :: Ptr (Ptr PGconn) -> IO ()
 
-foreign import ccall unsafe "&PQfinishPtr"
+foreign import capi unsafe "libpqtypes.h &PQfinishPtr"
   c_ptr_PQfinishPtr :: FunPtr (Ptr (Ptr PGconn) -> IO ())
 
 -- libpqtypes imports
 
-foreign import ccall unsafe "PQinitTypes"
+foreign import capi unsafe "libpqtypes.h PQinitTypes"
   c_PQinitTypes :: Ptr PGconn -> IO ()
 
-foreign import ccall unsafe "PQregisterTypes"
+foreign import capi unsafe "libpqtypes.h PQregisterTypes"
   c_PQregisterTypes :: Ptr PGconn -> Ptr PGerror -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
 
-foreign import ccall unsafe "PQparamCreate"
+foreign import capi unsafe "libpqtypes.h PQparamCreate"
   c_PQparamCreate :: Ptr PGconn -> Ptr PGerror -> IO (Ptr PGparam)
 
-foreign import ccall unsafe "PQparamClear"
+foreign import capi unsafe "libpqtypes.h PQparamClear"
   c_PQparamClear :: Ptr PGparam -> IO ()
 
-foreign import ccall unsafe "PQparamCount"
+foreign import capi unsafe "libpqtypes.h PQparamCount"
   c_PQparamCount :: Ptr PGparam -> IO CInt
 
 -- misc
 
-foreign import ccall unsafe "&pqt_hs_null_string_ptr"
+foreign import capi unsafe "libpqtypes.h &pqt_hs_null_string_ptr"
   nullStringPtr :: Ptr CChar
 
 nullStringCStringLen :: CStringLen
@@ -156,10 +156,10 @@ nullStringCStringLen = (nullStringPtr, 0)
 ----------------------------------------
 
 -- | May run for a long time, hence marked 'safe'.
-foreign import ccall safe "PQparamExec"
+foreign import capi safe "libpqtypes.h PQparamExec"
   c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (Ptr PGresult)
 
-foreign import ccall unsafe "&PQclear"
+foreign import capi unsafe "libpq-fe.h &PQclear"
   c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
 
 -- | Safe wrapper for 'c_rawPQparamExec'. Wraps result returned by

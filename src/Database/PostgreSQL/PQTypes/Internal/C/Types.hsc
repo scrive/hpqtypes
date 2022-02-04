@@ -46,17 +46,17 @@ import Foreign.Storable
 import qualified Data.ByteString as BS
 import qualified Data.Vector.Storable as V
 
-data PGcancel
-data PGconn
-data PGparam
-data PGresult
-data PGtypeArgs
+data {-# CTYPE "libpqtypes.h" "PGcancel" #-} PGcancel
+data {-# CTYPE "libpqtypes.h" "PGconn" #-} PGconn
+data {-# CTYPE "libpqtypes.h" "PGparam" #-} PGparam
+data {-# CTYPE "libpqtypes.h" "PGresult" #-} PGresult
+data {-# CTYPE "libpqtypes.h" "PGtypeArgs" #-} PGtypeArgs
 
 #include <libpqtypes.h>
 #include <libpq-fe.h>
 
-foreign import ccall unsafe htonl :: Word32 -> Word32
-foreign import ccall unsafe ntohl :: Word32 -> Word32
+foreign import capi unsafe "libpqtypes.h htonl" htonl :: Word32 -> Word32
+foreign import capi unsafe "libpqtypes.h ntohl" ntohl :: Word32 -> Word32
 
 ----------------------------------------
 
