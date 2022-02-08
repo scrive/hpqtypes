@@ -26,7 +26,7 @@ import Database.PostgreSQL.PQTypes.SQL.Raw
 
 #include <libpq-fe.h>
 
-foreign import capi unsafe "libpqtypes.h PQnotifies"
+foreign import ccall unsafe "PQnotifies"
   c_PQnotifies :: Ptr PGconn -> IO (Ptr Notification)
 
 ----------------------------------------

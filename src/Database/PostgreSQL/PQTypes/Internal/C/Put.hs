@@ -8,6 +8,9 @@ import Foreign.Ptr
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
+-- For PQputf, we use capi imports since ccall is broken for variadic functions.
+-- See https://www.haskell.org/ghc/blog/20210709-capi-usage.html.
+
 foreign import capi unsafe "libpqtypes.h PQputf"
   c_PQputf1 :: Ptr PGparam -> Ptr PGerror -> CString
             -> Ptr t
