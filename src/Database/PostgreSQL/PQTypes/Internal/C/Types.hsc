@@ -55,8 +55,8 @@ data PGtypeArgs
 #include <libpqtypes.h>
 #include <libpq-fe.h>
 
-foreign import ccall unsafe htonl :: Word32 -> Word32
-foreign import ccall unsafe ntohl :: Word32 -> Word32
+foreign import ccall unsafe "htonl" htonl :: Word32 -> Word32
+foreign import ccall unsafe "ntohl" ntohl :: Word32 -> Word32
 
 ----------------------------------------
 

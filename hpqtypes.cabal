@@ -173,6 +173,7 @@ library
 
   default-language:  Haskell2010
   default-extensions: BangPatterns
+                    , CApiFFI
                     , ConstraintKinds
                     , DataKinds
                     , DeriveFunctor
