@@ -126,7 +126,7 @@ library
 
   build-depends:       base              >= 4.9     && < 5
                      , text              >= 0.11
-                     , aeson             >= 1.0     && < 2.0
+                     , aeson             >= 1.0
                      , async             >= 2.1.1.1
                      , bytestring        >= 0.9
                      , semigroups        >= 0.16
@@ -206,6 +206,7 @@ test-suite hpqtypes-tests
   hs-source-dirs:    test
   main-is:           Main.hs
   other-modules:     Prelude.Instances
+                     Test.Aeson.Compat
                      Test.QuickCheck.Compat
                      Test.QuickCheck.Arbitrary.Instances
   build-depends:       hpqtypes

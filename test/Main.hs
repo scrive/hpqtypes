@@ -33,6 +33,7 @@ import qualified Data.UUID.Types as U
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
+import Test.Aeson.Compat (Value0)
 import Test.QuickCheck.Arbitrary.Instances
 import Test.QuickCheck.Compat
 
@@ -525,10 +526,10 @@ tests td = [
   , putGetTest td 1000 (u::BS.ByteString) (==)
   , putGetTest td 1000 (u::T.Text) (==)
   , putGetTest td 1000 (u::U.UUID) (==)
-  , putGetTest td 50 (u::JSON Value) (==)
-  , putGetTest td 50 (u::JSONB Value) (==)
-  , putGetTest td 20 (u::Array1 (JSON Value)) (==)
-  , putGetTest td 20 (u::Array1 (JSONB Value)) (==)
+  , putGetTest td 50 (u::JSON Value0) (==)
+  , putGetTest td 50 (u::JSONB Value0) (==)
+  , putGetTest td 20 (u::Array1 (JSON Value0)) (==)
+  , putGetTest td 20 (u::Array1 (JSONB Value0)) (==)
   , putGetTest td 50 (u::Interval) (==)
   , putGetTest td 1000000 (u::Day) (==)
   , putGetTest td 10000 (u::TimeOfDay) eqTOD
