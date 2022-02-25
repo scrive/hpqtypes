@@ -25,6 +25,7 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
 import Test.QuickCheck.Gen
+import Test.QuickCheck.Random
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -35,31 +36,22 @@ import Database.PostgreSQL.PQTypes
 import Prelude.Instances ()
 import Test.Aeson.Compat (Value0)
 import Test.QuickCheck.Arbitrary.Instances
-import Test.QuickCheck.Compat
 
 type InnerTestEnv = StateT QCGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
-  deriving ( Applicative, Functor, Monad
-           , MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow )
+  deriving ( Applicative, Functor, Monad, MonadFail
+           , MonadBase IO, MonadCatch, MonadDB, MonadMask, MonadThrow)
 
 instance MonadBaseControl IO TestEnv where
-#if MIN_VERSION_monad_control(1,0,0)
   type StM TestEnv a = StM InnerTestEnv a
   liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
                          f $ run . unTestEnv
   restoreM = TestEnv . restoreM
-#else
-  newtype StM TestEnv a = StTestEnv { unStTestEnv :: StM InnerTestEnv a }
-  liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
-                         f $ liftM StTestEnv . run . unTestEnv
-  restoreM = TestEnv . restoreM . unStTestEnv
-#endif
 
 withQCGen :: (QCGen -> r) -> TestEnv r
 withQCGen f = do
-  gen <- TestEnv get
-  TestEnv . modify $ snd . next
+  gen <- TestEnv $ state split
   return (f gen)
 
 ----------------------------------------
@@ -369,7 +361,7 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
   forkNewConn $ notify chan payload
   mnt1 <- getNotification 100000
   liftBase $ assertBool "Notification received" (isJust mnt1)
-  let Just nt1 = mnt1
+  Just nt1 <- pure mnt1
   assertEqualEq "Channels are equal" chan (ntChannel nt1)
   assertEqualEq "Payloads are equal" payload (ntPayload nt1)
 
@@ -430,7 +422,7 @@ putGetTest td n t eq = testCase
 uuidTest :: TestData -> Test
 uuidTest td = testCase "UUID encoding / decoding test" $ do
   let uuidStr = "550e8400-e29b-41d4-a716-446655440000"
-      (Just uuid) = U.fromText uuidStr
+  Just uuid <- pure $ U.fromText uuidStr
   runTestEnv td defaultTransactionSettings $ do
     runSQL_ $ mkSQL $ "SELECT '" `mappend` uuidStr `mappend` "' :: uuid"
     uuid2 <- fetchOne runIdentity

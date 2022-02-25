@@ -117,34 +117,18 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
 ----------------------------------------
 
 instance MonadTransControl (DBT_ m) where
-#if MIN_VERSION_monad_control(1,0,0)
   type StT (DBT_ m) a = StT (InnerDBT m) a
   liftWith = defaultLiftWith DBT unDBT
   restoreT = defaultRestoreT DBT
   {-# INLINE liftWith #-}
   {-# INLINE restoreT #-}
-#else
-  newtype StT (DBT_ m) a = StDBT { unStDBT :: StT (InnerDBT m) a }
-  liftWith = defaultLiftWith DBT unDBT StDBT
-  restoreT = defaultRestoreT DBT unStDBT
-  {-# INLINE liftWith #-}
-  {-# INLINE restoreT #-}
-#endif
 
 instance (m ~ n, MonadBaseControl b m) => MonadBaseControl b (DBT_ m n) where
-#if MIN_VERSION_monad_control(1,0,0)
   type StM (DBT_ m n) a = ComposeSt (DBT_ m) m a
   liftBaseWith = defaultLiftBaseWith
   restoreM     = defaultRestoreM
   {-# INLINE liftBaseWith #-}
   {-# INLINE restoreM #-}
-#else
-  newtype StM (DBT m) a = StMDBT { unStMDBT :: ComposeSt (DBT_ m) m a }
-  liftBaseWith = defaultLiftBaseWith StMDBT
-  restoreM     = defaultRestoreM unStMDBT
-  {-# INLINE liftBaseWith #-}
-  {-# INLINE restoreM #-}
-#endif
 
 instance (m ~ n, MonadError e m) => MonadError e (DBT_ m n) where
   throwError = lift . throwError
