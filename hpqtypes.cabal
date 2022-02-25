@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.9.2.1
+version:             1.9.3.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -39,8 +39,7 @@ copyright:           Scrive AB
 category:            Database
 build-type:          Custom
 cabal-version:       1.24
-tested-with:         GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.4 || ==8.10.7
-                      || ==9.0.2
+tested-with:         GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.1
 
 
 extra-source-files: README.md
@@ -71,8 +70,8 @@ extra-source-files: README.md
                   , libpqtypes/src/libpqtypes.h
 
 custom-setup
-  setup-depends: base  >= 4.9  && < 5,
-                 Cabal >= 1.24 && < 3.6,
+  setup-depends: base  >= 4.13 && < 5,
+                 Cabal >= 1.24 && < 3.7,
                  directory,
                  filepath
 
@@ -124,7 +123,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Get
 
-  build-depends:       base              >= 4.9     && < 5
+  build-depends:       base              >= 4.13    && < 5
                      , text              >= 0.11
                      , aeson             >= 1.0
                      , async             >= 2.1.1.1
@@ -207,17 +206,16 @@ test-suite hpqtypes-tests
   main-is:           Main.hs
   other-modules:     Prelude.Instances
                      Test.Aeson.Compat
-                     Test.QuickCheck.Compat
                      Test.QuickCheck.Arbitrary.Instances
   build-depends:       hpqtypes
-                     , base >= 4.9 && < 5
+                     , base >= 4.13 && < 5
                      , HUnit >= 1.2
-                     , QuickCheck >= 2.5
+                     , QuickCheck >= 2.7
                      , aeson >= 0.6.2.0
                      , bytestring >= 0.9
                      , exceptions >= 0.6
                      , lifted-base >= 0.2
-                     , monad-control >= 0.3
+                     , monad-control >= 1.0
                      , mtl >= 2.1
                      , random >= 1.0
                      , scientific

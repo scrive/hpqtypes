@@ -1,3 +1,9 @@
+# hpqtypes-1.9.3.0 (2022-02-25)
+* Fix support for M1 chips.
+* Add support for aeson >= 2.0.
+* Add support for GHC 9.2.
+* Drop support for GHC < 8.8.
+
 # hpqtypes-1.9.2.1 (2021-11-04)
 * Improve an SQL query that gets information about composite types.
 
