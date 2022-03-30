@@ -37,11 +37,13 @@ instance IsString Savepoint where
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
 {-# INLINABLE withSavepoint #-}
 withSavepoint :: (MonadDB m, MonadMask m) => Savepoint -> m a -> m a
-withSavepoint (Savepoint savepoint) m = mask $ \restore -> do
-  runQuery_ $ "SAVEPOINT" <+> savepoint
-  res <- restore m `onException` rollbackAndReleaseSavepoint
-  runQuery_ sqlReleaseSavepoint
-  return res
+withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
+  (runQuery_ $ "SAVEPOINT" <+> savepoint)
+  (\() -> \case
+      ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
+      _                 -> rollbackAndReleaseSavepoint
+  )
+  (\() -> m)
   where
     sqlReleaseSavepoint = "RELEASE SAVEPOINT" <+> savepoint
     rollbackAndReleaseSavepoint = do
@@ -83,18 +85,20 @@ rollback = getTransactionSettings >>= rollback'
 {-# INLINABLE withTransaction' #-}
 withTransaction' :: (MonadDB m, MonadMask m)
                  => TransactionSettings -> m a -> m a
-withTransaction' ts m = mask $ \restore -> (`fix` 1) $ \loop n -> do
+withTransaction' ts m = (`fix` 1) $ \loop n -> do
   -- Optimization for squashing possible space leaks.
   -- It looks like GHC doesn't like 'catch' and passes
   -- on introducing strictness in some cases.
   let maybeRestart = case tsRestartPredicate ts of
         Just _  -> handleJust (expred n) (\_ -> loop $ n+1)
         Nothing -> id
-  maybeRestart $ do
-    begin' ts
-    res <- restore m `onException` rollback' ts
-    commit' ts
-    return res
+  maybeRestart $ fst <$> generalBracket
+    (begin' ts)
+    (\() -> \case
+        ExitCaseSuccess _ -> commit' ts
+        _                 -> rollback' ts
+    )
+    (\() -> m)
   where
     expred :: Integer -> SomeException -> Maybe ()
     expred !n e = do

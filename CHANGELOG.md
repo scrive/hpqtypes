@@ -1,3 +1,7 @@
+# hpqtypes-1.9.3.1 (2022-03-30)
+* Fix `withTransaction` and `withSavepoint` with short-circuiting monad
+  transformers such as `ExceptT`.
+
 # hpqtypes-1.9.3.0 (2022-02-25)
 * Fix support for M1 chips.
 * Add support for aeson >= 2.0.

@@ -151,25 +151,16 @@ poolSource
 poolSource cs numStripes idleTime maxResources = do
   pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
   return $ ConnectionSource $ ConnectionSourceM {
-    withConnection = withResource' pool . (clearStats >=>)
+    withConnection = doWithConnection pool . (clearStats >=>)
   }
   where
-#if MIN_VERSION_exceptions(0,9,0)
-    withResource' pool m = fst <$> generalBracket
+    doWithConnection pool m = fst <$> generalBracket
       (liftBase $ takeResource pool)
-      (\(resource, local) exitCase -> case exitCase of
+      (\(resource, local) -> \case
           ExitCaseSuccess _ -> liftBase $ putResource local resource
           _                 -> liftBase $ destroyResource pool local resource
       )
       (\(resource, _) -> m resource)
-#else
-    withResource' pool m =  mask $ \restore -> do
-      (resource, local) <- liftBase $ takeResource pool
-      ret <- restore (m resource) `onException`
-        liftBase (destroyResource pool local resource)
-      liftBase $ putResource local resource
-      return ret
-#endif
 
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
