@@ -30,7 +30,7 @@ runQueryIO sql st = do
     -- thread for the query execution and while we wait for its completion, we
     -- are able to receive asynchronous exceptions (assuming that threaded GHC
     -- runtime system is used) and react appropriately.
-    queryRunner <- async . restore $ do
+    queryRunner <- async . restore $ withForeignPtr cdFrgnPtr $ \cdPtr -> do
       let allocParam = ParamAllocator $ withPGparam cdPtr
       (paramCount, res) <- withSQL sql allocParam $ \param query -> (,)
         <$> (fromIntegral <$> c_PQparamCount param)
@@ -57,15 +57,15 @@ runQueryIO sql st = do
     -- exception handler uninterruptible as we can't exit from the main block
     -- until the query runner thread has terminated.
     E.onException (restore $ wait queryRunner) . E.uninterruptibleMask_ $ do
-      c_PQcancel cdPtr >>= \case
+      withForeignPtr cdFrgnPtr $ \cdPtr -> c_PQcancel cdPtr >>= \case
         -- If query cancellation request was successfully processed, there is
         -- nothing else to do apart from waiting for the runner to terminate.
         Nothing -> cancel queryRunner
         -- Otherwise we check what happened with the runner. If it already
         -- finished we're fine, just ignore the result. If it didn't, there is
         -- something wrong - cancellation request didn't go through, yet the
-        -- query is still running? It's not clear how this might happen, but in
-        -- such case we must wait for its completion anyway.
+        -- query is still running? It's not clear how this might happen, but
+        -- in such case we must wait for its completion anyway.
         Just err -> poll queryRunner >>= \case
           Just _  -> return ()
           Nothing -> do

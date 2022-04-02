@@ -8,6 +8,7 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Fix
 import Data.String
+import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import System.Posix.Types
@@ -72,21 +73,21 @@ instance Storable Notification where
 -- number of microseconds (it uses 'timeout' function internally).
 getNotificationIO :: DBState m -> Int -> IO (Maybe Notification)
 getNotificationIO st n = timeout n $ do
-  withConnectionData (dbConnection st) fname $ \cd -> fix $ \loop -> do
-    let conn = cdPtr cd
-    mmsg <- tryGet conn
-    case mmsg of
-      Just msg -> return (cd, msg)
-      Nothing -> do
-        fd <- c_PQsocket conn
-        if fd == -1
-          then hpqTypesError $ fname ++ ": invalid file descriptor"
-          else do
-            threadWaitRead fd
-            res <- c_PQconsumeInput conn
-            when (res /= 1) $ do
-              throwLibPQError conn fname
-            loop
+  withConnectionData (dbConnection st) fname $ \cd -> do
+    withForeignPtr (cdFrgnPtr cd) $ \conn -> fix $ \loop -> do
+      mmsg <- tryGet conn
+      case mmsg of
+        Just msg -> return (cd, msg)
+        Nothing -> do
+          fd <- c_PQsocket conn
+          if fd == -1
+            then hpqTypesError $ fname ++ ": invalid file descriptor"
+            else do
+              threadWaitRead fd
+              res <- c_PQconsumeInput conn
+              when (res /= 1) $ do
+                throwLibPQError conn fname
+              loop
   where
     fname :: String
     fname = "getNotificationIO"
