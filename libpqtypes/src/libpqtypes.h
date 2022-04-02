@@ -480,9 +480,6 @@ PQlocalTZInfo(time_t *t, int *gmtoff, int *isdst, char **tzabbrp);
 
 /* === in ffi.c === */
 
-PQT_EXPORT void
-PQfinishPtr(PGconn **conn);
-
 PQT_EXPORT const char
 pqt_hs_null_string_ptr[1];
 
