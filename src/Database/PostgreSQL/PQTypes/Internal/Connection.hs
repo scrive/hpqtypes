@@ -48,6 +48,9 @@ data ConnectionSettings = ConnectionSettings
     -- | A list of composite types to register. In order to be able to
     -- (de)serialize specific composite types, you need to register them.
   , csComposites     :: ![T.Text]
+    -- | Action that will be performed on each newly-created connection, e.g.
+    -- to prepare statements.
+  , csInitializer    :: Connection -> IO ()
   } deriving (Eq, Ord, Show)
 
 -- | Default connection settings. Note that all strings sent to PostgreSQL by
@@ -59,6 +62,7 @@ defaultConnectionSettings =
   { csConnInfo       = T.empty
   , csClientEncoding = Just "UTF-8"
   , csComposites     = []
+  , csInitializer    = const $ pure ()
   }
 
 ----------------------------------------
@@ -174,7 +178,7 @@ poolSource cs numStripes idleTime maxResources = do
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings{..} = do
   fconn <- BS.useAsCString (T.encodeUtf8 csConnInfo) openConnection
-  withForeignPtr fconn $ \connPtr -> do
+  conn <- withForeignPtr fconn $ \connPtr -> do
     conn <- peek connPtr
     status <- c_PQstatus conn
     when (status /= c_CONNECTION_OK) $
@@ -190,6 +194,8 @@ connect ConnectionSettings{..} = do
     , cdPtr     = conn
     , cdStats   = initialStats
     })
+  csInitializer conn
+  pure conn
   where
     fname = "connect"
 
