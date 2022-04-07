@@ -52,7 +52,8 @@ foreign import ccall unsafe "PQstatus"
 foreign import ccall unsafe "PQerrorMessage"
   c_PQerrorMessage :: Ptr PGconn -> IO CString
 
-foreign import ccall unsafe "PQsetClientEncoding"
+-- | Safe as it sends a query to the server.
+foreign import ccall safe "PQsetClientEncoding"
   c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
 
 foreign import ccall unsafe "PQsocket"
@@ -96,7 +97,9 @@ foreign import ccall unsafe "PQgetCancel"
 foreign import ccall unsafe "PQfreeCancel"
   c_PQfreeCancel :: Ptr PGcancel -> IO ()
 
-foreign import ccall unsafe "PQcancel"
+-- | Safe as it establishes a separate connection to PostgreSQL to send the
+-- cancellation request.
+foreign import ccall safe "PQcancel"
   c_rawPQcancel :: Ptr PGcancel -> CString -> CInt -> IO CInt
 
 -- | Attempt to cancel currently running query. If the request is successfully
@@ -116,7 +119,8 @@ c_PQcancel conn = E.bracket (c_PQgetCancel conn) c_PQfreeCancel $ \cancel -> do
 
 ----------------------------------------
 
-foreign import ccall unsafe "PQconnectStart"
+-- | Safe as it might make a DNS lookup.
+foreign import ccall safe "PQconnectStart"
   c_PQconnectStart :: CString -> IO (Ptr PGconn)
 
 foreign import ccall unsafe "PQconnectPoll"
@@ -130,10 +134,12 @@ foreign import ccall unsafe "&PQfinishPtr"
 
 -- libpqtypes imports
 
-foreign import ccall unsafe "PQinitTypes"
+-- | Safe as it calls PQregisterEventProc with a nontrivial callback.
+foreign import ccall safe "PQinitTypes"
   c_PQinitTypes :: Ptr PGconn -> IO ()
 
-foreign import ccall unsafe "PQregisterTypes"
+-- | Safe as it sends a query to the server.
+foreign import ccall safe "PQregisterTypes"
   c_PQregisterTypes :: Ptr PGconn -> Ptr PGerror -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
 
 foreign import ccall unsafe "PQparamCreate"
@@ -155,7 +161,7 @@ nullStringCStringLen = (nullStringPtr, 0)
 
 ----------------------------------------
 
--- | May run for a long time, hence marked 'safe'.
+-- | Safe as query execution might run for a long time.
 foreign import ccall safe "PQparamExec"
   c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (Ptr PGresult)
 
