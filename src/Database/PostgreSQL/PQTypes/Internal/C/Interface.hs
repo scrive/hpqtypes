@@ -40,7 +40,8 @@ import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
--- libpq imports
+----------------------------------------
+-- PGconn
 
 foreign import ccall unsafe "PQfreemem"
   c_PQfreemem :: Ptr a -> IO ()
@@ -51,15 +52,31 @@ foreign import ccall unsafe "PQstatus"
 foreign import ccall unsafe "PQerrorMessage"
   c_PQerrorMessage :: Ptr PGconn -> IO CString
 
+foreign import ccall unsafe "PQsocket"
+  c_PQsocket :: Ptr PGconn -> IO Fd
+
 -- | Safe as it sends a query to the server.
 foreign import ccall safe "PQsetClientEncoding"
   c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
 
-foreign import ccall unsafe "PQsocket"
-  c_PQsocket :: Ptr PGconn -> IO Fd
-
-foreign import ccall unsafe "PQconsumeInput"
+-- | Safe as it reads data from a socket.
+foreign import ccall safe "PQconsumeInput"
   c_PQconsumeInput :: Ptr PGconn -> IO CInt
+
+-- | Safe as it might make a DNS lookup.
+foreign import ccall safe "PQconnectStart"
+  c_PQconnectStart :: CString -> IO (Ptr PGconn)
+
+-- | Safe as it reads data from a socket.
+foreign import ccall safe "PQconnectPoll"
+  c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
+
+-- | Safe as it sends a terminate command to the server.
+foreign import ccall safe "PQfinish"
+  c_PQfinish :: Ptr PGconn -> IO ()
+
+----------------------------------------
+-- PGresult
 
 foreign import ccall unsafe "PQresultStatus"
   c_PQresultStatus :: Ptr PGresult -> IO ExecStatusType
@@ -85,10 +102,16 @@ foreign import ccall unsafe "PQgetisnull"
 foreign import ccall unsafe "PQfname"
   c_PQfname :: Ptr PGresult -> CInt -> IO CString
 
-foreign import ccall unsafe "PQclear"
+-- | Safe as it performs multiple actions when clearing the result.
+foreign import ccall safe "PQclear"
   c_PQclear :: Ptr PGresult -> IO ()
 
+-- | Safe as it performs multiple actions when clearing the result.
+foreign import ccall safe "&PQclear"
+  c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
+
 ----------------------------------------
+-- PGcancel
 
 foreign import ccall unsafe "PQgetCancel"
   c_PQgetCancel :: Ptr PGconn -> IO (Ptr PGcancel)
@@ -117,26 +140,7 @@ c_PQcancel conn = E.bracket (c_PQgetCancel conn) c_PQfreeCancel $ \cancel -> do
     errbufsize = 256
 
 ----------------------------------------
-
--- | Safe as it might make a DNS lookup.
-foreign import ccall safe "PQconnectStart"
-  c_PQconnectStart :: CString -> IO (Ptr PGconn)
-
-foreign import ccall unsafe "PQconnectPoll"
-  c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
-
-foreign import ccall unsafe "PQfinish"
-  c_PQfinish :: Ptr PGconn -> IO ()
-
--- libpqtypes imports
-
--- | Safe as it calls PQregisterEventProc with a nontrivial callback.
-foreign import ccall safe "PQinitTypes"
-  c_PQinitTypes :: Ptr PGconn -> IO ()
-
--- | Safe as it sends a query to the server.
-foreign import ccall safe "PQregisterTypes"
-  c_PQregisterTypes :: Ptr PGconn -> Ptr PGerror -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
+-- libpqtypes / PGparam
 
 foreign import ccall unsafe "PQparamCreate"
   c_PQparamCreate :: Ptr PGconn -> Ptr PGerror -> IO (Ptr PGparam)
@@ -147,22 +151,17 @@ foreign import ccall unsafe "PQparamClear"
 foreign import ccall unsafe "PQparamCount"
   c_PQparamCount :: Ptr PGparam -> IO CInt
 
--- misc
+-- | Safe as it calls PQregisterEventProc with a nontrivial callback.
+foreign import ccall safe "PQinitTypes"
+  c_PQinitTypes :: Ptr PGconn -> IO ()
 
-foreign import ccall unsafe "&pqt_hs_null_string_ptr"
-  nullStringPtr :: Ptr CChar
-
-nullStringCStringLen :: CStringLen
-nullStringCStringLen = (nullStringPtr, 0)
-
-----------------------------------------
+-- | Safe as it sends a query to the server.
+foreign import ccall safe "PQregisterTypes"
+  c_PQregisterTypes :: Ptr PGconn -> Ptr PGerror -> TypeClass -> Ptr PGregisterType -> CInt -> CInt -> IO CInt
 
 -- | Safe as query execution might run for a long time.
 foreign import ccall safe "PQparamExec"
   c_rawPQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (Ptr PGresult)
-
-foreign import ccall unsafe "&PQclear"
-  c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
 
 -- | Safe wrapper for 'c_rawPQparamExec'. Wraps result returned by
 -- 'c_rawPQparamExec' in 'ForeignPtr' with asynchronous exceptions
@@ -170,3 +169,12 @@ foreign import ccall unsafe "&PQclear"
 c_PQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (ForeignPtr PGresult)
 c_PQparamExec conn err param fmt mode = E.mask_ $ newForeignPtr c_ptr_PQclear
   =<< c_rawPQparamExec conn err param fmt mode
+
+----------------------------------------
+-- Miscellaneous
+
+foreign import ccall unsafe "&pqt_hs_null_string_ptr"
+  nullStringPtr :: Ptr CChar
+
+nullStringCStringLen :: CStringLen
+nullStringCStringLen = (nullStringPtr, 0)
