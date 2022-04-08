@@ -20,12 +20,12 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Function
-import Data.Kind (Type)
+import Data.Kind
 import Data.Pool
 import Data.Time.Clock
 import Foreign.C.String
 import Foreign.Ptr
-import GHC.Exts
+import GHC.Conc (closeFdWith)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
@@ -226,6 +226,17 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just cd -> c_PQfinish (cdPtr cd)
+    Just cd -> do
+      let conn = cdPtr cd
+      -- This covers the case when a connection is closed while other Haskell
+      -- threads are using GHC's IO manager to wait on the descriptor. This is
+      -- commonly the case with asynchronous notifications, for example. Since
+      -- libpq is responsible for opening and closing the file descriptor, GHC's
+      -- IO manager needs to be informed that the file descriptor has been
+      -- closed. The IO manager will then raise an exception in those threads.
+      c_PQsocket conn >>= \case
+        -1 -> c_PQfinish conn -- can happen if the connection is bad/lost
+        fd -> closeFdWith (\_ -> c_PQfinish conn) fd
+
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
