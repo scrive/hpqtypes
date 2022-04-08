@@ -19,8 +19,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQcancel
   , c_PQconnectStart
   , c_PQconnectPoll
-  , c_PQfinishPtr
-  , c_ptr_PQfinishPtr
+  , c_PQfinish
   -- * libpqtypes imports
   , c_PQinitTypes
   , c_PQregisterTypes
@@ -126,11 +125,8 @@ foreign import ccall safe "PQconnectStart"
 foreign import ccall unsafe "PQconnectPoll"
   c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
 
-foreign import ccall unsafe "PQfinishPtr"
-  c_PQfinishPtr :: Ptr (Ptr PGconn) -> IO ()
-
-foreign import ccall unsafe "&PQfinishPtr"
-  c_ptr_PQfinishPtr :: FunPtr (Ptr (Ptr PGconn) -> IO ())
+foreign import ccall unsafe "PQfinish"
+  c_PQfinish :: Ptr PGconn -> IO ()
 
 -- libpqtypes imports
 

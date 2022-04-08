@@ -24,9 +24,7 @@ import Data.Kind (Type)
 import Data.Pool
 import Data.Time.Clock
 import Foreign.C.String
-import Foreign.ForeignPtr
 import Foreign.Ptr
-import Foreign.Storable
 import GHC.Exts
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
@@ -85,14 +83,19 @@ initialStats = ConnectionStats {
 }
 
 -- | Representation of a connection object.
-data ConnectionData = ConnectionData {
-  -- | Foreign pointer to pointer to connection object.
-  cdFrgnPtr  :: !(ForeignPtr (Ptr PGconn))
-  -- | Pointer to connection object (the same as in 'cdFrgnPtr').
-, cdPtr      :: !(Ptr PGconn)
-  -- | Statistics associated with the connection.
-, cdStats    :: !ConnectionStats
-}
+--
+-- /Note:/ PGconn is not managed with a ForeignPtr because finalizers are broken
+-- and at program exit might run even though another thread is inside the
+-- relevant withForeignPtr block, executing a safe FFI call (in this case
+-- executing an SQL query).
+--
+-- See https://gitlab.haskell.org/ghc/ghc/-/issues/10975 for more info.
+data ConnectionData = ConnectionData
+  { cdPtr      :: !(Ptr PGconn)
+  -- ^ Pointer to connection object.
+  , cdStats    :: !ConnectionStats
+  -- ^ Statistics associated with the connection.
+  }
 
 -- | Wrapper for hiding representation of a connection object.
 newtype Connection = Connection {
@@ -169,13 +172,15 @@ poolSource cs numStripes idleTime maxResources = do
 
 ----------------------------------------
 
--- | Low-level function for connecting to the database.
--- Useful if one wants to implement custom connection source.
+-- | Low-level function for connecting to the database. Useful if one wants to
+-- implement custom connection source.
+--
+-- /Warning:/ the 'Connection' needs to be explicitly destroyed with
+-- 'disconnect', otherwise there will be a resource leak.
 connect :: ConnectionSettings -> IO Connection
-connect ConnectionSettings{..} = do
-  fconn <- BS.useAsCString (T.encodeUtf8 csConnInfo) openConnection
-  withForeignPtr fconn $ \connPtr -> do
-    conn <- peek connPtr
+connect ConnectionSettings{..} = mask $ \unmask -> do
+  conn <- BS.useAsCString (T.encodeUtf8 csConnInfo) (openConnection unmask)
+  (`onException` c_PQfinish conn) . unmask $ do
     status <- c_PQstatus conn
     when (status /= c_CONNECTION_OK) $
       throwLibPQError conn fname
@@ -185,38 +190,27 @@ connect ConnectionSettings{..} = do
         throwLibPQError conn fname
     c_PQinitTypes conn
     registerComposites conn csComposites
-    Connection <$> newMVar (Just ConnectionData {
-      cdFrgnPtr = fconn
-    , cdPtr     = conn
-    , cdStats   = initialStats
-    })
+    fmap Connection . newMVar $ Just ConnectionData
+      { cdPtr     = conn
+      , cdStats   = initialStats
+      }
   where
     fname = "connect"
 
-    openConnection :: CString -> IO (ForeignPtr (Ptr PGconn))
-    openConnection conninfo = E.mask $ \restore -> do
-      -- We want to use non-blocking C functions to be able to observe
-      -- incoming asynchronous exceptions, hence we don't use
-      -- PQconnectdb here.
+    openConnection :: (forall r. IO r -> IO r) -> CString -> IO (Ptr PGconn)
+    openConnection unmask conninfo = do
+      -- We want to use non-blocking C functions to be able to observe incoming
+      -- asynchronous exceptions, hence we don't use PQconnectdb here.
       conn <- c_PQconnectStart conninfo
       when (conn == nullPtr) $
         throwError "PQconnectStart returned a null pointer"
-      -- Work around a bug in GHC that causes foreign pointer finalizers to be
-      -- run multiple times under random circumstances (see
-      -- https://ghc.haskell.org/trac/ghc/ticket/7170 for more details; note
-      -- that the bug was fixed in GHC 8.0.1, but we still want to support
-      -- previous versions) by providing another level of indirection and a
-      -- wrapper for PQfinish that can be safely called multiple times.
-      connPtr <- mallocForeignPtr
-      withForeignPtr connPtr (`poke` conn)
-      addForeignPtrFinalizer c_ptr_PQfinishPtr connPtr
-      -- Wait until connection status is resolved (to either
-      -- established or failed state).
-      restore $ fix $ \loop -> do
+      fd <- getFd conn
+      (`onException` c_PQfinish conn) . unmask $ fix $ \loop -> do
         ps <- c_PQconnectPoll conn
-        if | ps == c_PGRES_POLLING_READING -> (threadWaitRead  =<< getFd conn) >> loop
-           | ps == c_PGRES_POLLING_WRITING -> (threadWaitWrite =<< getFd conn) >> loop
-           | otherwise                     -> return connPtr
+        if | ps == c_PGRES_POLLING_READING -> threadWaitRead  fd >> loop
+           | ps == c_PGRES_POLLING_WRITING -> threadWaitWrite fd >> loop
+           | ps == c_PGRES_POLLING_OK      -> return conn
+           | otherwise                     -> throwError "openConnection failed"
       where
         getFd conn = do
           fd <- c_PQsocket conn
@@ -224,13 +218,14 @@ connect ConnectionSettings{..} = do
             throwError "invalid file descriptor"
           return fd
 
+        throwError :: String -> IO a
         throwError = hpqTypesError . (fname ++) . (": " ++)
 
--- | Low-level function for disconnecting from the database.
--- Useful if one wants to implement custom connection source.
+-- | Low-level function for disconnecting from the database. Useful if one wants
+-- to implement custom connection source.
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just cd -> withForeignPtr (cdFrgnPtr cd) c_PQfinishPtr
+    Just cd -> c_PQfinish (cdPtr cd)
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
