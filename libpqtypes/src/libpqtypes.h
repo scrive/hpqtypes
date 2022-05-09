@@ -466,6 +466,10 @@ PQparamSendQuery(PGconn *conn, PGerror *err, PGparam *param,
 	const char *command, int resultFormat);
 
 PQT_EXPORT PGresult *
+PQparamPrepare(PGconn *conn, PGerror *err, PGparam *param, const char *stmtName,
+               const char *query);
+
+PQT_EXPORT PGresult *
 PQparamExecPrepared(PGconn *conn, PGerror *err, PGparam *param,
 	const char *stmtName, int resultFormat);
 

@@ -6,6 +6,7 @@ module Database.PostgreSQL.PQTypes.Class (
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
+import Data.ByteString (ByteString)
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -20,6 +21,9 @@ class (Applicative m, Monad m) => MonadDB m where
   -- a given time. If simultaneous call is made from another thread, it
   -- will block until currently running 'runQuery' finishes.
   runQuery :: IsSQL sql => sql -> m Int
+  -- | Similar to 'runQuery', but it prepares and executes a statement under a
+  -- given name.
+  runPreparedQuery :: IsSQL sql => ByteString -> sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
   -- | Subsequent queries in the callback do not alter the result of
@@ -75,6 +79,7 @@ instance (
   , MonadDB m
   ) => MonadDB (t m) where
     runQuery = lift . runQuery
+    runPreparedQuery name = lift . runPreparedQuery name
     getLastQuery = lift getLastQuery
     withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
     getConnectionStats = lift getConnectionStats
@@ -85,6 +90,7 @@ instance (
     getNotification = lift . getNotification
     withNewConnection m = controlT $ \run -> withNewConnection (run m)
     {-# INLINE runQuery #-}
+    {-# INLINE runPreparedQuery #-}
     {-# INLINE getLastQuery #-}
     {-# INLINE withFrozenLastQuery #-}
     {-# INLINE getConnectionStats #-}

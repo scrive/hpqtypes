@@ -20,6 +20,7 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Function
+import Data.IORef
 import Data.Kind
 import Data.Pool
 import Data.Time.Clock
@@ -29,6 +30,7 @@ import GHC.Conc (closeFdWith)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
@@ -95,6 +97,8 @@ data ConnectionData = ConnectionData
   -- ^ Pointer to connection object.
   , cdStats    :: !ConnectionStats
   -- ^ Statistics associated with the connection.
+  , cdPreparedQueries :: !(IORef (S.Set BS.ByteString))
+  -- ^ A set of named prepared statements of the connection.
   }
 
 -- | Wrapper for hiding representation of a connection object.
@@ -190,9 +194,11 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
         throwLibPQError conn fname
     c_PQinitTypes conn
     registerComposites conn csComposites
+    preparedQueries <- newIORef S.empty
     fmap Connection . newMVar $ Just ConnectionData
-      { cdPtr     = conn
-      , cdStats   = initialStats
+      { cdPtr = conn
+      , cdStats = initialStats
+      , cdPreparedQueries = preparedQueries
       }
   where
     fname = "connect"

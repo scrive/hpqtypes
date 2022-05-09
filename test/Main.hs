@@ -316,6 +316,26 @@ autocommitTest td = testCase "Autocommit mode works" .
     assertEqualEq "Other connection sees autocommited data" 1 n
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
+preparedStatementTest :: TestData -> Test
+preparedStatementTest td = testCase "Execution of prepared statements works" .
+                           runTestEnv td defaultTransactionSettings $ do
+  let i1 = 42 :: Int32
+  runPreparedQuery_ "select1" $ "SELECT" <?> i1
+  o1 <- fetchOne runIdentity
+  assertEqualEq "Results match" i1 o1
+
+  let i2 = 89 :: Int32
+  runPreparedQuery_ "select1" $ "SELECT" <?> i2
+  o2 <- fetchOne runIdentity
+  assertEqualEq "Results match" i2 o2
+
+  let i3 = "lalala" :: String
+  -- Changing parameter type in an already prepared statement shouldn't work.
+  o3 <- try $ runPreparedQuery_ "select1" $ "SELECT" <?> i3
+  case o3 of
+    Left DBException{} -> pure ()
+    Right r3           -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
+
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" .
                   runTestEnv td
@@ -466,8 +486,9 @@ _printTime m = do
   return res
 
 tests :: TestData -> [Test]
-tests td = [
-    autocommitTest td
+tests td =
+  [ autocommitTest td
+  , preparedStatementTest td
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
