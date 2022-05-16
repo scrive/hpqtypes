@@ -29,6 +29,7 @@ import Test.QuickCheck.Random
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.UUID.Types as U
 
 import Data.Monoid.Utils
@@ -319,22 +320,30 @@ autocommitTest td = testCase "Autocommit mode works" .
 preparedStatementTest :: TestData -> Test
 preparedStatementTest td = testCase "Execution of prepared statements works" .
                            runTestEnv td defaultTransactionSettings $ do
-  let i1 = 42 :: Int32
-  runPreparedQuery_ "select1" $ "SELECT" <?> i1
-  o1 <- fetchOne runIdentity
-  assertEqualEq "Results match" i1 o1
+  let name = "select1"
 
-  let i2 = 89 :: Int32
-  runPreparedQuery_ "select1" $ "SELECT" <?> i2
-  o2 <- fetchOne runIdentity
-  assertEqualEq "Results match" i2 o2
+  checkPrepared name "Statement is not prepared" 0
+  execPrepared name 42
+  checkPrepared name "Statement is prepared" 1
+  execPrepared name 89
 
   let i3 = "lalala" :: String
   -- Changing parameter type in an already prepared statement shouldn't work.
-  o3 <- try $ runPreparedQuery_ "select1" $ "SELECT" <?> i3
+  o3 <- try $ runPreparedQuery_ name $ "SELECT" <?> i3
   case o3 of
     Left DBException{} -> pure ()
-    Right r3           -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
+    Right r3 -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
+  where
+    checkPrepared :: BS.ByteString -> String -> Int -> TestEnv ()
+    checkPrepared name assertTitle expected = do
+      n <- runSQL $ "SELECT TRUE FROM pg_prepared_statements WHERE name =" <?> T.decodeUtf8 name
+      assertEqualEq assertTitle expected n
+
+    execPrepared :: BS.ByteString -> Int32 -> TestEnv ()
+    execPrepared name input = do
+      runPreparedQuery_ name $ "SELECT" <?> input
+      output <- fetchOne runIdentity
+      assertEqualEq "Results match" input output
 
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" .
