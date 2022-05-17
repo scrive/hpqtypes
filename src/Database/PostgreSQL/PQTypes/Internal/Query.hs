@@ -10,6 +10,8 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Set as S
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -39,13 +41,13 @@ runQueryIO sql = runQueryImpl "runQueryIO" sql $ \ConnectionData{..} -> do
 -- | Low-level function for running a prepared SQL query.
 runPreparedQueryIO
   :: IsSQL sql
-  => BS.ByteString
+  => T.Text
   -> sql
   -> DBState m
   -> IO (Int, DBState m)
 runPreparedQueryIO stmtName sql = do
   runQueryImpl "runPreparedQueryIO" sql $ \ConnectionData{..} -> do
-    when (BS.null stmtName) $ do
+    when (T.null stmtName) $ do
       E.throwIO DBException
         { dbeQueryContext = sql
         , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
@@ -53,7 +55,7 @@ runPreparedQueryIO stmtName sql = do
     let allocParam = ParamAllocator $ withPGparam cdPtr
     withSQL sql allocParam $ \param query -> do
       preparedQueries <- readIORef cdPreparedQueries
-      BS.useAsCString stmtName $ \cname -> do
+      BS.useAsCString (T.encodeUtf8 stmtName) $ \cname -> do
         when (stmtName `S.notMember` preparedQueries) . E.mask_ $ do
           -- Mask asynchronous exceptions, because if preparation of the query
           -- succeeds, we need to reflect that fact in cdPreparedQueries since

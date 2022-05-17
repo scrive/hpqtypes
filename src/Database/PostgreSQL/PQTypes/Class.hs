@@ -6,7 +6,7 @@ module Database.PostgreSQL.PQTypes.Class (
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
-import Data.ByteString (ByteString)
+import Data.Text (Text)
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -23,7 +23,7 @@ class (Applicative m, Monad m) => MonadDB m where
   runQuery :: IsSQL sql => sql -> m Int
   -- | Similar to 'runQuery', but it prepares and executes a statement under a
   -- given name.
-  runPreparedQuery :: IsSQL sql => ByteString -> sql -> m Int
+  runPreparedQuery :: IsSQL sql => Text -> sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
   -- | Subsequent queries in the callback do not alter the result of

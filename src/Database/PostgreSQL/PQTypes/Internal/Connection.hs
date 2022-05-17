@@ -97,7 +97,7 @@ data ConnectionData = ConnectionData
   -- ^ Pointer to connection object.
   , cdStats    :: !ConnectionStats
   -- ^ Statistics associated with the connection.
-  , cdPreparedQueries :: !(IORef (S.Set BS.ByteString))
+  , cdPreparedQueries :: !(IORef (S.Set T.Text))
   -- ^ A set of named prepared statements of the connection.
   }
 

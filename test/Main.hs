@@ -29,7 +29,6 @@ import Test.QuickCheck.Random
 import TextShow
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.UUID.Types as U
 
 import Data.Monoid.Utils
@@ -334,12 +333,12 @@ preparedStatementTest td = testCase "Execution of prepared statements works" .
     Left DBException{} -> pure ()
     Right r3 -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
   where
-    checkPrepared :: BS.ByteString -> String -> Int -> TestEnv ()
+    checkPrepared :: T.Text -> String -> Int -> TestEnv ()
     checkPrepared name assertTitle expected = do
-      n <- runSQL $ "SELECT TRUE FROM pg_prepared_statements WHERE name =" <?> T.decodeUtf8 name
+      n <- runSQL $ "SELECT TRUE FROM pg_prepared_statements WHERE name =" <?> name
       assertEqualEq assertTitle expected n
 
-    execPrepared :: BS.ByteString -> Int32 -> TestEnv ()
+    execPrepared :: T.Text -> Int32 -> TestEnv ()
     execPrepared name input = do
       runPreparedQuery_ name $ "SELECT" <?> input
       output <- fetchOne runIdentity
