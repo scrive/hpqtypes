@@ -1,5 +1,8 @@
-# hpqtypes-1.9.4.0 (2022-??-??)
+# hpqtypes-1.9.4.0 (2022-05-18)
 * Add support for prepared statements.
+* Make more foreign C calls safe.
+* Don't manage `PGconn` with a `ForeignPtr`.
+* Use `closeFdWith` when closing connections.
 
 # hpqtypes-1.9.3.1 (2022-03-30)
 * Fix `withTransaction` and `withSavepoint` with short-circuiting monad
