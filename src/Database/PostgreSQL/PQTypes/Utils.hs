@@ -21,11 +21,11 @@ module Database.PostgreSQL.PQTypes.Utils (
 
 import Control.Monad
 import Control.Monad.Catch
-import Data.Text (Text)
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -101,14 +101,14 @@ runSQL01_ = runQuery01_
 
 -- | Specialization of 'runPreparedQuery' that discards the result.
 {-# INLINABLE runPreparedQuery_ #-}
-runPreparedQuery_ :: (IsSQL sql, MonadDB m) => Text -> sql -> m ()
+runPreparedQuery_ :: (IsSQL sql, MonadDB m) => QueryName -> sql -> m ()
 runPreparedQuery_ name = void . runPreparedQuery name
 
 -- | Specialization of 'runPreparedQuery' that checks whether affected/returned
 -- number of rows is in range [0, 1] and returns appropriate 'Bool' value.
 -- Otherwise, 'AffectedRowsMismatch' exception is thrown.
 {-# INLINABLE runPreparedQuery01 #-}
-runPreparedQuery01 :: (IsSQL sql, MonadDB m, MonadThrow m) => Text -> sql -> m Bool
+runPreparedQuery01 :: (IsSQL sql, MonadDB m, MonadThrow m) => QueryName -> sql -> m Bool
 runPreparedQuery01 name sql = do
   n <- runPreparedQuery name sql
   when (n > 1) $ throwDB AffectedRowsMismatch {
@@ -119,27 +119,27 @@ runPreparedQuery01 name sql = do
 
 -- | Specialization of 'runPreparedQuery01' that discards the result.
 {-# INLINABLE runPreparedQuery01_ #-}
-runPreparedQuery01_ :: (IsSQL sql, MonadDB m, MonadThrow m) => Text -> sql -> m ()
+runPreparedQuery01_ :: (IsSQL sql, MonadDB m, MonadThrow m) => QueryName -> sql -> m ()
 runPreparedQuery01_ name = void . runPreparedQuery01 name
 
 ----------------------------------------
 
 -- | Specialization of 'runPreparedQuery' to 'SQL' type.
 {-# INLINABLE runPreparedSQL #-}
-runPreparedSQL :: MonadDB m => Text -> SQL -> m Int
+runPreparedSQL :: MonadDB m => QueryName -> SQL -> m Int
 runPreparedSQL = runPreparedQuery
 
 -- | Specialization of 'runPreparedQuery_' to 'SQL' type.
 {-# INLINABLE runPreparedSQL_ #-}
-runPreparedSQL_ :: MonadDB m => Text -> SQL -> m ()
+runPreparedSQL_ :: MonadDB m => QueryName -> SQL -> m ()
 runPreparedSQL_ = runPreparedQuery_
 
 -- | Specialization of 'runPreparedQuery01' to 'SQL' type.
 {-# INLINABLE runPreparedSQL01 #-}
-runPreparedSQL01 :: (MonadDB m, MonadThrow m) => Text -> SQL -> m Bool
+runPreparedSQL01 :: (MonadDB m, MonadThrow m) => QueryName -> SQL -> m Bool
 runPreparedSQL01 = runPreparedQuery01
 
 -- | Specialization of 'runPreparedQuery01_' to 'SQL' type.
 {-# INLINABLE runPreparedSQL01_ #-}
-runPreparedSQL01_ :: (MonadDB m, MonadThrow m) => Text -> SQL -> m ()
+runPreparedSQL01_ :: (MonadDB m, MonadThrow m) => QueryName -> SQL -> m ()
 runPreparedSQL01_ = runPreparedQuery01_

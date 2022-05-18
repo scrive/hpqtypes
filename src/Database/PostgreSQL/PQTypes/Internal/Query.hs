@@ -1,11 +1,13 @@
 module Database.PostgreSQL.PQTypes.Internal.Query
   ( runQueryIO
+  , QueryName(..)
   , runPreparedQueryIO
   ) where
 
 import Control.Concurrent.Async
 import Control.Monad
 import Data.IORef
+import Data.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import qualified Control.Exception as E
@@ -38,16 +40,20 @@ runQueryIO sql = runQueryImpl "runQueryIO" sql $ \ConnectionData{..} -> do
     <$> (fromIntegral <$> c_PQparamCount param)
     <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
 
+-- | Name of a prepared query.
+newtype QueryName = QueryName T.Text
+  deriving (Eq, Ord, Show, IsString)
+
 -- | Low-level function for running a prepared SQL query.
 runPreparedQueryIO
   :: IsSQL sql
-  => T.Text
+  => QueryName
   -> sql
   -> DBState m
   -> IO (Int, DBState m)
-runPreparedQueryIO stmtName sql = do
+runPreparedQueryIO (QueryName queryName) sql = do
   runQueryImpl "runPreparedQueryIO" sql $ \ConnectionData{..} -> do
-    when (T.null stmtName) $ do
+    when (T.null queryName) $ do
       E.throwIO DBException
         { dbeQueryContext = sql
         , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
@@ -55,14 +61,14 @@ runPreparedQueryIO stmtName sql = do
     let allocParam = ParamAllocator $ withPGparam cdPtr
     withSQL sql allocParam $ \param query -> do
       preparedQueries <- readIORef cdPreparedQueries
-      BS.useAsCString (T.encodeUtf8 stmtName) $ \cname -> do
-        when (stmtName `S.notMember` preparedQueries) . E.mask_ $ do
+      BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
+        when (queryName `S.notMember` preparedQueries) . E.mask_ $ do
           -- Mask asynchronous exceptions, because if preparation of the query
           -- succeeds, we need to reflect that fact in cdPreparedQueries since
           -- you can't prepare a query with the same name more than once.
           res <- c_PQparamPrepare cdPtr nullPtr param cname query
           void . withForeignPtr res $ verifyResult sql cdPtr
-          modifyIORef' cdPreparedQueries $ S.insert stmtName
+          modifyIORef' cdPreparedQueries $ S.insert queryName
         (,) <$> (fromIntegral <$> c_PQparamCount param)
             <*> c_PQparamExecPrepared cdPtr nullPtr param cname c_RESULT_BINARY
 

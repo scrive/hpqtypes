@@ -333,12 +333,12 @@ preparedStatementTest td = testCase "Execution of prepared statements works" .
     Left DBException{} -> pure ()
     Right r3 -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
   where
-    checkPrepared :: T.Text -> String -> Int -> TestEnv ()
-    checkPrepared name assertTitle expected = do
+    checkPrepared :: QueryName -> String -> Int -> TestEnv ()
+    checkPrepared (QueryName name) assertTitle expected = do
       n <- runSQL $ "SELECT TRUE FROM pg_prepared_statements WHERE name =" <?> name
       assertEqualEq assertTitle expected n
 
-    execPrepared :: T.Text -> Int32 -> TestEnv ()
+    execPrepared :: QueryName -> Int32 -> TestEnv ()
     execPrepared name input = do
       runPreparedQuery_ name $ "SELECT" <?> input
       output <- fetchOne runIdentity

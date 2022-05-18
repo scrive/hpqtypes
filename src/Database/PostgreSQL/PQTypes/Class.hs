@@ -1,16 +1,17 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# OPTIONS_GHC -fno-warn-deprecated-flags #-}
-module Database.PostgreSQL.PQTypes.Class (
-    MonadDB(..)
+module Database.PostgreSQL.PQTypes.Class
+  ( QueryName(..)
+  , MonadDB(..)
   ) where
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
-import Data.Text (Text)
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Notification
+import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
@@ -23,7 +24,7 @@ class (Applicative m, Monad m) => MonadDB m where
   runQuery :: IsSQL sql => sql -> m Int
   -- | Similar to 'runQuery', but it prepares and executes a statement under a
   -- given name.
-  runPreparedQuery :: IsSQL sql => Text -> sql -> m Int
+  runPreparedQuery :: IsSQL sql => QueryName -> sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
   -- | Subsequent queries in the callback do not alter the result of
