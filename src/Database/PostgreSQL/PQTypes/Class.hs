@@ -1,5 +1,3 @@
-{-# LANGUAGE OverlappingInstances #-}
-{-# OPTIONS_GHC -fno-warn-deprecated-flags #-}
 module Database.PostgreSQL.PQTypes.Class
   ( QueryName(..)
   , MonadDB(..)
@@ -71,9 +69,9 @@ class (Applicative m, Monad m) => MonadDB m where
   -- the parent one.
   withNewConnection :: m a -> m a
 
--- | Generic, overlapping instance.
-instance (
-    Applicative (t m)
+-- | Generic, overlappable instance.
+instance {-# OVERLAPPABLE #-}
+  ( Applicative (t m)
   , Monad (t m)
   , MonadTrans t
   , MonadTransControl t
