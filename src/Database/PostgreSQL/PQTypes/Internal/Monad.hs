@@ -75,6 +75,8 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = DBT . StateT $ liftBase . runQueryIO sql
+  runPreparedQuery name sql = DBT . StateT $ liftBase . runPreparedQueryIO name sql
+
   getLastQuery = DBT . gets $ dbLastQuery
 
   withFrozenLastQuery callback = DBT . StateT $ \st -> do

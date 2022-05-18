@@ -1,3 +1,6 @@
+# hpqtypes-1.9.4.0 (2022-??-??)
+* Add support for prepared statements.
+
 # hpqtypes-1.9.3.1 (2022-03-30)
 * Fix `withTransaction` and `withSavepoint` with short-circuiting monad
   transformers such as `ExceptT`.

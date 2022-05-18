@@ -314,6 +314,19 @@ PQparamSendQuery(PGconn *conn, PGerror *err, PGparam *param, const char *command
 }
 
 PGresult *
+PQparamPrepare(PGconn *conn, PGerror *err, PGparam *param, const char *stmtName,
+               const char *query)
+{
+	BUILD_ARRAYS(PGresult *);
+
+	r = PQprepare(conn, stmtName, query, vcnt, oids);
+
+	r = copyExecError(conn, err, r);
+
+	RETURN_RESULT;
+}
+
+PGresult *
 PQparamExecPrepared(PGconn *conn, PGerror *err, PGparam *param, const char *stmtName,
 	int resultFormat)
 {

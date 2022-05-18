@@ -316,6 +316,34 @@ autocommitTest td = testCase "Autocommit mode works" .
     assertEqualEq "Other connection sees autocommited data" 1 n
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
+preparedStatementTest :: TestData -> Test
+preparedStatementTest td = testCase "Execution of prepared statements works" .
+                           runTestEnv td defaultTransactionSettings $ do
+  let name = "select1"
+
+  checkPrepared name "Statement is not prepared" 0
+  execPrepared name 42
+  checkPrepared name "Statement is prepared" 1
+  execPrepared name 89
+
+  let i3 = "lalala" :: String
+  -- Changing parameter type in an already prepared statement shouldn't work.
+  o3 <- try $ runPreparedQuery_ name $ "SELECT" <?> i3
+  case o3 of
+    Left DBException{} -> pure ()
+    Right r3 -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
+  where
+    checkPrepared :: QueryName -> String -> Int -> TestEnv ()
+    checkPrepared (QueryName name) assertTitle expected = do
+      n <- runSQL $ "SELECT TRUE FROM pg_prepared_statements WHERE name =" <?> name
+      assertEqualEq assertTitle expected n
+
+    execPrepared :: QueryName -> Int32 -> TestEnv ()
+    execPrepared name input = do
+      runPreparedQuery_ name $ "SELECT" <?> input
+      output <- fetchOne runIdentity
+      assertEqualEq "Results match" input output
+
 readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works" .
                   runTestEnv td
@@ -466,8 +494,9 @@ _printTime m = do
   return res
 
 tests :: TestData -> [Test]
-tests td = [
-    autocommitTest td
+tests td =
+  [ autocommitTest td
+  , preparedStatementTest td
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
