@@ -42,11 +42,17 @@ newtype QueryError = QueryError String
 
 -- | Internal error in this library.
 newtype HPQTypesError = HPQTypesError String
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show HPQTypesError where
+  show (HPQTypesError s) = "HPQTypesError (PostgreSQL): " <> s
 
 -- | Internal error in libpq/libpqtypes library.
 newtype LibPQError = LibPQError String
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show LibPQError where
+  show (LibPQError s) = "LibPQError (PostgreSQL): " <> s
 
 -- | Data conversion error. Since it's polymorphic in error type,
 -- it nicely reports arbitrarily nested conversion errors.
