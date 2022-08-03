@@ -7,6 +7,7 @@ import Control.Concurrent.Lifted
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Fix
 import Control.Monad.State
 import Control.Monad.Trans.Control
 import Data.Aeson hiding ((<?>))
