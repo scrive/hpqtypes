@@ -1,6 +1,5 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Main where
 
 import Control.Concurrent.Lifted

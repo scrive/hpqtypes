@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Connection (
     Connection(..)
   , ConnectionData(..)

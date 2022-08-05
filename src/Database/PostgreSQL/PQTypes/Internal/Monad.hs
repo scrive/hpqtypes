@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.Internal.Monad (
     DBT_(..)
   , DBT
@@ -41,7 +40,6 @@ type DBT m = DBT_ m m
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
-{-# INLINABLE runDBT #-}
 runDBT
   :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
@@ -63,7 +61,6 @@ runDBT cs ts m = withConnection cs $ \conn -> do
       else m
 
 -- | Transform the underlying monad.
-{-# INLINABLE mapDBT #-}
 mapDBT
   :: (DBState n -> DBState m)
   -> (m (a, DBState m) -> n (b, DBState n))
@@ -105,61 +102,34 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     res <- runDBT cs ts m
     return (res, st)
 
-  {-# INLINABLE runQuery #-}
-  {-# INLINABLE getLastQuery #-}
-  {-# INLINABLE withFrozenLastQuery #-}
-  {-# INLINABLE getConnectionStats #-}
-  {-# INLINABLE getQueryResult #-}
-  {-# INLINABLE clearQueryResult #-}
-  {-# INLINABLE getTransactionSettings #-}
-  {-# INLINABLE setTransactionSettings #-}
-  {-# INLINABLE getNotification #-}
-  {-# INLINABLE withNewConnection #-}
-
 ----------------------------------------
 
 instance MonadTransControl (DBT_ m) where
   type StT (DBT_ m) a = StT (InnerDBT m) a
   liftWith = defaultLiftWith DBT unDBT
   restoreT = defaultRestoreT DBT
-  {-# INLINE liftWith #-}
-  {-# INLINE restoreT #-}
 
 instance (m ~ n, MonadBaseControl b m) => MonadBaseControl b (DBT_ m n) where
   type StM (DBT_ m n) a = ComposeSt (DBT_ m) m a
   liftBaseWith = defaultLiftBaseWith
   restoreM     = defaultRestoreM
-  {-# INLINE liftBaseWith #-}
-  {-# INLINE restoreM #-}
 
 instance (m ~ n, MonadError e m) => MonadError e (DBT_ m n) where
   throwError = lift . throwError
   catchError m h = DBT $ S.liftCatch catchError (unDBT m) (unDBT . h)
-  {-# INLINE throwError #-}
-  {-# INLINE catchError #-}
 
 instance (m ~ n, MonadReader r m) => MonadReader r (DBT_ m n) where
   ask = lift ask
   local f = mapDBT id (local f)
   reader = lift . reader
-  {-# INLINE ask #-}
-  {-# INLINE local #-}
-  {-# INLINE reader #-}
 
 instance (m ~ n, MonadState s m) => MonadState s (DBT_ m n) where
   get = lift get
   put = lift . put
   state = lift . state
-  {-# INLINE get #-}
-  {-# INLINE put #-}
-  {-# INLINE state #-}
 
 instance (m ~ n, MonadWriter w m) => MonadWriter w (DBT_ m n) where
   writer = lift . writer
   tell = lift . tell
   listen = DBT . S.liftListen listen . unDBT
   pass = DBT . S.liftPass pass . unDBT
-  {-# INLINE writer #-}
-  {-# INLINE tell #-}
-  {-# INLINE listen #-}
-  {-# INLINE pass #-}
