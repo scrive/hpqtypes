@@ -232,17 +232,6 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
 disconnect :: Connection -> IO ()
 disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
   case mconn of
-    Just cd -> do
-      let conn = cdPtr cd
-      -- This covers the case when a connection is closed while other Haskell
-      -- threads are using GHC's IO manager to wait on the descriptor. This is
-      -- commonly the case with asynchronous notifications, for example. Since
-      -- libpq is responsible for opening and closing the file descriptor, GHC's
-      -- IO manager needs to be informed that the file descriptor has been
-      -- closed. The IO manager will then raise an exception in those threads.
-      c_PQsocket conn >>= \case
-        -1 -> c_PQfinish conn -- can happen if the connection is bad/lost
-        fd -> closeFdWith (\_ -> c_PQfinish conn) fd
-
+    Just cd -> c_PQfinish (cdPtr cd)
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
