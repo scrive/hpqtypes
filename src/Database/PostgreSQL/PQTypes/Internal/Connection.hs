@@ -22,7 +22,6 @@ import Data.Function
 import Data.IORef
 import Data.Kind
 import Data.Pool
-import Data.Time.Clock
 import Foreign.C.String
 import Foreign.Ptr
 import GHC.Conc (closeFdWith)
@@ -134,28 +133,31 @@ simpleSource cs = ConnectionSource $ ConnectionSourceM {
   withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
 }
 
--- | Pooled source. It uses striped pool from resource-pool
--- package to cache established connections and reuse them.
+-- | Pooled source. It uses striped pool from @resource-pool@ package to cache
+-- established connections and reuse them.
 poolSource
   :: ConnectionSettings
-  -> Int -- ^ Stripe count. The number of distinct sub-pools
-  -- to maintain. The smallest acceptable value is 1.
-  -> NominalDiffTime -- ^ Amount of time for which an unused database
-  -- connection is kept open. The smallest acceptable value is 0.5
-  -- seconds.
+  -> Double
+  -- ^ The amount of seconds for which an unused database connection is kept
+  -- open. The smallest acceptable value is 0.5 seconds.
   --
-  -- The elapsed time before closing database connection may be
-  -- a little longer than requested, as the reaper thread wakes
-  -- at 1-second intervals.
-  -> Int -- ^ Maximum number of database connections to keep open
-  -- per stripe. The smallest acceptable value is 1.
+  -- /Note:/ the elapsed time before closing database connection may be a little
+  -- longer than requested, as the reaper thread wakes at 1-second intervals.
+  -> Int
+  -- ^ The maximum number of database connections to keep open.
   --
-  -- Requests for database connections will block if this limit is
-  -- reached on a single stripe, even if other stripes have idle
-  -- connections available.
+  -- /Note:/ for each stripe the number of resources is divided by the number of
+  -- capabilities and rounded up. Therefore the pool might end up creating up to
+  -- @N - 1@ resources more in total than specified, where @N@ is the number of
+  -- capabilities.
   -> IO (ConnectionSource [MonadBase IO, MonadMask])
-poolSource cs numStripes idleTime maxResources = do
-  pool <- createPool (connect cs) disconnect numStripes idleTime maxResources
+poolSource cs idleTime maxResources = do
+  pool <- newPool PoolConfig
+    { createResource = connect cs
+    , freeResource = disconnect
+    , poolCacheTTL = idleTime
+    , poolMaxResources = maxResources
+    }
   return $ ConnectionSource $ ConnectionSourceM {
     withConnection = doWithConnection pool . (clearStats >=>)
   }

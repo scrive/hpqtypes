@@ -660,7 +660,7 @@ main = do
 
   createStructures connSource
   ConnectionSource connPool <-
-    poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 1 30 16
+    poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 30 16
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
