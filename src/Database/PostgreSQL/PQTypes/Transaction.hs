@@ -35,7 +35,6 @@ instance IsString Savepoint where
 -- provides something like \"nested transaction\".
 --
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
-{-# INLINABLE withSavepoint #-}
 withSavepoint :: (MonadDB m, MonadMask m) => Savepoint -> m a -> m a
 withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
   (runQuery_ $ "SAVEPOINT" <+> savepoint)
@@ -58,22 +57,18 @@ withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
 -- monadic action won't have any effect  on the final 'commit'
 -- / 'rollback' as settings that were in effect during the call
 -- to 'withTransaction' will be used.
-{-# INLINABLE withTransaction #-}
 withTransaction :: (MonadDB m, MonadMask m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m
 
 -- | Begin transaction using current transaction settings.
-{-# INLINABLE begin #-}
 begin :: MonadDB m => m ()
 begin = getTransactionSettings >>= begin'
 
 -- | Commit active transaction using current transaction settings.
-{-# INLINABLE commit #-}
 commit :: MonadDB m => m ()
 commit = getTransactionSettings >>= commit'
 
 -- | Rollback active transaction using current transaction settings.
-{-# INLINABLE rollback #-}
 rollback :: MonadDB m => m ()
 rollback = getTransactionSettings >>= rollback'
 
@@ -82,7 +77,6 @@ rollback = getTransactionSettings >>= rollback'
 -- | Execute monadic action within a transaction using given transaction
 -- settings. Note that it won't work as expected if a transaction is already
 -- active (in such case 'withSavepoint' should be used instead).
-{-# INLINABLE withTransaction' #-}
 withTransaction' :: (MonadDB m, MonadMask m)
                  => TransactionSettings -> m a -> m a
 withTransaction' ts m = (`fix` 1) $ \loop n -> do
@@ -115,7 +109,6 @@ withTransaction' ts m = (`fix` 1) $ \loop n -> do
       guard $ f err n
 
 -- | Begin transaction using given transaction settings.
-{-# INLINABLE begin' #-}
 begin' :: MonadDB m => TransactionSettings -> m ()
 begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
   where
@@ -130,7 +123,6 @@ begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
       ReadWrite          -> "READ WRITE"
 
 -- | Commit active transaction using given transaction settings.
-{-# INLINABLE commit' #-}
 commit' :: MonadDB m => TransactionSettings -> m ()
 commit' ts = do
   runSQL_ "COMMIT"
@@ -138,7 +130,6 @@ commit' ts = do
     begin' ts
 
 -- | Rollback active transaction using given transaction settings.
-{-# INLINABLE rollback' #-}
 rollback' :: MonadDB m => TransactionSettings -> m ()
 rollback' ts = do
   runSQL_ "ROLLBACK"

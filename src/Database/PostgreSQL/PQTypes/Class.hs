@@ -88,14 +88,3 @@ instance {-# OVERLAPPABLE #-}
     setTransactionSettings = lift . setTransactionSettings
     getNotification = lift . getNotification
     withNewConnection m = controlT $ \run -> withNewConnection (run m)
-    {-# INLINE runQuery #-}
-    {-# INLINE runPreparedQuery #-}
-    {-# INLINE getLastQuery #-}
-    {-# INLINE withFrozenLastQuery #-}
-    {-# INLINE getConnectionStats #-}
-    {-# INLINE getQueryResult #-}
-    {-# INLINE clearQueryResult #-}
-    {-# INLINE getTransactionSettings #-}
-    {-# INLINE setTransactionSettings #-}
-    {-# INLINE getNotification #-}
-    {-# INLINE withNewConnection #-}
