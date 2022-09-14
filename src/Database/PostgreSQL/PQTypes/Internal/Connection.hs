@@ -209,11 +209,10 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
       conn <- c_PQconnectStart conninfo
       when (conn == nullPtr) $
         throwError "PQconnectStart returned a null pointer"
-      fd <- getFd conn
       (`onException` c_PQfinish conn) . unmask $ fix $ \loop -> do
         ps <- c_PQconnectPoll conn
-        if | ps == c_PGRES_POLLING_READING -> threadWaitRead  fd >> loop
-           | ps == c_PGRES_POLLING_WRITING -> threadWaitWrite fd >> loop
+        if | ps == c_PGRES_POLLING_READING -> (threadWaitRead  =<< getFd conn) >> loop
+           | ps == c_PGRES_POLLING_WRITING -> (threadWaitWrite =<< getFd conn) >> loop
            | ps == c_PGRES_POLLING_OK      -> return conn
            | otherwise                     -> throwError "openConnection failed"
       where
