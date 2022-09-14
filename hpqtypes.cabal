@@ -134,7 +134,7 @@ library
                      , transformers-base >= 0.4
                      , monad-control     >= 1.0.3
                      , lifted-base       >= 0.2
-                     , resource-pool     >= 0.2
+                     , resource-pool     >= 0.3
                      , mtl               >= 2.1
                      , transformers      >= 0.2.2
                      , containers        >= 0.5.0.0
