@@ -39,7 +39,7 @@ copyright:           Scrive AB
 category:            Database
 build-type:          Custom
 cabal-version:       1.24
-tested-with:         GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.2
+tested-with:         GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.4 || ==9.4.2
 
 
 extra-source-files: README.md
@@ -71,7 +71,7 @@ extra-source-files: README.md
 
 custom-setup
   setup-depends: base  >= 4.13 && < 5,
-                 Cabal >= 1.24 && < 3.7,
+                 Cabal >= 1.24 && < 3.9,
                  directory,
                  filepath
 
