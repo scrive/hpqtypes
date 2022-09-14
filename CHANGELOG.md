@@ -1,3 +1,10 @@
+# hpqtypes-1.10.0.0 (2022-09-14)
+* Improve `Show` instances of `HPQTypesError` and `LibPQError`.
+* Remove `INLINE` and `INLINABLE` pragmas.
+* Fix a rare bug in the `connect` function related to file descriptors.
+* Add support for GHC 9.4.
+* Require `resource-pool >= 0.3` (changes type signature of `poolSource`).
+
 # hpqtypes-1.9.4.0 (2022-05-18)
 * Add support for prepared statements.
 * Make more foreign C calls safe.
