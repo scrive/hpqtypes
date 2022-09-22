@@ -216,7 +216,10 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
         if | ps == c_PGRES_POLLING_READING -> (threadWaitRead  =<< getFd conn) >> loop
            | ps == c_PGRES_POLLING_WRITING -> (threadWaitWrite =<< getFd conn) >> loop
            | ps == c_PGRES_POLLING_OK      -> return conn
-           | otherwise                     -> throwError "openConnection failed"
+           | otherwise                     -> do
+               merr <- c_PQerrorMessage conn >>= safePeekCString
+               let reason = maybe "" (\err -> ": " <> err) merr
+               throwError $ "openConnection failed" <> reason
       where
         getFd conn = do
           fd <- c_PQsocket conn
