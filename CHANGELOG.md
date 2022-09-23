@@ -1,3 +1,6 @@
+# hpqtypes-1.10.0.1 (2022-09-23)
+* Provide detailed error when `openConnection` fails.
+
 # hpqtypes-1.10.0.0 (2022-09-14)
 * Improve `Show` instances of `HPQTypesError` and `LibPQError`.
 * Remove `INLINE` and `INLINABLE` pragmas.
