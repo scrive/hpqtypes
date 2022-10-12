@@ -1,3 +1,6 @@
+# hpqtypes-1.10.0.2 (2022-10-12)
+* Simplify Setup.
+
 # hpqtypes-1.10.0.1 (2022-09-23)
 * Provide detailed error when `openConnection` fails.
 
