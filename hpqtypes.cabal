@@ -1,28 +1,12 @@
 name:                hpqtypes
-version:             1.10.0.1
+version:             1.10.0.2
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
                      @libpqtypes@, a @libpq@ extension that adds support
                      for a binary transport format and composite types.
                      .
-                     Since modified @libpqtypes@ is used, its source
-                     code is bundled along with the bindings. The
-                     differences between verbatim @libpqtypes@ and the
-                     one used by this package:
-                     .
-                     * Per-thread global error structures were replaced by
-                       explicit passing of these structures around so that
-                       there is no need to use bound threads.
-                     .
-                     * Handlers that take values to be put into the
-                       database were modified to always expect
-                       pointers to objects, as opposed to previous
-                       situation where primitives were being taken by
-                       value (which was convenient if the library was
-                       used directly from C, but created inconsistency
-                       problems while trying to define bindings in a
-                       sensible way).
+                     Source code of libpqtypes is bundled along with the bindings.
                      .
                      Examples can be found in the
                      <https://github.com/scrive/hpqtypes/tree/master/examples examples>
@@ -32,15 +16,12 @@ homepage:            https://github.com/scrive/hpqtypes
 license:             BSD3
 license-file:        LICENSE
 author:              Scrive AB
-maintainer:          Andrzej Rybczak <andrzej@rybczak.net>,
-                     Jonathan Jouty <jonathan@scrive.com>,
-                     Mikhail Glushenkov <mikhail@scrive.com>
+maintainer:          Andrzej Rybczak <andrzej@rybczak.net>
 copyright:           Scrive AB
 category:            Database
-build-type:          Custom
+build-type:          Simple
 cabal-version:       1.24
 tested-with:         GHC ==8.8.4 || ==8.10.7 || ==9.0.2 || ==9.2.4 || ==9.4.2
-
 
 extra-source-files: README.md
                   , CHANGELOG.md
@@ -69,20 +50,9 @@ extra-source-files: README.md
                   , libpqtypes/src/libpqtypes-int.h
                   , libpqtypes/src/libpqtypes.h
 
-custom-setup
-  setup-depends: base  >= 4.13 && < 5,
-                 Cabal >= 1.24 && < 3.9,
-                 directory,
-                 filepath
-
 source-repository head
   type:     git
   location: https://github.com/scrive/hpqtypes.git
-
-source-repository this
-  type:     git
-  location: https://github.com/scrive/hpqtypes.git
-  tag:      1.7.0.0
 
 library
   exposed-modules:     Data.Monoid.Utils
@@ -142,13 +112,14 @@ library
                      , text-show         >= 2
                      , uuid-types        >= 1.0.3
 
+  pkgconfig-depends: libpq
+
   hs-source-dirs:    src
 
   ghc-options:       -Wall
 
   build-tools:       hsc2hs
   include-dirs:      libpqtypes/src
-  extra-libraries:   pq
 
   cc-options:        -DHAVE_CONFIG_H -D_GNU_SOURCE -D_REENTRANT -std=gnu99 -fsigned-char -fno-strict-aliasing -Wall -Wextra
 
