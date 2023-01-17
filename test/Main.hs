@@ -12,6 +12,7 @@ import Data.Aeson hiding ((<?>))
 import Data.Char
 import Data.Int
 import Data.Maybe
+import Data.Pool
 import Data.Time
 import Data.Typeable
 import Data.Word
@@ -660,7 +661,8 @@ main = do
 
   createStructures connSource
   ConnectionSource connPool <-
-    poolSource (connSettings { csComposites = ["simple_", "nested_"] }) 30 16
+    poolSource (connSettings { csComposites = ["simple_", "nested_"] })
+               (\create destroy -> defaultPoolConfig create destroy 30 16)
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
