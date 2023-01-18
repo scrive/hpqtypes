@@ -1,3 +1,7 @@
+# hpqtypes-1.11.0.0 (2023-01-18)
+* Require `resource-pool` >= 0.4 and adjust the `createPool` function to
+  seamlessly accommodate future changes to the `resource-pool` library.
+
 # hpqtypes-1.10.0.2 (2022-10-12)
 * Simplify Setup.
 

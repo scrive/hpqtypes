@@ -137,27 +137,14 @@ simpleSource cs = ConnectionSource $ ConnectionSourceM {
 -- established connections and reuse them.
 poolSource
   :: ConnectionSettings
-  -> Double
-  -- ^ The amount of seconds for which an unused database connection is kept
-  -- open. The smallest acceptable value is 0.5 seconds.
+  -> (IO Connection -> (Connection -> IO ()) -> PoolConfig Connection)
+  -- ^ A function for creating the 'PoolConfig' with desired parameters.
   --
-  -- /Note:/ the elapsed time before closing database connection may be a little
-  -- longer than requested, as the reaper thread wakes at 1-second intervals.
-  -> Int
-  -- ^ The maximum number of database connections to keep open.
-  --
-  -- /Note:/ for each stripe the number of resources is divided by the number of
-  -- capabilities and rounded up. Therefore the pool might end up creating up to
-  -- @N - 1@ resources more in total than specified, where @N@ is the number of
-  -- capabilities.
+  -- /Note:/ supplied arguments are for creation and destruction of a database
+  -- connection.
   -> IO (ConnectionSource [MonadBase IO, MonadMask])
-poolSource cs idleTime maxResources = do
-  pool <- newPool PoolConfig
-    { createResource = connect cs
-    , freeResource = disconnect
-    , poolCacheTTL = idleTime
-    , poolMaxResources = maxResources
-    }
+poolSource cs mkPoolConfig = do
+  pool <- newPool $ mkPoolConfig (connect cs) disconnect
   return $ ConnectionSource $ ConnectionSourceM {
     withConnection = doWithConnection pool . (clearStats >=>)
   }
