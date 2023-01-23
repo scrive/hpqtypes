@@ -14,6 +14,7 @@ import Control.Monad.Reader.Class
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
+import Data.Bifunctor
 import qualified Control.Monad.Trans.State.Strict as S
 import qualified Control.Monad.Fail as MF
 
@@ -21,7 +22,6 @@ import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Notification
-import Database.PostgreSQL.PQTypes.Internal.Query
 import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -71,8 +71,10 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 ----------------------------------------
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
-  runQuery sql = DBT . StateT $ liftBase . runQueryIO sql
-  runPreparedQuery name sql = DBT . StateT $ liftBase . runPreparedQueryIO name sql
+  runQuery sql = DBT . StateT $ \st -> liftBase $ do
+    second (updateStateWith st sql) <$> runQueryIO (dbConnection st) sql
+  runPreparedQuery name sql = DBT . StateT $ \st -> liftBase $ do
+    second (updateStateWith st sql) <$> runPreparedQueryIO (dbConnection st) name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
 

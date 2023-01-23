@@ -86,7 +86,6 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.Monad
                      , Database.PostgreSQL.PQTypes.Internal.Notification
                      , Database.PostgreSQL.PQTypes.Internal.QueryResult
-                     , Database.PostgreSQL.PQTypes.Internal.Query
                      , Database.PostgreSQL.PQTypes.Internal.State
                      , Database.PostgreSQL.PQTypes.Internal.C.Put
                      , Database.PostgreSQL.PQTypes.Internal.C.Types

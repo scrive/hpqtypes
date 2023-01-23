@@ -653,8 +653,8 @@ getConnString = getArgs >>= \case
 main :: IO ()
 main = do
   (connString, args) <- getConnString
-  let connSettings = defaultConnectionSettings {
-          csConnInfo       = connString
+  let connSettings = defaultConnectionSettings
+        { csConnInfo       = connString
         , csClientEncoding = Just "latin1"
         }
       ConnectionSource connSource = simpleSource connSettings
