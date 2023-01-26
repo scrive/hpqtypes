@@ -188,7 +188,6 @@ test-suite hpqtypes-tests
                      , monad-control >= 1.0.3
                      , mtl >= 2.1
                      , random >= 1.0
-                     , resource-pool
                      , scientific
                      , test-framework >= 0.8
                      , test-framework-hunit >= 0.3
