@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.11.0.0
+version:             1.11.1.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -86,7 +86,6 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.Monad
                      , Database.PostgreSQL.PQTypes.Internal.Notification
                      , Database.PostgreSQL.PQTypes.Internal.QueryResult
-                     , Database.PostgreSQL.PQTypes.Internal.Query
                      , Database.PostgreSQL.PQTypes.Internal.State
                      , Database.PostgreSQL.PQTypes.Internal.C.Put
                      , Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -189,7 +188,6 @@ test-suite hpqtypes-tests
                      , monad-control >= 1.0.3
                      , mtl >= 2.1
                      , random >= 1.0
-                     , resource-pool
                      , scientific
                      , test-framework >= 0.8
                      , test-framework-hunit >= 0.3

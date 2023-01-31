@@ -12,7 +12,6 @@ import Data.Aeson hiding ((<?>))
 import Data.Char
 import Data.Int
 import Data.Maybe
-import Data.Pool
 import Data.Time
 import Data.Typeable
 import Data.Word
@@ -56,10 +55,12 @@ withQCGen f = do
 
 ----------------------------------------
 
-type TestData = (QCGen, ConnectionSourceM IO)
+type TestData = (QCGen, ConnectionSettings)
 
 runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
-runTestEnv (env, cs) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
+runTestEnv (env, connSettings) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
+  where
+    ConnectionSource cs = simpleSource connSettings
 
 runTimes :: Monad m => Int -> m () -> m ()
 runTimes !n m = case n of
@@ -316,6 +317,33 @@ autocommitTest td = testCase "Autocommit mode works" .
     assertEqualEq "Other connection sees autocommited data" 1 n
   runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
+setRoleTest :: TestData -> Test
+setRoleTest td = do
+  testCase "SET ROLE works" $ bracket createRole dropRole $ \case
+    False -> putStrLn "Cannot create role, skipping SET ROLE test"
+    True -> do
+      runDBT roledCs defaultTransactionSettings $ do
+        runSQL_ "SELECT CURRENT_USER::text"
+        role <- fetchOne (runIdentity @String)
+        assertEqualEq "Role set successfully" testRole role
+  where
+    testRole :: String
+    testRole = "hpqtypes_test_role"
+
+    ConnectionSource roledCs = simpleSource $ (snd td)
+      { csRole = Just $ unsafeSQL testRole
+      }
+
+    createRole = runTestEnv td defaultTransactionSettings $ do
+      try (runSQL_ $ "CREATE ROLE" <+> unsafeSQL testRole) >>= \case
+        Right () -> pure True
+        Left DBException{} -> pure False
+
+    dropRole = \case
+      False -> pure ()
+      True  -> runTestEnv td defaultTransactionSettings $ do
+        runSQL_ $ "DROP ROLE" <+> unsafeSQL testRole
+
 preparedStatementTest :: TestData -> Test
 preparedStatementTest td = testCase "Execution of prepared statements works" .
                            runTestEnv td defaultTransactionSettings $ do
@@ -496,6 +524,7 @@ _printTime m = do
 tests :: TestData -> [Test]
 tests td =
   [ autocommitTest td
+  , setRoleTest td
   , preparedStatementTest td
   , xmlTest td
   , readOnlyTest td
@@ -653,18 +682,15 @@ getConnString = getArgs >>= \case
 main :: IO ()
 main = do
   (connString, args) <- getConnString
-  let connSettings = defaultConnectionSettings {
-          csConnInfo       = connString
+  let connSettings = defaultConnectionSettings
+        { csConnInfo       = connString
         , csClientEncoding = Just "latin1"
         }
       ConnectionSource connSource = simpleSource connSettings
 
   createStructures connSource
-  ConnectionSource connPool <-
-    poolSource (connSettings { csComposites = ["simple_", "nested_"] })
-               (\create destroy -> defaultPoolConfig create destroy 30 16)
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
-  finally (defaultMainWithArgs (tests (gen, connPool)) $ args) $ do
+  finally (defaultMainWithArgs (tests (gen, connSettings { csComposites = ["simple_", "nested_"] })) $ args) $ do
     dropStructures connSource
