@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.15.20220826
+# version: 0.15.20230115
 #
-# REGENDATA ("0.15.20220826",["github","--config=cabal.haskell-ci","hpqtypes.cabal"])
+# REGENDATA ("0.15.20230115",["github","--config=cabal.haskell-ci","hpqtypes.cabal"])
 #
 name: Haskell-CI
 on:
@@ -30,7 +30,7 @@ jobs:
       image: buildpack-deps:bionic
     services:
       postgres:
-        image: postgres:10
+        image: postgres:14
         env:
           POSTGRES_PASSWORD: postgres
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -38,14 +38,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: ghc-9.4.2
+          - compiler: ghc-9.4.4
             compilerKind: ghc
-            compilerVersion: 9.4.2
+            compilerVersion: 9.4.4
             setup-method: ghcup
             allow-failure: false
-          - compiler: ghc-9.2.4
+          - compiler: ghc-9.2.5
             compilerKind: ghc
-            compilerVersion: 9.2.4
+            compilerVersion: 9.2.5
             setup-method: ghcup
             allow-failure: false
           - compiler: ghc-9.0.2
@@ -165,7 +165,7 @@ jobs:
           chmod a+x $HOME/.cabal/bin/cabal-plan
           cabal-plan --version
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: source
       - name: initial cabal.project for sdist
@@ -201,7 +201,7 @@ jobs:
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dry-run all
           cabal-plan
       - name: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
           path: ~/.cabal/store
@@ -225,7 +225,7 @@ jobs:
           ${CABAL} -vnormal check
       - name: haddock
         run: |
-          $CABAL v2-haddock $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
+          $CABAL v2-haddock --haddock-all $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
       - name: unconstrained build
         run: |
           rm -f cabal.project.local
