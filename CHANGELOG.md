@@ -1,3 +1,6 @@
+# hpqtypes-1.11.1.0 (2023-??-??)
+* Add support for setting a custom role when establishing a connection.
+
 # hpqtypes-1.11.0.0 (2023-01-18)
 * Require `resource-pool` >= 0.4 and adjust the `createPool` function to
   seamlessly accommodate future changes to the `resource-pool` library.
