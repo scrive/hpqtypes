@@ -10,6 +10,8 @@ module Database.PostgreSQL.PQTypes (
   , ConnectionSource(..)
   , simpleSource
   , poolSource
+  , PoolConfig
+  , defaultPoolConfig
   -- Database.PostgreSQL.PQTypes.Internal.Error
   -- * Exceptions
   , ErrorCode(..)
@@ -61,6 +63,7 @@ module Database.PostgreSQL.PQTypes (
   ) where
 
 import Data.Functor.Identity
+import Data.Pool
 
 import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Class

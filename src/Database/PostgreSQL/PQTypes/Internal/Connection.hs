@@ -154,7 +154,8 @@ simpleSource cs = ConnectionSource $ ConnectionSourceM {
 poolSource
   :: ConnectionSettings
   -> (IO Connection -> (Connection -> IO ()) -> PoolConfig Connection)
-  -- ^ A function for creating the 'PoolConfig' with desired parameters.
+  -- ^ A function for creating the 'PoolConfig' with desired parameters. See
+  -- 'Database.PostgreSQL.PQTypes.defaultPoolConfig' for more information.
   --
   -- /Note:/ supplied arguments are for creation and destruction of a database
   -- connection.

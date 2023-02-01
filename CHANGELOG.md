@@ -1,3 +1,6 @@
+# hpqtypes-1.11.2.0 (2023-02-01)
+* Re-export `PoolConfig` and `defaultPoolConfig` from `Data.Pool`.
+
 # hpqtypes-1.11.1.0 (2023-01-31)
 * Add support for setting a custom role when establishing a connection.
 
