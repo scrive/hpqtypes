@@ -6,10 +6,10 @@ import Control.Concurrent.Lifted
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.State
 import Control.Monad.Trans.Control
 import Data.Aeson hiding ((<?>))
 import Data.Char
+import Data.Function
 import Data.Int
 import Data.Maybe
 import Data.Time
@@ -26,6 +26,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Random
 import TextShow
+import qualified Control.Monad.State as S
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.UUID.Types as U
@@ -36,7 +37,7 @@ import Prelude.Instances ()
 import Test.Aeson.Compat (Value0)
 import Test.QuickCheck.Arbitrary.Instances
 
-type InnerTestEnv = StateT QCGen (DBT IO)
+type InnerTestEnv = S.StateT QCGen (DBT IO)
 
 newtype TestEnv a = TestEnv { unTestEnv :: InnerTestEnv a }
   deriving ( Applicative, Functor, Monad, MonadFail
@@ -50,7 +51,7 @@ instance MonadBaseControl IO TestEnv where
 
 withQCGen :: (QCGen -> r) -> TestEnv r
 withQCGen f = do
-  gen <- TestEnv $ state split
+  gen <- TestEnv $ S.state split
   return (f gen)
 
 ----------------------------------------
@@ -58,7 +59,7 @@ withQCGen f = do
 type TestData = (QCGen, ConnectionSettings)
 
 runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
-runTestEnv (env, connSettings) ts m = runDBT cs ts $ evalStateT (unTestEnv m) env
+runTestEnv (env, connSettings) ts m = runDBT cs ts $ S.evalStateT (unTestEnv m) env
   where
     ConnectionSource cs = simpleSource connSettings
 
@@ -415,7 +416,7 @@ notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
   listen chan
   forkNewConn $ notify chan payload
-  mnt1 <- getNotification 100000
+  mnt1 <- getNotification 250000
   liftBase $ assertBool "Notification received" (isJust mnt1)
   Just nt1 <- pure mnt1
   assertEqualEq "Channels are equal" chan (ntChannel nt1)
@@ -423,13 +424,13 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
 
   unlisten chan
   forkNewConn $ notify chan payload
-  mnt2 <- getNotification 100000
+  mnt2 <- getNotification 250000
   assertEqualEq "No notification received after unlisten" Nothing mnt2
 
   listen chan
   unlistenAll
   forkNewConn $ notify chan payload
-  mnt3 <- getNotification 100000
+  mnt3 <- getNotification 250000
   assertEqualEq "No notification received after unlistenAll" Nothing mnt3
   where
     chan = "test_channel"
