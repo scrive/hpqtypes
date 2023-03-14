@@ -1,4 +1,4 @@
-# hpqtypes-1.11.1.1 (2023-??-??)
+# hpqtypes-1.11.1.1 (2023-03-14)
 * Add support for GHC 9.6.
 
 # hpqtypes-1.11.1.0 (2023-01-31)
