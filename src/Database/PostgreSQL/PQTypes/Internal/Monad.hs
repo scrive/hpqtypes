@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.Internal.Monad (
 
 import Control.Applicative
 import Control.Concurrent.MVar
+import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Error.Class
