@@ -20,11 +20,11 @@ module Database.PostgreSQL.PQTypes.Internal.Connection
 
 import Control.Concurrent
 import Control.Concurrent.Async
+import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Bifunctor
-import Data.Function
 import Data.IORef
 import Data.Kind
 import Data.Pool
@@ -212,27 +212,40 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
 
     openConnection :: (forall r. IO r -> IO r) -> CString -> IO (Ptr PGconn)
     openConnection unmask conninfo = do
-      -- We want to use non-blocking C functions to be able to observe incoming
-      -- asynchronous exceptions, hence we don't use PQconnectdb here.
-      conn <- c_PQconnectStart conninfo
-      when (conn == nullPtr) $
-        throwError "PQconnectStart returned a null pointer"
-      (`onException` c_PQfinish conn) . unmask $ fix $ \loop -> do
-        ps <- c_PQconnectPoll conn
-        if | ps == c_PGRES_POLLING_READING -> (threadWaitRead  =<< getFd conn) >> loop
-           | ps == c_PGRES_POLLING_WRITING -> (threadWaitWrite =<< getFd conn) >> loop
-           | ps == c_PGRES_POLLING_OK      -> return conn
-           | otherwise                     -> do
-               merr <- c_PQerrorMessage conn >>= safePeekCString
-               let reason = maybe "" (\err -> ": " <> err) merr
-               throwError $ "openConnection failed" <> reason
+      -- We use synchronous version of connecting to the database using
+      -- 'PQconnectdb' instead of 'PQconnectStart' and 'PQconnectPoll', because
+      -- the second method doesn't properly support the connect_timeout
+      -- parameter from the connection string nor multihost setups.
+      --
+      -- The disadvantage of this is that a call to 'PQconnectdb' cannot be
+      -- interrupted if the Haskell thread running it receives an asynchronous
+      -- exception, so to guarantee prompt return in such scenario 'PQconnectdb'
+      -- is run in a separate child thread. If the parent receives an exception
+      -- while the child still runs, the child is signaled to clean up after
+      -- itself and left behind.
+      connVar <- newEmptyTMVarIO
+      runningVar <- newTVarIO True
+      _ <- forkIO $ do
+        conn <- c_PQconnectdb conninfo
+        join . atomically $ readTVar runningVar >>= \case
+          True -> do
+            putTMVar connVar conn
+            pure $ pure ()
+          False -> pure $ c_PQfinish conn
+      conn <- atomically (takeTMVar connVar) `onException` do
+        join . atomically $ do
+          writeTVar runningVar False
+          maybe (pure ()) c_PQfinish <$> tryTakeTMVar connVar
+      (`onException` c_PQfinish conn) . unmask $ do
+        when (conn == nullPtr) $ do
+          throwError "PQconnectdb returned a null pointer"
+        status <- c_PQstatus conn
+        when (status /= c_CONNECTION_OK) $ do
+          merr <- c_PQerrorMessage conn >>= safePeekCString
+          let reason = maybe "" (\err -> ": " <> err) merr
+          throwError $ "openConnection failed" <> reason
+        pure conn
       where
-        getFd conn = do
-          fd <- c_PQsocket conn
-          when (fd == -1) $
-            throwError "invalid file descriptor"
-          return fd
-
         throwError :: String -> IO a
         throwError = hpqTypesError . (fname ++) . (": " ++)
 

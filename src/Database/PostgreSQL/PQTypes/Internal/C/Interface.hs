@@ -17,8 +17,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQfname
   , c_PQclear
   , c_PQcancel
-  , c_PQconnectStart
-  , c_PQconnectPoll
+  , c_PQconnectdb
   , c_PQfinish
   -- * libpqtypes imports
   , c_PQinitTypes
@@ -65,13 +64,9 @@ foreign import ccall safe "PQsetClientEncoding"
 foreign import ccall safe "PQconsumeInput"
   c_PQconsumeInput :: Ptr PGconn -> IO CInt
 
--- | Safe as it might make a DNS lookup.
-foreign import ccall safe "PQconnectStart"
-  c_PQconnectStart :: CString -> IO (Ptr PGconn)
-
--- | Safe as it reads data from a socket.
-foreign import ccall safe "PQconnectPoll"
-  c_PQconnectPoll :: Ptr PGconn -> IO PostgresPollingStatusType
+-- | Safe as it connects to the database, which can take some time.
+foreign import ccall safe "PQconnectdb"
+  c_PQconnectdb :: CString -> IO (Ptr PGconn)
 
 -- | Safe as it sends a terminate command to the server.
 foreign import ccall safe "PQfinish"
