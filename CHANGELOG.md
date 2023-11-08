@@ -1,4 +1,4 @@
-# hpqtypes-1.11.1.2 (2023-??-??)
+# hpqtypes-1.11.1.2 (2023-11-08)
 * Support multihost setups and the `connect_timeout` parameter in the connection
   string.
 
