@@ -1,3 +1,7 @@
+# hpqtypes-1.11.1.2 (2023-??-??)
+* Support multihost setups and the `connect_timeout` parameter in the connection
+  string.
+
 # hpqtypes-1.11.1.1 (2023-03-14)
 * Add support for GHC 9.6.
 
