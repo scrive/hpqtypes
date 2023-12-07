@@ -3,14 +3,21 @@ module Database.PostgreSQL.PQTypes.Internal.QueryResult (
     QueryResult(..)
   , ntuples
   , nfields
+
+    -- * Implementation
+  , foldrImpl
+  , foldlImpl
   ) where
 
 import Control.Monad
+import Data.Coerce
 import Data.Foldable
+import Data.Functor.Identity
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
+import GHC.Stack
 import System.IO.Unsafe
 import qualified Control.Exception as E
 
@@ -35,21 +42,41 @@ instance Functor QueryResult where
   f `fmap` QueryResult ctx fres g = QueryResult ctx fres (f . g)
 
 instance Foldable QueryResult where
-  foldr  = foldImpl False (fmap pred . c_PQntuples) (const . return $ -1) pred
-  foldr' = foldImpl True  (fmap pred . c_PQntuples) (const . return $ -1) pred
+  foldr  f acc = runIdentity . foldrImpl False (coerce f) acc
+  foldr' f acc = runIdentity . foldrImpl True  (coerce f) acc
 
-  foldl  = foldImpl False (const $ return 0) c_PQntuples succ . flip
-  foldl' = foldImpl True  (const $ return 0) c_PQntuples succ . flip
+  foldl  f acc = runIdentity . foldlImpl False (coerce f) acc
+  foldl' f acc = runIdentity . foldlImpl True  (coerce f) acc
 
-foldImpl :: Bool
-         -> (Ptr PGresult -> IO CInt)
-         -> (Ptr PGresult -> IO CInt)
-         -> (CInt -> CInt)
-         -> (t -> acc -> acc)
-         -> acc
-         -> QueryResult t
-         -> acc
-foldImpl strict initCtr termCtr advCtr f iacc (QueryResult (SomeSQL ctx) fres g) =
+foldrImpl
+  :: (HasCallStack, Monad m)
+  => Bool
+  -> (t -> acc -> m acc)
+  -> acc
+  -> QueryResult t
+  -> m acc
+foldrImpl = foldImpl (fmap pred . c_PQntuples) (const . return $ -1) pred
+
+foldlImpl
+  :: (HasCallStack, Monad m)
+  => Bool
+  -> (acc -> t -> m acc)
+  -> acc
+  -> QueryResult t
+  -> m acc
+foldlImpl strict = foldImpl (const $ return 0) c_PQntuples succ strict . flip
+
+foldImpl
+  :: (HasCallStack, Monad m)
+  => (Ptr PGresult -> IO CInt)
+  -> (Ptr PGresult -> IO CInt)
+  -> (CInt -> CInt)
+  -> Bool
+  -> (t -> acc -> m acc)
+  -> acc
+  -> QueryResult t
+  -> m acc
+foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) fres g) =
   unsafePerformIO $ withForeignPtr fres $ \res -> do
     -- This bit is referentially transparent iff appropriate
     -- FrowRow and FromSQL instances are (the ones provided
@@ -61,24 +88,24 @@ foldImpl strict initCtr termCtr advCtr f iacc (QueryResult (SomeSQL ctx) fres g)
         lengthExpected  = pqVariablesP rowp
       , lengthDelivered = rowlen
       }
+    , dbeCallStack = callStack
     }
     alloca $ \err -> do
-      i <- initCtr res
       n <- termCtr res
-      worker res err i n iacc
+      let worker acc i =
+            if i == n
+            then return acc
+            else do
+              -- mask asynchronous exceptions so they won't be wrapped in DBException
+              obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
+              worker `apply` (f obj =<< acc) $ advCtr i
+      worker (pure iacc) =<< initCtr res
   where
     -- ⊥ of existential type hidden in QueryResult
     row      = let _ = g row in row
     rowp     = pure row
 
     apply = if strict then ($!) else ($)
-
-    worker res err !i n acc
-      | i == n    = return acc
-      | otherwise = do
-        -- mask asynchronous exceptions so they won't be wrapped in DBException
-        obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
-        worker res err (advCtr i) n `apply` f obj acc
 
 -- Note: c_PQntuples/c_PQnfields are pure on a C level and QueryResult
 -- constructor is not exported to the end user (so it's not possible

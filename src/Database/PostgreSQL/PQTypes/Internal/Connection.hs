@@ -33,6 +33,7 @@ import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import GHC.Conc (closeFdWith)
+import GHC.Stack
 import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Foldable as F
@@ -274,7 +275,7 @@ disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
 
 -- | Low-level function for running an SQL query.
 runQueryIO
-  :: IsSQL sql
+  :: (HasCallStack, IsSQL sql)
   => Connection
   -> sql
   -> IO (Int, ForeignPtr PGresult)
@@ -291,7 +292,7 @@ newtype QueryName = QueryName T.Text
 
 -- | Low-level function for running a prepared SQL query.
 runPreparedQueryIO
-  :: IsSQL sql
+  :: (HasCallStack, IsSQL sql)
   => Connection
   -> QueryName
   -> sql
@@ -302,6 +303,7 @@ runPreparedQueryIO conn (QueryName queryName) sql = do
       E.throwIO DBException
         { dbeQueryContext = sql
         , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
+        , dbeCallStack = callStack
         }
     let allocParam = ParamAllocator $ withPGparam cdPtr
     withSQL sql allocParam $ \param query -> do
@@ -319,7 +321,7 @@ runPreparedQueryIO conn (QueryName queryName) sql = do
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
 runQueryImpl
-  :: IsSQL sql
+  :: (HasCallStack, IsSQL sql)
   => String
   -> Connection
   -> sql
@@ -374,7 +376,12 @@ runQueryImpl fname conn sql execSql = do
   where
     withConnDo = withConnectionData conn fname
 
-verifyResult :: IsSQL sql => sql -> Ptr PGconn -> Ptr PGresult -> IO (Either Int Int)
+verifyResult
+  :: (HasCallStack, IsSQL sql)
+  => sql
+  -> Ptr PGconn
+  -> Ptr PGresult
+  -> IO (Either Int Int)
 verifyResult sql conn res = do
   -- works even if res is NULL
   rst <- c_PQresultStatus res
@@ -416,4 +423,5 @@ verifyResult sql conn res = do
       throwParseError sn = E.throwIO DBException {
         dbeQueryContext = sql
       , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
+      , dbeCallStack = callStack
       }
