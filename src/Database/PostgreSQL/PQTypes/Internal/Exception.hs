@@ -16,7 +16,7 @@ data DBException = forall e sql. (E.Exception e, Show sql) => DBException
     dbeQueryContext :: !sql
     -- | Specific error.
   , dbeError        :: !e
-  , dbeCallStack    :: !CallStack
+  , dbeCallStack    :: CallStack
   }
 
 deriving instance Show DBException
