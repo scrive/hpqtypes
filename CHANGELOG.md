@@ -1,3 +1,6 @@
+# hpqtypes-1.12.0.0 (????-??-??)
+* Attach `CallStack` to `DBException`.
+
 # hpqtypes-1.11.1.2 (2023-11-08)
 * Support multihost setups and the `connect_timeout` parameter in the connection
   string.

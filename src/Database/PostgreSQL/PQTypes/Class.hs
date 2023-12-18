@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.Class
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Control
+import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -18,10 +19,10 @@ class (Applicative m, Monad m) => MonadDB m where
   -- for a given connection, only one thread may be executing 'runQuery' at
   -- a given time. If simultaneous call is made from another thread, it
   -- will block until currently running 'runQuery' finishes.
-  runQuery :: IsSQL sql => sql -> m Int
+  runQuery :: (HasCallStack, IsSQL sql) => sql -> m Int
   -- | Similar to 'runQuery', but it prepares and executes a statement under a
   -- given name.
-  runPreparedQuery :: IsSQL sql => QueryName -> sql -> m Int
+  runPreparedQuery :: (HasCallStack, IsSQL sql) => QueryName -> sql -> m Int
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
   -- | Subsequent queries in the callback do not alter the result of
@@ -29,7 +30,7 @@ class (Applicative m, Monad m) => MonadDB m where
   withFrozenLastQuery :: m a -> m a
 
   -- | Get current connection statistics.
-  getConnectionStats :: m ConnectionStats
+  getConnectionStats :: HasCallStack => m ConnectionStats
 
   -- | Get current query result.
   getQueryResult :: FromRow row => m (Maybe (QueryResult row))
@@ -76,11 +77,11 @@ instance {-# OVERLAPPABLE #-}
   , MonadTransControl t
   , MonadDB m
   ) => MonadDB (t m) where
-    runQuery = lift . runQuery
-    runPreparedQuery name = lift . runPreparedQuery name
+    runQuery = withFrozenCallStack $ lift . runQuery
+    runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
     getLastQuery = lift getLastQuery
     withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
-    getConnectionStats = lift getConnectionStats
+    getConnectionStats = withFrozenCallStack $ lift getConnectionStats
     getQueryResult = lift getQueryResult
     clearQueryResult = lift clearQueryResult
     getTransactionSettings = lift getTransactionSettings

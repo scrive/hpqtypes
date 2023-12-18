@@ -17,6 +17,7 @@ module Database.PostgreSQL.PQTypes.Cursor
 import Control.Monad
 import Control.Monad.Catch
 import Data.String
+import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
@@ -98,7 +99,7 @@ cursorQuery (Cursor _ query) = query
 
 -- | Create a cursor from the SQL query and use it within the given context.
 withCursor
-  :: (IsString sql, IsSQL sql, Monoid sql, MonadDB m, MonadMask m)
+  :: (HasCallStack, IsString sql, IsSQL sql, Monoid sql, MonadDB m, MonadMask m)
   => CursorName sql
   -> Scroll
   -> Hold
@@ -149,7 +150,7 @@ withCursorSQL = withCursor
 -- | Retrieve rows from a query using a cursor. See
 -- https://www.postgresql.org/docs/current/sql-fetch.html for more information.
 cursorFetch
-  :: (IsSQL sql, IsString sql, Monoid sql, MonadDB m)
+  :: (HasCallStack, IsSQL sql, IsString sql, Monoid sql, MonadDB m)
   => Cursor sql
   -> CursorDirection
   -> m Int
@@ -172,7 +173,7 @@ cursorFetch_ cursor = void . cursorFetch cursor
 -- except it only positions the cursor and does not return rows. See
 -- https://www.postgresql.org/docs/current/sql-move.html for more information.
 cursorMove
-  :: (IsSQL sql, IsString sql, Monoid sql, MonadDB m)
+  :: (HasCallStack, IsSQL sql, IsString sql, Monoid sql, MonadDB m)
   => Cursor sql
   -> CursorDirection
   -> m Int

@@ -1,5 +1,5 @@
 name:                hpqtypes
-version:             1.11.1.2
+version:             1.12.0.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)

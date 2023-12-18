@@ -16,6 +16,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Writer.Class
 import Data.Bifunctor
+import GHC.Stack
 import qualified Control.Monad.Trans.State.Strict as S
 import qualified Control.Monad.Fail as MF
 
@@ -42,7 +43,7 @@ type DBT m = DBT_ m m
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
 runDBT
-  :: (MonadBase IO m, MonadMask m)
+  :: (HasCallStack, MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
   -> TransactionSettings
   -> DBT m a
@@ -72,9 +73,9 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 ----------------------------------------
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
-  runQuery sql = DBT . StateT $ \st -> liftBase $ do
+  runQuery sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
     second (updateStateWith st sql) <$> runQueryIO (dbConnection st) sql
-  runPreparedQuery name sql = DBT . StateT $ \st -> liftBase $ do
+  runPreparedQuery name sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
     second (updateStateWith st sql) <$> runPreparedQueryIO (dbConnection st) name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
@@ -84,7 +85,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     (x, st'') <- runStateT (unDBT callback) st'
     pure (x, st'' { dbRecordLastQuery = dbRecordLastQuery st })
 
-  getConnectionStats = do
+  getConnectionStats = withFrozenCallStack $ do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
       Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"

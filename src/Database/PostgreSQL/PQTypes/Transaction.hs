@@ -16,6 +16,7 @@ import Control.Monad.Catch
 import Data.Function
 import Data.String
 import Data.Typeable
+import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
@@ -35,7 +36,7 @@ instance IsString Savepoint where
 -- provides something like \"nested transaction\".
 --
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
-withSavepoint :: (MonadDB m, MonadMask m) => Savepoint -> m a -> m a
+withSavepoint :: (HasCallStack, MonadDB m, MonadMask m) => Savepoint -> m a -> m a
 withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
   (runQuery_ $ "SAVEPOINT" <+> savepoint)
   (\() -> \case
@@ -57,19 +58,19 @@ withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
 -- monadic action won't have any effect  on the final 'commit'
 -- / 'rollback' as settings that were in effect during the call
 -- to 'withTransaction' will be used.
-withTransaction :: (MonadDB m, MonadMask m) => m a -> m a
+withTransaction :: (HasCallStack, MonadDB m, MonadMask m) => m a -> m a
 withTransaction m = getTransactionSettings >>= flip withTransaction' m
 
 -- | Begin transaction using current transaction settings.
-begin :: MonadDB m => m ()
+begin :: (HasCallStack, MonadDB m) => m ()
 begin = getTransactionSettings >>= begin'
 
 -- | Commit active transaction using current transaction settings.
-commit :: MonadDB m => m ()
+commit :: (HasCallStack, MonadDB m) => m ()
 commit = getTransactionSettings >>= commit'
 
 -- | Rollback active transaction using current transaction settings.
-rollback :: MonadDB m => m ()
+rollback :: (HasCallStack, MonadDB m) => m ()
 rollback = getTransactionSettings >>= rollback'
 
 ----------------------------------------
@@ -77,7 +78,7 @@ rollback = getTransactionSettings >>= rollback'
 -- | Execute monadic action within a transaction using given transaction
 -- settings. Note that it won't work as expected if a transaction is already
 -- active (in such case 'withSavepoint' should be used instead).
-withTransaction' :: (MonadDB m, MonadMask m)
+withTransaction' :: (HasCallStack, MonadDB m, MonadMask m)
                  => TransactionSettings -> m a -> m a
 withTransaction' ts m = (`fix` 1) $ \loop n -> do
   -- Optimization for squashing possible space leaks.
@@ -109,7 +110,7 @@ withTransaction' ts m = (`fix` 1) $ \loop n -> do
       guard $ f err n
 
 -- | Begin transaction using given transaction settings.
-begin' :: MonadDB m => TransactionSettings -> m ()
+begin' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
 begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
   where
     isolationLevel = case tsIsolationLevel ts of
@@ -123,14 +124,14 @@ begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
       ReadWrite          -> "READ WRITE"
 
 -- | Commit active transaction using given transaction settings.
-commit' :: MonadDB m => TransactionSettings -> m ()
+commit' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
 commit' ts = do
   runSQL_ "COMMIT"
   when (tsAutoTransaction ts) $
     begin' ts
 
 -- | Rollback active transaction using given transaction settings.
-rollback' :: MonadDB m => TransactionSettings -> m ()
+rollback' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
 rollback' ts = do
   runSQL_ "ROLLBACK"
   when (tsAutoTransaction ts) $
