@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}
+
 module Test.Aeson.Compat
   ( fromList
   , Value0

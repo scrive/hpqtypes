@@ -1,24 +1,24 @@
-module Database.PostgreSQL.PQTypes.ToSQL (
-    ParamAllocator(..)
-  , ToSQL(..)
+module Database.PostgreSQL.PQTypes.ToSQL
+  ( ParamAllocator (..)
+  , ToSQL (..)
   , putAsPtr
   ) where
 
+import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as BSL
 import Data.ByteString.Unsafe
 import Data.Int
 import Data.Kind (Type)
+import Data.Text qualified as T
 import Data.Text.Encoding
+import Data.Text.Lazy qualified as TL
 import Data.Time
+import Data.UUID.Types qualified as U
 import Data.Word
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -33,12 +33,17 @@ newtype ParamAllocator = ParamAllocator (forall r. (Ptr PGparam -> IO r) -> IO r
 class PQFormat t => ToSQL t where
   -- | Destination type (used by libpqtypes).
   type PQDest t :: Type
+
   -- | Put supplied value into inner 'PGparam'.
-  toSQL :: t -- ^ Value to be put.
-        -> ParamAllocator -- ^ 'PGparam' allocator.
-        -> (Ptr (PQDest t) -> IO r) -- ^ Continuation that puts
-        -- converted value into inner 'PGparam'.
-        -> IO r
+  toSQL
+    :: t
+    -- ^ Value to be put.
+    -> ParamAllocator
+    -- ^ 'PGparam' allocator.
+    -> (Ptr (PQDest t) -> IO r)
+    -- ^ Continuation that puts
+    -- converted value into inner 'PGparam'.
+    -> IO r
 
 -- | Function that abstracts away common elements of most 'ToSQL'
 -- instance definitions to make them easier to write and less verbose.
@@ -51,7 +56,7 @@ instance ToSQL t => ToSQL (Maybe t) where
   type PQDest (Maybe t) = PQDest t
   toSQL mt allocParam conv = case mt of
     Nothing -> conv nullPtr
-    Just t  -> toSQL t allocParam conv
+    Just t -> toSQL t allocParam conv
 
 -- NUMERICS
 
@@ -153,65 +158,74 @@ instance ToSQL TimeOfDay where
 
 instance ToSQL LocalTime where
   type PQDest LocalTime = PGtimestamp
-  toSQL LocalTime{..} _ = putAsPtr PGtimestamp {
-    pgTimestampEpoch = 0
-  , pgTimestampDate = dayToPGdate localDay
-  , pgTimestampTime = timeOfDayToPGtime localTimeOfDay
-  }
+  toSQL LocalTime {..} _ =
+    putAsPtr
+      PGtimestamp
+        { pgTimestampEpoch = 0
+        , pgTimestampDate = dayToPGdate localDay
+        , pgTimestampTime = timeOfDayToPGtime localTimeOfDay
+        }
 
 -- TIMESTAMPTZ
 
 instance ToSQL UTCTime where
   type PQDest UTCTime = PGtimestamp
-  toSQL UTCTime{..} _ = putAsPtr PGtimestamp {
-    pgTimestampEpoch = 0
-  , pgTimestampDate = dayToPGdate utctDay
-  , pgTimestampTime = timeOfDayToPGtime $ timeToTimeOfDay utctDayTime
-  }
+  toSQL UTCTime {..} _ =
+    putAsPtr
+      PGtimestamp
+        { pgTimestampEpoch = 0
+        , pgTimestampDate = dayToPGdate utctDay
+        , pgTimestampTime = timeOfDayToPGtime $ timeToTimeOfDay utctDayTime
+        }
 
 instance ToSQL ZonedTime where
   type PQDest ZonedTime = PGtimestamp
-  toSQL ZonedTime{..} _ = putAsPtr PGtimestamp {
-    pgTimestampEpoch = 0
-  , pgTimestampDate = dayToPGdate $ localDay zonedTimeToLocalTime
-  , pgTimestampTime = (timeOfDayToPGtime $ localTimeOfDay zonedTimeToLocalTime) {
-      pgTimeGMTOff = fromIntegral (timeZoneMinutes zonedTimeZone) * 60
-    }
-  }
+  toSQL ZonedTime {..} _ =
+    putAsPtr
+      PGtimestamp
+        { pgTimestampEpoch = 0
+        , pgTimestampDate = dayToPGdate $ localDay zonedTimeToLocalTime
+        , pgTimestampTime =
+            (timeOfDayToPGtime $ localTimeOfDay zonedTimeToLocalTime)
+              { pgTimeGMTOff = fromIntegral (timeZoneMinutes zonedTimeZone) * 60
+              }
+        }
 
 -- BOOL
 
 instance ToSQL Bool where
   type PQDest Bool = CInt
-  toSQL True  _ = putAsPtr 1
+  toSQL True _ = putAsPtr 1
   toSQL False _ = putAsPtr 0
 
 ----------------------------------------
 
 timeOfDayToPGtime :: TimeOfDay -> PGtime
-timeOfDayToPGtime TimeOfDay{..} = PGtime {
-    pgTimeHour   = fromIntegral todHour
-  , pgTimeMin    = fromIntegral todMin
-  , pgTimeSec    = sec
-  , pgTimeUSec   = usec
-  , pgTimeWithTZ = 0
-  , pgTimeIsDST  = 0
-  , pgTimeGMTOff = 0
-  , pgTimeTZAbbr = BS.empty
-  }
+timeOfDayToPGtime TimeOfDay {..} =
+  PGtime
+    { pgTimeHour = fromIntegral todHour
+    , pgTimeMin = fromIntegral todMin
+    , pgTimeSec = sec
+    , pgTimeUSec = usec
+    , pgTimeWithTZ = 0
+    , pgTimeIsDST = 0
+    , pgTimeGMTOff = 0
+    , pgTimeTZAbbr = BS.empty
+    }
   where
     (sec, usec) = floor ((toRational todSec) * 1000000) `divMod` 1000000
 
 dayToPGdate :: Day -> PGdate
-dayToPGdate day = PGdate {
-    pgDateIsBC  = isBC
-  , pgDateYear  = fromIntegral $ adjustBC year
-  , pgDateMon   = fromIntegral $ mon - 1
-  , pgDateMDay  = fromIntegral mday
-  , pgDateJDay  = 0
-  , pgDateYDay  = 0
-  , pgDateWDay  = 0
-  }
+dayToPGdate day =
+  PGdate
+    { pgDateIsBC = isBC
+    , pgDateYear = fromIntegral $ adjustBC year
+    , pgDateMon = fromIntegral $ mon - 1
+    , pgDateMDay = fromIntegral mday
+    , pgDateJDay = 0
+    , pgDateYDay = 0
+    , pgDateWDay = 0
+    }
   where
     (year, mon, mday) = toGregorian day
 

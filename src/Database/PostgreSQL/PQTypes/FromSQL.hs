@@ -1,21 +1,21 @@
-module Database.PostgreSQL.PQTypes.FromSQL (
-    FromSQL(..)
+module Database.PostgreSQL.PQTypes.FromSQL
+  ( FromSQL (..)
   ) where
 
+import Control.Exception qualified as E
+import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as BSL
 import Data.Int
 import Data.Kind (Type)
 import Data.Ratio
+import Data.Text qualified as T
 import Data.Text.Encoding
+import Data.Text.Lazy qualified as TL
 import Data.Time
+import Data.UUID.Types qualified as U
 import Data.Word
 import Foreign.C
 import Foreign.Storable
-import qualified Control.Exception as E
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -26,16 +26,19 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 class (PQFormat t, Storable (PQBase t)) => FromSQL t where
   -- | Base type (used by libpqtypes).
   type PQBase t :: Type
+
   -- | Convert value of base type to target one.
-  fromSQL :: Maybe (PQBase t) -- ^ base value (Nothing if NULL was delivered)
-          -> IO t
+  fromSQL
+    :: Maybe (PQBase t)
+    -- ^ base value (Nothing if NULL was delivered)
+    -> IO t
 
 -- NULLables
 
 instance FromSQL t => FromSQL (Maybe t) where
   type PQBase (Maybe t) = PQBase t
   fromSQL mbase = case mbase of
-    Just _  -> Just <$> fromSQL mbase
+    Just _ -> Just <$> fromSQL mbase
     Nothing -> return Nothing
 
 -- NUMERICS
@@ -132,7 +135,7 @@ instance FromSQL TimeOfDay where
 instance FromSQL LocalTime where
   type PQBase LocalTime = PGtimestamp
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGtimestamp{..}) = return $ LocalTime day tod
+  fromSQL (Just PGtimestamp {..}) = return $ LocalTime day tod
     where
       day = pgDateToDay pgTimestampDate
       tod = pgTimeToTimeOfDay pgTimestampTime
@@ -145,7 +148,7 @@ instance FromSQL LocalTime where
 instance FromSQL UTCTime where
   type PQBase UTCTime = PGtimestamp
   fromSQL Nothing = unexpectedNULL
-  fromSQL jts@(Just PGtimestamp{..}) = do
+  fromSQL jts@(Just PGtimestamp {..}) = do
     localTime <- fromSQL jts
     case rest of
       0 -> return . localTimeToUTC (minutesToTimeZone mins) $ localTime
@@ -167,12 +170,12 @@ instance FromSQL Bool where
 
 -- | Convert PGtime to Day.
 pgDateToDay :: PGdate -> Day
-pgDateToDay PGdate{..} = fromGregorian year mon mday
+pgDateToDay PGdate {..} = fromGregorian year mon mday
   where
     year = adjustBC $ fromIntegral pgDateYear
     -- Note: libpqtypes represents months as numbers in range
     -- [0, 11], whereas Haskell uses [1, 12], hence plus one.
-    mon  = fromIntegral $ pgDateMon + 1
+    mon = fromIntegral $ pgDateMon + 1
     mday = fromIntegral pgDateMDay
     -- Note: PostgreSQL has no notion of '0th year', it's 1 AD
     -- and then before that 1 BC for it. Since Haskell represents
@@ -183,9 +186,9 @@ pgDateToDay PGdate{..} = fromGregorian year mon mday
 
 -- | Convert PGtime to TimeOfDay.
 pgTimeToTimeOfDay :: PGtime -> TimeOfDay
-pgTimeToTimeOfDay PGtime{..} = TimeOfDay hour mins $ sec + fromRational (usec % 1000000)
+pgTimeToTimeOfDay PGtime {..} = TimeOfDay hour mins $ sec + fromRational (usec % 1000000)
   where
     hour = fromIntegral pgTimeHour
     mins = fromIntegral pgTimeMin
-    sec  = fromIntegral pgTimeSec
+    sec = fromIntegral pgTimeSec
     usec = fromIntegral pgTimeUSec

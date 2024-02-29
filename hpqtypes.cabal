@@ -116,7 +116,7 @@ library
 
   hs-source-dirs:    src
 
-  ghc-options:       -Wall
+  ghc-options:       -Wall -Wprepositive-qualified-module
 
   include-dirs:      libpqtypes/src
 
@@ -152,6 +152,7 @@ library
                     , ForeignFunctionInterface
                     , GADTs
                     , GeneralizedNewtypeDeriving
+                    , ImportQualifiedPost
                     , LambdaCase
                     , MultiParamTypeClasses
                     , MultiWayIf
@@ -170,7 +171,7 @@ library
 
 test-suite hpqtypes-tests
   type:              exitcode-stdio-1.0
-  ghc-options:       -Wall -threaded
+  ghc-options:       -Wall -Wprepositive-qualified-module -threaded
 
   hs-source-dirs:    test
   main-is:           Main.hs
@@ -210,6 +211,7 @@ test-suite hpqtypes-tests
                     , ForeignFunctionInterface
                     , GADTs
                     , GeneralizedNewtypeDeriving
+                    , ImportQualifiedPost
                     , LambdaCase
                     , MultiParamTypeClasses
                     , MultiWayIf

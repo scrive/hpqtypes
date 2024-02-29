@@ -1,45 +1,46 @@
 module Database.PostgreSQL.PQTypes.Internal.Connection
   ( -- * Connection
-    Connection(..)
-  , ConnectionData(..)
+    Connection (..)
+  , ConnectionData (..)
   , withConnectionData
-  , ConnectionStats(..)
-  , ConnectionSettings(..)
+  , ConnectionStats (..)
+  , ConnectionSettings (..)
   , defaultConnectionSettings
-  , ConnectionSourceM(..)
-  , ConnectionSource(..)
+  , ConnectionSourceM (..)
+  , ConnectionSource (..)
   , simpleSource
   , poolSource
   , connect
   , disconnect
+
     -- * Running queries
   , runQueryIO
-  , QueryName(..)
+  , QueryName (..)
   , runPreparedQueryIO
   ) where
 
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Exception qualified as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Bifunctor
+import Data.ByteString.Char8 qualified as BS
+import Data.Foldable qualified as F
 import Data.IORef
 import Data.Kind
 import Data.Pool
+import Data.Set qualified as S
 import Data.String
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import GHC.Conc (closeFdWith)
 import GHC.Stack
-import qualified Control.Exception as E
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Foldable as F
-import qualified Data.Set as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -53,16 +54,17 @@ import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.ToSQL
 
 data ConnectionSettings = ConnectionSettings
-  { -- | Connection info string.
-    csConnInfo       :: !T.Text
-    -- | Client-side encoding. If set to 'Nothing', database encoding is used.
+  { csConnInfo :: !T.Text
+  -- ^ Connection info string.
   , csClientEncoding :: !(Maybe T.Text)
-    -- | A custom role to set with "SET ROLE".
-  , csRole           :: !(Maybe (RawSQL ()))
-    -- | A list of composite types to register. In order to be able to
-    -- (de)serialize specific composite types, you need to register them.
-  , csComposites     :: ![T.Text]
-  } deriving (Eq, Ord, Show)
+  -- ^ Client-side encoding. If set to 'Nothing', database encoding is used.
+  , csRole :: !(Maybe (RawSQL ()))
+  -- ^ A custom role to set with "SET ROLE".
+  , csComposites :: ![T.Text]
+  -- ^ A list of composite types to register. In order to be able to
+  -- (de)serialize specific composite types, you need to register them.
+  }
+  deriving (Eq, Ord, Show)
 
 -- | Default connection settings. Note that all strings sent to PostgreSQL by
 -- the library are encoded as UTF-8, so don't alter client encoding unless you
@@ -70,34 +72,36 @@ data ConnectionSettings = ConnectionSettings
 defaultConnectionSettings :: ConnectionSettings
 defaultConnectionSettings =
   ConnectionSettings
-  { csConnInfo       = T.empty
-  , csClientEncoding = Just "UTF-8"
-  , csRole           = Nothing
-  , csComposites     = []
-  }
+    { csConnInfo = T.empty
+    , csClientEncoding = Just "UTF-8"
+    , csRole = Nothing
+    , csComposites = []
+    }
 
 ----------------------------------------
 
 -- | Simple connection statistics.
 data ConnectionStats = ConnectionStats
-  { -- | Number of queries executed so far.
-    statsQueries :: !Int
-    -- | Number of rows fetched from the database.
-  , statsRows    :: !Int
-    -- | Number of values fetched from the database.
-  , statsValues  :: !Int
-    -- | Number of parameters sent to the database.
-  , statsParams  :: !Int
-  } deriving (Eq, Ord, Show)
+  { statsQueries :: !Int
+  -- ^ Number of queries executed so far.
+  , statsRows :: !Int
+  -- ^ Number of rows fetched from the database.
+  , statsValues :: !Int
+  -- ^ Number of values fetched from the database.
+  , statsParams :: !Int
+  -- ^ Number of parameters sent to the database.
+  }
+  deriving (Eq, Ord, Show)
 
 -- | Initial connection statistics.
 initialStats :: ConnectionStats
-initialStats = ConnectionStats {
-  statsQueries = 0
-, statsRows    = 0
-, statsValues  = 0
-, statsParams  = 0
-}
+initialStats =
+  ConnectionStats
+    { statsQueries = 0
+    , statsRows = 0
+    , statsValues = 0
+    , statsParams = 0
+    }
 
 -- | Representation of a connection object.
 --
@@ -108,18 +112,18 @@ initialStats = ConnectionStats {
 --
 -- See https://gitlab.haskell.org/ghc/ghc/-/issues/10975 for more info.
 data ConnectionData = ConnectionData
-  { cdPtr      :: !(Ptr PGconn)
+  { cdPtr :: !(Ptr PGconn)
   -- ^ Pointer to connection object.
-  , cdStats    :: !ConnectionStats
+  , cdStats :: !ConnectionStats
   -- ^ Statistics associated with the connection.
   , cdPreparedQueries :: !(IORef (S.Set T.Text))
   -- ^ A set of named prepared statements of the connection.
   }
 
 -- | Wrapper for hiding representation of a connection object.
-newtype Connection = Connection {
-  unConnection :: MVar (Maybe ConnectionData)
-}
+newtype Connection = Connection
+  { unConnection :: MVar (Maybe ConnectionData)
+  }
 
 withConnectionData
   :: Connection
@@ -132,23 +136,25 @@ withConnectionData (Connection mvc) fname f =
     Just cd -> first Just <$> f cd
 
 -- | Database connection supplier.
-newtype ConnectionSourceM m = ConnectionSourceM {
-  withConnection :: forall r. (Connection -> m r) -> m r
-}
+newtype ConnectionSourceM m = ConnectionSourceM
+  { withConnection :: forall r. (Connection -> m r) -> m r
+  }
 
 -- | Wrapper for a polymorphic connection source.
-newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSource {
-  unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
-}
+newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSource
+  { unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
+  }
 
 -- | Default connection supplier. It establishes new
 -- database connection each time 'withConnection' is called.
 simpleSource
   :: ConnectionSettings
   -> ConnectionSource [MonadBase IO, MonadMask]
-simpleSource cs = ConnectionSource $ ConnectionSourceM {
-  withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
-}
+simpleSource cs =
+  ConnectionSource $
+    ConnectionSourceM
+      { withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
+      }
 
 -- | Pooled source. It uses striped pool from @resource-pool@ package to cache
 -- established connections and reuse them.
@@ -162,21 +168,25 @@ poolSource
   -> IO (ConnectionSource [MonadBase IO, MonadMask])
 poolSource cs mkPoolConfig = do
   pool <- newPool $ mkPoolConfig (connect cs) disconnect
-  return $ ConnectionSource $ ConnectionSourceM {
-    withConnection = doWithConnection pool . (clearStats >=>)
-  }
+  return $
+    ConnectionSource $
+      ConnectionSourceM
+        { withConnection = doWithConnection pool . (clearStats >=>)
+        }
   where
-    doWithConnection pool m = fst <$> generalBracket
-      (liftBase $ takeResource pool)
-      (\(resource, local) -> \case
-          ExitCaseSuccess _ -> liftBase $ putResource local resource
-          _                 -> liftBase $ destroyResource pool local resource
-      )
-      (\(resource, _) -> m resource)
+    doWithConnection pool m =
+      fst
+        <$> generalBracket
+          (liftBase $ takeResource pool)
+          ( \(resource, local) -> \case
+              ExitCaseSuccess _ -> liftBase $ putResource local resource
+              _ -> liftBase $ destroyResource pool local resource
+          )
+          (\(resource, _) -> m resource)
 
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
-        return $ (\cd -> cd { cdStats = initialStats }) <$> mconn
+        return $ (\cd -> cd {cdStats = initialStats}) <$> mconn
       return conn
 
 ----------------------------------------
@@ -187,7 +197,7 @@ poolSource cs mkPoolConfig = do
 -- /Warning:/ the 'Connection' needs to be explicitly destroyed with
 -- 'disconnect', otherwise there will be a resource leak.
 connect :: ConnectionSettings -> IO Connection
-connect ConnectionSettings{..} = mask $ \unmask -> do
+connect ConnectionSettings {..} = mask $ \unmask -> do
   connPtr <- BS.useAsCString (T.encodeUtf8 csConnInfo) (openConnection unmask)
   (`onException` c_PQfinish connPtr) . unmask $ do
     status <- c_PQstatus connPtr
@@ -201,11 +211,13 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
     registerComposites connPtr csComposites
     conn <- do
       preparedQueries <- newIORef S.empty
-      fmap Connection . newMVar $ Just ConnectionData
-        { cdPtr = connPtr
-        , cdStats = initialStats
-        , cdPreparedQueries = preparedQueries
-        }
+      fmap Connection . newMVar $
+        Just
+          ConnectionData
+            { cdPtr = connPtr
+            , cdStats = initialStats
+            , cdPreparedQueries = preparedQueries
+            }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
     pure conn
   where
@@ -228,15 +240,17 @@ connect ConnectionSettings{..} = mask $ \unmask -> do
       runningVar <- newTVarIO True
       _ <- forkIO $ do
         conn <- c_PQconnectdb conninfo
-        join . atomically $ readTVar runningVar >>= \case
-          True -> do
-            putTMVar connVar conn
-            pure $ pure ()
-          False -> pure $ c_PQfinish conn
-      conn <- atomically (takeTMVar connVar) `onException` do
-        join . atomically $ do
-          writeTVar runningVar False
-          maybe (pure ()) c_PQfinish <$> tryTakeTMVar connVar
+        join . atomically $
+          readTVar runningVar >>= \case
+            True -> do
+              putTMVar connVar conn
+              pure $ pure ()
+            False -> pure $ c_PQfinish conn
+      conn <-
+        atomically (takeTMVar connVar) `onException` do
+          join . atomically $ do
+            writeTVar runningVar False
+            maybe (pure ()) c_PQfinish <$> tryTakeTMVar connVar
       (`onException` c_PQfinish conn) . unmask $ do
         when (conn == nullPtr) $ do
           throwError "PQconnectdb returned a null pointer"
@@ -266,7 +280,6 @@ disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
       c_PQsocket conn >>= \case
         -1 -> c_PQfinish conn -- can happen if the connection is bad/lost
         fd -> closeFdWith (\_ -> c_PQfinish conn) fd
-
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
   return Nothing
 
@@ -280,11 +293,12 @@ runQueryIO
   -> sql
   -> IO (Int, ForeignPtr PGresult)
 runQueryIO conn sql = do
-  runQueryImpl "runQueryIO" conn sql $ \ConnectionData{..} -> do
+  runQueryImpl "runQueryIO" conn sql $ \ConnectionData {..} -> do
     let allocParam = ParamAllocator $ withPGparam cdPtr
-    withSQL sql allocParam $ \param query -> (,)
-      <$> (fromIntegral <$> c_PQparamCount param)
-      <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
+    withSQL sql allocParam $ \param query ->
+      (,)
+        <$> (fromIntegral <$> c_PQparamCount param)
+        <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
 
 -- | Name of a prepared query.
 newtype QueryName = QueryName T.Text
@@ -298,13 +312,14 @@ runPreparedQueryIO
   -> sql
   -> IO (Int, ForeignPtr PGresult)
 runPreparedQueryIO conn (QueryName queryName) sql = do
-  runQueryImpl "runPreparedQueryIO" conn sql $ \ConnectionData{..} -> do
+  runQueryImpl "runPreparedQueryIO" conn sql $ \ConnectionData {..} -> do
     when (T.null queryName) $ do
-      E.throwIO DBException
-        { dbeQueryContext = sql
-        , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
-        , dbeCallStack = callStack
-        }
+      E.throwIO
+        DBException
+          { dbeQueryContext = sql
+          , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
+          , dbeCallStack = callStack
+          }
     let allocParam = ParamAllocator $ withPGparam cdPtr
     withSQL sql allocParam $ \param query -> do
       preparedQueries <- readIORef cdPreparedQueries
@@ -316,8 +331,9 @@ runPreparedQueryIO conn (QueryName queryName) sql = do
           res <- c_PQparamPrepare cdPtr nullPtr param cname query
           void . withForeignPtr res $ verifyResult sql cdPtr
           modifyIORef' cdPreparedQueries $ S.insert queryName
-        (,) <$> (fromIntegral <$> c_PQparamCount param)
-            <*> c_PQparamExecPrepared cdPtr nullPtr param cname c_RESULT_BINARY
+        (,)
+          <$> (fromIntegral <$> c_PQparamCount param)
+          <*> c_PQparamExecPrepared cdPtr nullPtr param cname c_RESULT_BINARY
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
 runQueryImpl
@@ -328,7 +344,7 @@ runQueryImpl
   -> (ConnectionData -> IO (Int, ForeignPtr PGresult))
   -> IO (Int, ForeignPtr PGresult)
 runQueryImpl fname conn sql execSql = do
-  withConnDo $ \cd@ConnectionData{..} -> E.mask $ \restore -> do
+  withConnDo $ \cd@ConnectionData {..} -> E.mask $ \restore -> do
     -- While the query runs, the current thread will not be able to receive
     -- asynchronous exceptions. This prevents clients of the library from
     -- interrupting execution of the query. To remedy that we spawn a separate
@@ -339,20 +355,23 @@ runQueryImpl fname conn sql execSql = do
       (paramCount, res) <- execSql cd
       affected <- withForeignPtr res $ verifyResult sql cdPtr
       stats' <- case affected of
-        Left _ -> return cdStats {
-          statsQueries = statsQueries cdStats + 1
-        , statsParams  = statsParams cdStats + paramCount
-        }
+        Left _ ->
+          return
+            cdStats
+              { statsQueries = statsQueries cdStats + 1
+              , statsParams = statsParams cdStats + paramCount
+              }
         Right rows -> do
           columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-          return ConnectionStats {
-            statsQueries = statsQueries cdStats + 1
-          , statsRows    = statsRows cdStats + rows
-          , statsValues  = statsValues cdStats + (rows * columns)
-          , statsParams  = statsParams cdStats + paramCount
-          }
+          return
+            ConnectionStats
+              { statsQueries = statsQueries cdStats + 1
+              , statsRows = statsRows cdStats + rows
+              , statsValues = statsValues cdStats + (rows * columns)
+              , statsParams = statsParams cdStats + paramCount
+              }
       -- Force evaluation of modified stats to squash a space leak.
-      stats' `seq` return (cd { cdStats = stats' }, (either id id affected, res))
+      stats' `seq` return (cd {cdStats = stats'}, (either id id affected, res))
     -- If we receive an exception while waiting for the execution to complete,
     -- we need to send a request to PostgreSQL for query cancellation and wait
     -- for the query runner thread to terminate. It is paramount we make the
@@ -368,11 +387,12 @@ runQueryImpl fname conn sql execSql = do
         -- weird is going on. Maybe the cancellation request went through when
         -- the thread wasn't making a request to the server? In any case, try to
         -- cancel again and wait for the thread to terminate.
-        Just _ -> poll queryRunner >>= \case
-          Just _  -> return ()
-          Nothing -> do
-            void $ c_PQcancel cdPtr
-            cancel queryRunner
+        Just _ ->
+          poll queryRunner >>= \case
+            Just _ -> return ()
+            Nothing -> do
+              void $ c_PQcancel cdPtr
+              cancel queryRunner
   where
     withConnDo = withConnectionData conn fname
 
@@ -391,37 +411,46 @@ verifyResult sql conn res = do
       case BS.readInt sn of
         Nothing
           | BS.null sn -> return . Left $ 0
-          | otherwise  -> throwParseError sn
+          | otherwise -> throwParseError sn
         Just (n, rest)
           | rest /= BS.empty -> throwParseError sn
-          | otherwise        -> return . Left $ n
-    _ | rst == c_PGRES_TUPLES_OK    -> Right . fromIntegral <$> c_PQntuples res
-    _ | rst == c_PGRES_FATAL_ERROR  -> throwSQLError
+          | otherwise -> return . Left $ n
+    _ | rst == c_PGRES_TUPLES_OK -> Right . fromIntegral <$> c_PQntuples res
+    _ | rst == c_PGRES_FATAL_ERROR -> throwSQLError
     _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
-    _ | otherwise                  -> return . Left $ 0
-    where
-      throwSQLError = rethrowWithContext sql =<< if res == nullPtr
-        then return . E.toException . QueryError
-          =<< safePeekCString' =<< c_PQerrorMessage conn
-        else E.toException <$> (DetailedQueryError
-          <$> field c_PG_DIAG_SEVERITY
-          <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
-          <*> field c_PG_DIAG_MESSAGE_PRIMARY
-          <*> mfield c_PG_DIAG_MESSAGE_DETAIL
-          <*> mfield c_PG_DIAG_MESSAGE_HINT
-          <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
-          <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
-          <*> mfield c_PG_DIAG_INTERNAL_QUERY
-          <*> mfield c_PG_DIAG_CONTEXT
-          <*> mfield c_PG_DIAG_SOURCE_FILE
-          <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
-          <*> mfield c_PG_DIAG_SOURCE_FUNCTION)
-        where
-          field f = maybe "" id <$> mfield f
-          mfield f = safePeekCString =<< c_PQresultErrorField res f
+    _ | otherwise -> return . Left $ 0
+  where
+    throwSQLError =
+      rethrowWithContext sql
+        =<< if res == nullPtr
+          then
+            return . E.toException . QueryError
+              =<< safePeekCString'
+              =<< c_PQerrorMessage conn
+          else
+            E.toException
+              <$> ( DetailedQueryError
+                      <$> field c_PG_DIAG_SEVERITY
+                      <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
+                      <*> field c_PG_DIAG_MESSAGE_PRIMARY
+                      <*> mfield c_PG_DIAG_MESSAGE_DETAIL
+                      <*> mfield c_PG_DIAG_MESSAGE_HINT
+                      <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
+                      <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
+                      <*> mfield c_PG_DIAG_INTERNAL_QUERY
+                      <*> mfield c_PG_DIAG_CONTEXT
+                      <*> mfield c_PG_DIAG_SOURCE_FILE
+                      <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
+                      <*> mfield c_PG_DIAG_SOURCE_FUNCTION
+                  )
+      where
+        field f = maybe "" id <$> mfield f
+        mfield f = safePeekCString =<< c_PQresultErrorField res f
 
-      throwParseError sn = E.throwIO DBException {
-        dbeQueryContext = sql
-      , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
-      , dbeCallStack = callStack
-      }
+    throwParseError sn =
+      E.throwIO
+        DBException
+          { dbeQueryContext = sql
+          , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
+          , dbeCallStack = callStack
+          }

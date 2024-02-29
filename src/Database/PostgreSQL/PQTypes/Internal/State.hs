@@ -1,6 +1,6 @@
 -- | Definition of internal DBT state.
 module Database.PostgreSQL.PQTypes.Internal.State
-  ( DBState(..)
+  ( DBState (..)
   , updateStateWith
   ) where
 
@@ -15,26 +15,29 @@ import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 -- | Internal DB state.
 data DBState m = DBState
-  { -- | Active connection.
-    dbConnection          :: !Connection
-    -- | Supplied connection source.
-  , dbConnectionSource    :: !(ConnectionSourceM m)
-    -- | Current transaction settings.
+  { dbConnection :: !Connection
+  -- ^ Active connection.
+  , dbConnectionSource :: !(ConnectionSourceM m)
+  -- ^ Supplied connection source.
   , dbTransactionSettings :: !TransactionSettings
-    -- | Last SQL query that was executed.
-  , dbLastQuery           :: !SomeSQL
-    -- | Whether running query should override 'dbLastQuery'.
-  , dbRecordLastQuery     :: !Bool
-    -- | Current query result.
-  , dbQueryResult         :: !(forall row. FromRow row => Maybe (QueryResult row))
+  -- ^ Current transaction settings.
+  , dbLastQuery :: !SomeSQL
+  -- ^ Last SQL query that was executed.
+  , dbRecordLastQuery :: !Bool
+  -- ^ Whether running query should override 'dbLastQuery'.
+  , dbQueryResult :: !(forall row. FromRow row => Maybe (QueryResult row))
+  -- ^ Current query result.
   }
 
 updateStateWith :: IsSQL sql => DBState m -> sql -> ForeignPtr PGresult -> DBState m
-updateStateWith st sql res = st
-  { dbLastQuery = if dbRecordLastQuery st then SomeSQL sql else dbLastQuery st
-  , dbQueryResult = Just QueryResult
-    { qrSQL = SomeSQL sql
-    , qrResult = res
-    , qrFromRow = id
+updateStateWith st sql res =
+  st
+    { dbLastQuery = if dbRecordLastQuery st then SomeSQL sql else dbLastQuery st
+    , dbQueryResult =
+        Just
+          QueryResult
+            { qrSQL = SomeSQL sql
+            , qrResult = res
+            , qrFromRow = id
+            }
     }
-  }

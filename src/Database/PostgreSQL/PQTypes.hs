@@ -1,42 +1,47 @@
 -- | Set of definitions exposed to the end user.
-module Database.PostgreSQL.PQTypes (
-  -- Database.PostgreSQL.PQTypes.Internal.Connection
-  -- * Connection
+module Database.PostgreSQL.PQTypes
+  ( -- Database.PostgreSQL.PQTypes.Internal.Connection
+
+    -- * Connection
     Connection
-  , ConnectionStats(..)
-  , ConnectionSettings(..)
+  , ConnectionStats (..)
+  , ConnectionSettings (..)
   , defaultConnectionSettings
   , ConnectionSourceM
-  , ConnectionSource(..)
+  , ConnectionSource (..)
   , simpleSource
   , poolSource
   -- Database.PostgreSQL.PQTypes.Internal.Error
-  -- * Exceptions
-  , ErrorCode(..)
-  , DetailedQueryError(..)
-  , QueryError(..)
-  , HPQTypesError(..)
-  , LibPQError(..)
-  , ConversionError(..)
-  , ArrayItemError(..)
-  , InvalidValue(..)
-  , RangeError(..)
-  , ArrayDimensionMismatch(..)
-  , RowLengthMismatch(..)
-  , AffectedRowsMismatch(..)
+
+    -- * Exceptions
+  , ErrorCode (..)
+  , DetailedQueryError (..)
+  , QueryError (..)
+  , HPQTypesError (..)
+  , LibPQError (..)
+  , ConversionError (..)
+  , ArrayItemError (..)
+  , InvalidValue (..)
+  , RangeError (..)
+  , ArrayDimensionMismatch (..)
+  , RowLengthMismatch (..)
+  , AffectedRowsMismatch (..)
   -- Database.PostgreSQL.PQTypes.Internal.Exception
-  , DBException(..)
+  , DBException (..)
   -- Database.PostgreSQL.PQTypes.Internal.Monad
-  -- * Monad transformer
+
+    -- * Monad transformer
   , DBT
   , runDBT
   , mapDBT
   -- Database.PostgreSQL.PQTypes.Internal.QueryResult
-  -- * Query result
+
+    -- * Query result
   , QueryResult
   , ntuples
   , nfields
-  -- * Other modules
+
+    -- * Other modules
   , module Data.Functor.Identity
   , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Class
@@ -88,4 +93,3 @@ import Database.PostgreSQL.PQTypes.Transaction
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
 import Database.PostgreSQL.PQTypes.XML
-

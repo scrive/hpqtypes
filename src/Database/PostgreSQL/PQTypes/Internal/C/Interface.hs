@@ -1,6 +1,6 @@
 -- | Exports a set of FFI-imported libpq/libpqtypes functions.
-module Database.PostgreSQL.PQTypes.Internal.C.Interface (
-  -- * libpq imports
+module Database.PostgreSQL.PQTypes.Internal.C.Interface
+  ( -- * libpq imports
     c_PQfreemem
   , c_PQstatus
   , c_PQerrorMessage
@@ -19,7 +19,8 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQcancel
   , c_PQconnectdb
   , c_PQfinish
-  -- * libpqtypes imports
+
+    -- * libpqtypes imports
   , c_PQinitTypes
   , c_PQregisterTypes
   , c_PQparamExec
@@ -28,16 +29,17 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface (
   , c_PQparamCreate
   , c_PQparamClear
   , c_PQparamCount
-  -- * misc imports
-  , nullStringCStringLen
-  )  where
 
+    -- * misc imports
+  , nullStringCStringLen
+  ) where
+
+import Control.Exception qualified as E
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.Posix.Types
-import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 
@@ -173,8 +175,9 @@ foreign import ccall safe "PQparamExecPrepared"
 -- prevent memory leaks.
 c_PQparamExec :: Ptr PGconn -> Ptr PGerror -> Ptr PGparam -> CString -> ResultFormat -> IO (ForeignPtr PGresult)
 c_PQparamExec conn err param fmt mode = do
-  E.mask_ $ newForeignPtr c_ptr_PQclear
-    =<< c_rawPQparamExec conn err param fmt mode
+  E.mask_ $
+    newForeignPtr c_ptr_PQclear
+      =<< c_rawPQparamExec conn err param fmt mode
 
 -- | Safe wrapper for 'c_rawPQprepare'. Wraps result returned by
 -- 'c_rawPQprepare' in 'ForeignPtr' with asynchronous exceptions masked to
@@ -187,8 +190,9 @@ c_PQparamPrepare
   -> CString
   -> IO (ForeignPtr PGresult)
 c_PQparamPrepare conn err param queryName query = do
-  E.mask_ $ newForeignPtr c_ptr_PQclear
-    =<< c_rawPQparamPrepare conn err param queryName query
+  E.mask_ $
+    newForeignPtr c_ptr_PQclear
+      =<< c_rawPQparamPrepare conn err param queryName query
 
 -- | Safe wrapper for 'c_rawPQparamExecPrepared'. Wraps result returned by
 -- 'c_rawPQparamExecPrepared' in 'ForeignPtr' with asynchronous exceptions
@@ -201,8 +205,9 @@ c_PQparamExecPrepared
   -> ResultFormat
   -> IO (ForeignPtr PGresult)
 c_PQparamExecPrepared conn err param queryName mode = do
-  E.mask_ $ newForeignPtr c_ptr_PQclear
-    =<< c_rawPQparamExecPrepared conn err param queryName mode
+  E.mask_ $
+    newForeignPtr c_ptr_PQclear
+      =<< c_rawPQparamExecPrepared conn err param queryName mode
 
 ----------------------------------------
 -- Miscellaneous

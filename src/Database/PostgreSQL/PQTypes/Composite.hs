@@ -1,15 +1,16 @@
 {-# LANGUAGE TypeApplications #-}
-module Database.PostgreSQL.PQTypes.Composite (
-    Composite(..)
+
+module Database.PostgreSQL.PQTypes.Composite
+  ( Composite (..)
   , unComposite
   , CompositeRow
-  , CompositeFromSQL(..)
-  , CompositeToSQL(..)
+  , CompositeFromSQL (..)
+  , CompositeToSQL (..)
   ) where
 
+import Control.Exception qualified as E
 import Data.Kind (Type)
 import Foreign.Ptr
-import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
@@ -53,8 +54,9 @@ instance PQFormat t => PQFormat (Composite t) where
 instance CompositeFromSQL t => FromSQL (Composite t) where
   type PQBase (Composite t) = Ptr PGresult
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just res) = Composite
-    <$> E.finally (toComposite <$> fromRow' res 0 0) (c_PQclear res)
+  fromSQL (Just res) =
+    Composite
+      <$> E.finally (toComposite <$> fromRow' res 0 0) (c_PQclear res)
 
 instance CompositeToSQL t => ToSQL (Composite t) where
   type PQDest (Composite t) = PGparam

@@ -1,6 +1,6 @@
 module Database.PostgreSQL.PQTypes.Class
-  ( QueryName(..)
-  , MonadDB(..)
+  ( QueryName (..)
+  , MonadDB (..)
   ) where
 
 import Control.Monad.Trans
@@ -20,11 +20,14 @@ class (Applicative m, Monad m) => MonadDB m where
   -- a given time. If simultaneous call is made from another thread, it
   -- will block until currently running 'runQuery' finishes.
   runQuery :: (HasCallStack, IsSQL sql) => sql -> m Int
+
   -- | Similar to 'runQuery', but it prepares and executes a statement under a
   -- given name.
   runPreparedQuery :: (HasCallStack, IsSQL sql) => QueryName -> sql -> m Int
+
   -- | Get last SQL query that was executed.
   getLastQuery :: m SomeSQL
+
   -- | Subsequent queries in the callback do not alter the result of
   -- 'getLastQuery'.
   withFrozenLastQuery :: m a -> m a
@@ -34,11 +37,13 @@ class (Applicative m, Monad m) => MonadDB m where
 
   -- | Get current query result.
   getQueryResult :: FromRow row => m (Maybe (QueryResult row))
+
   -- | Clear current query result.
   clearQueryResult :: m ()
 
   -- | Get current transaction settings.
   getTransactionSettings :: m TransactionSettings
+
   -- | Set transaction settings to supplied ones. Note that it
   -- won't change any properties of currently running transaction,
   -- only the subsequent ones.
@@ -70,21 +75,24 @@ class (Applicative m, Monad m) => MonadDB m where
   withNewConnection :: m a -> m a
 
 -- | Generic, overlappable instance.
-instance {-# OVERLAPPABLE #-}
+instance
+  {-# OVERLAPPABLE #-}
   ( Applicative (t m)
   , Monad (t m)
   , MonadTrans t
   , MonadTransControl t
   , MonadDB m
-  ) => MonadDB (t m) where
-    runQuery = withFrozenCallStack $ lift . runQuery
-    runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
-    getLastQuery = lift getLastQuery
-    withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
-    getConnectionStats = withFrozenCallStack $ lift getConnectionStats
-    getQueryResult = lift getQueryResult
-    clearQueryResult = lift clearQueryResult
-    getTransactionSettings = lift getTransactionSettings
-    setTransactionSettings = lift . setTransactionSettings
-    getNotification = lift . getNotification
-    withNewConnection m = controlT $ \run -> withNewConnection (run m)
+  )
+  => MonadDB (t m)
+  where
+  runQuery = withFrozenCallStack $ lift . runQuery
+  runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
+  getLastQuery = lift getLastQuery
+  withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
+  getConnectionStats = withFrozenCallStack $ lift getConnectionStats
+  getQueryResult = lift getQueryResult
+  clearQueryResult = lift clearQueryResult
+  getTransactionSettings = lift getTransactionSettings
+  setTransactionSettings = lift . setTransactionSettings
+  getNotification = lift . getNotification
+  withNewConnection m = controlT $ \run -> withNewConnection (run m)

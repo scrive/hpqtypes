@@ -1,16 +1,17 @@
 {-# LANGUAGE TypeApplications #-}
-module Database.PostgreSQL.PQTypes.FromRow (
-    FromRow(..)
+
+module Database.PostgreSQL.PQTypes.FromRow
+  ( FromRow (..)
   , fromRow'
   ) where
 
+import Control.Exception qualified as E
+import Data.ByteString.Unsafe qualified as BS
 import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Control.Exception as E
-import qualified Data.ByteString.Unsafe as BS
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
@@ -30,12 +31,13 @@ convert res tuple column base = do
     rethrowWithConvError :: E.SomeException -> IO a
     rethrowWithConvError (E.SomeException e) = do
       colname <- safePeekCString' =<< c_PQfname res column
-      E.throwIO ConversionError {
-        convColumn = fromIntegral column + 1
-      , convColumnName = colname
-      , convRow = fromIntegral tuple + 1
-      , convError = e
-      }
+      E.throwIO
+        ConversionError
+          { convColumn = fromIntegral column + 1
+          , convColumnName = colname
+          , convRow = fromIntegral tuple + 1
+          , convError = e
+          }
 
 -- | 'verifyPQTRes' specialized for usage in 'fromRow'.
 verify :: Ptr PGerror -> CInt -> IO ()
@@ -53,14 +55,21 @@ fromRow' res b i = alloca $ \err -> fromRow res err b i
 -- | Class which represents \"from SQL row to Haskell tuple\" transformation.
 class PQFormat row => FromRow row where
   -- | Extract SQL row from 'PGresult' and convert it into a tuple.
-  fromRow  :: Ptr PGresult -- ^ Source result.
-           -> Ptr PGerror  -- ^ Local error info.
-           -> CInt         -- ^ Base position for c_PQgetf.
-           -> CInt         -- ^ Index of row to be extracted.
-           -> IO row
+  fromRow
+    :: Ptr PGresult
+    -- ^ Source result.
+    -> Ptr PGerror
+    -- ^ Local error info.
+    -> CInt
+    -- ^ Base position for c_PQgetf.
+    -> CInt
+    -- ^ Index of row to be extracted.
+    -> IO row
 
-instance (
-    FromRow row1, FromRow row2
+{- FOURMOLU_DISABLE -}
+
+instance
+  ( FromRow row1, FromRow row2
   ) => FromRow (row1 :*: row2) where
     fromRow res err b i = (:*:)
       <$> fromRow res err b  i
@@ -77,8 +86,8 @@ instance FromSQL t => FromRow (Identity t) where
     t <- peek p1 >>= convert res i b
     return (Identity t)
 
-instance (
-    FromSQL t1, FromSQL t2
+instance
+  ( FromSQL t1, FromSQL t2
   ) => FromRow (t1, t2) where
     fromRow res err b i = withFormat $ \fmt ->
       alloca $ \p0 -> alloca $ \p1 -> do
@@ -86,8 +95,8 @@ instance (
         (,)
           <$> (peek p0 >>= convert res i b) <*> (peek p1 >>= convert res i (b+1))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3
   ) => FromRow (t1, t2, t3) where
     fromRow res err b i = withFormat $ \fmt ->
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> do
@@ -96,8 +105,8 @@ instance (
           <$> (peek p0 >>= convert res i b) <*> (peek p1 >>= convert res i (b+1))
           <*> (peek p2 >>= convert res i (b+2))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4
   ) => FromRow (t1, t2, t3, t4) where
     fromRow res err b i = withFormat $ \fmt ->
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> do
@@ -106,8 +115,8 @@ instance (
           <$> (peek p0 >>= convert res i b) <*> (peek p1 >>= convert res i (b+1))
           <*> (peek p2 >>= convert res i (b+2)) <*> (peek p3 >>= convert res i (b+3))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5
   ) => FromRow (t1, t2, t3, t4, t5) where
     fromRow res err b i = withFormat $ \fmt ->
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 -> do
@@ -117,8 +126,8 @@ instance (
           <*> (peek p2 >>= convert res i (b+2)) <*> (peek p3 >>= convert res i (b+3))
           <*> (peek p4 >>= convert res i (b+4))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   ) => FromRow (t1, t2, t3, t4, t5, t6) where
     fromRow res err b i = withFormat $ \fmt ->
       alloca $ \p0 -> alloca $ \p1 -> alloca $ \p2 -> alloca $ \p3 -> alloca $ \p4 ->
@@ -129,8 +138,8 @@ instance (
           <*> (peek p2 >>= convert res i (b+2)) <*> (peek p3 >>= convert res i (b+3))
           <*> (peek p4 >>= convert res i (b+4)) <*> (peek p5 >>= convert res i (b+5))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -143,8 +152,8 @@ instance (
           <*> (peek p4 >>= convert res i (b+4)) <*> (peek p5 >>= convert res i (b+5))
           <*> (peek p6 >>= convert res i (b+6))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -157,8 +166,8 @@ instance (
           <*> (peek p4 >>= convert res i (b+4)) <*> (peek p5 >>= convert res i (b+5))
           <*> (peek p6 >>= convert res i (b+6)) <*> (peek p7 >>= convert res i (b+7))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -172,8 +181,8 @@ instance (
           <*> (peek p6 >>= convert res i (b+6)) <*> (peek p7 >>= convert res i (b+7))
           <*> (peek p8 >>= convert res i (b+8))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -187,8 +196,8 @@ instance (
           <*> (peek p6 >>= convert res i (b+6)) <*> (peek p7 >>= convert res i (b+7))
           <*> (peek p8 >>= convert res i (b+8)) <*> (peek p9 >>= convert res i (b+9))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -204,8 +213,8 @@ instance (
           <*> (peek p8 >>= convert res i (b+8)) <*> (peek p9 >>= convert res i (b+9))
           <*> (peek p10 >>= convert res i (b+10))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
     fromRow res err b i = withFormat $ \fmt ->
@@ -221,8 +230,8 @@ instance (
           <*> (peek p8 >>= convert res i (b+8)) <*> (peek p9 >>= convert res i (b+9))
           <*> (peek p10 >>= convert res i (b+10)) <*> (peek p11 >>= convert res i (b+11))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
@@ -240,8 +249,8 @@ instance (
           <*> (peek p10 >>= convert res i (b+10)) <*> (peek p11 >>= convert res i (b+11))
           <*> (peek p12 >>= convert res i (b+12))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
@@ -259,8 +268,8 @@ instance (
           <*> (peek p10 >>= convert res i (b+10)) <*> (peek p11 >>= convert res i (b+11))
           <*> (peek p12 >>= convert res i (b+12)) <*> (peek p13 >>= convert res i (b+13))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
@@ -279,8 +288,8 @@ instance (
           <*> (peek p12 >>= convert res i (b+12)) <*> (peek p13 >>= convert res i (b+13))
           <*> (peek p14 >>= convert res i (b+14))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
@@ -300,8 +309,8 @@ instance (
           <*> (peek p12 >>= convert res i (b+12)) <*> (peek p13 >>= convert res i (b+13))
           <*> (peek p14 >>= convert res i (b+14)) <*> (peek p15 >>= convert res i (b+15))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
@@ -322,8 +331,8 @@ instance (
           <*> (peek p14 >>= convert res i (b+14)) <*> (peek p15 >>= convert res i (b+15))
           <*> (peek p16 >>= convert res i (b+16))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   ) => FromRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
@@ -344,8 +353,8 @@ instance (
           <*> (peek p14 >>= convert res i (b+14)) <*> (peek p15 >>= convert res i (b+15))
           <*> (peek p16 >>= convert res i (b+16)) <*> (peek p17 >>= convert res i (b+17))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19
@@ -368,8 +377,8 @@ instance (
           <*> (peek p16 >>= convert res i (b+16)) <*> (peek p17 >>= convert res i (b+17))
           <*> (peek p18 >>= convert res i (b+18))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20
@@ -392,8 +401,8 @@ instance (
           <*> (peek p16 >>= convert res i (b+16)) <*> (peek p17 >>= convert res i (b+17))
           <*> (peek p18 >>= convert res i (b+18)) <*> (peek p19 >>= convert res i (b+19))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21
@@ -418,8 +427,8 @@ instance (
           <*> (peek p18 >>= convert res i (b+18)) <*> (peek p19 >>= convert res i (b+19))
           <*> (peek p20 >>= convert res i (b+20))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22
@@ -444,8 +453,8 @@ instance (
           <*> (peek p18 >>= convert res i (b+18)) <*> (peek p19 >>= convert res i (b+19))
           <*> (peek p20 >>= convert res i (b+20)) <*> (peek p21 >>= convert res i (b+21))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23
@@ -471,8 +480,8 @@ instance (
           <*> (peek p20 >>= convert res i (b+20)) <*> (peek p21 >>= convert res i (b+21))
           <*> (peek p22 >>= convert res i (b+22))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -498,8 +507,8 @@ instance (
           <*> (peek p20 >>= convert res i (b+20)) <*> (peek p21 >>= convert res i (b+21))
           <*> (peek p22 >>= convert res i (b+22)) <*> (peek p23 >>= convert res i (b+23))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -527,8 +536,8 @@ instance (
           <*> (peek p22 >>= convert res i (b+22)) <*> (peek p23 >>= convert res i (b+23))
           <*> (peek p24 >>= convert res i (b+24))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -557,8 +566,8 @@ instance (
           <*> (peek p22 >>= convert res i (b+22)) <*> (peek p23 >>= convert res i (b+23))
           <*> (peek p24 >>= convert res i (b+24)) <*> (peek p25 >>= convert res i (b+25))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -588,8 +597,8 @@ instance (
           <*> (peek p24 >>= convert res i (b+24)) <*> (peek p25 >>= convert res i (b+25))
           <*> (peek p26 >>= convert res i (b+26))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -619,8 +628,8 @@ instance (
           <*> (peek p24 >>= convert res i (b+24)) <*> (peek p25 >>= convert res i (b+25))
           <*> (peek p26 >>= convert res i (b+26)) <*> (peek p27 >>= convert res i (b+27))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -651,8 +660,8 @@ instance (
           <*> (peek p26 >>= convert res i (b+26)) <*> (peek p27 >>= convert res i (b+27))
           <*> (peek p28 >>= convert res i (b+28))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -683,8 +692,8 @@ instance (
           <*> (peek p26 >>= convert res i (b+26)) <*> (peek p27 >>= convert res i (b+27))
           <*> (peek p28 >>= convert res i (b+28)) <*> (peek p29 >>= convert res i (b+29))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -718,8 +727,8 @@ instance (
           <*> (peek p28 >>= convert res i (b+28)) <*> (peek p29 >>= convert res i (b+29))
           <*> (peek p30 >>= convert res i (b+30))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -753,8 +762,8 @@ instance (
           <*> (peek p28 >>= convert res i (b+28)) <*> (peek p29 >>= convert res i (b+29))
           <*> (peek p30 >>= convert res i (b+30)) <*> (peek p31 >>= convert res i (b+31))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -789,8 +798,8 @@ instance (
           <*> (peek p30 >>= convert res i (b+30)) <*> (peek p31 >>= convert res i (b+31))
           <*> (peek p32 >>= convert res i (b+32))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -825,8 +834,8 @@ instance (
           <*> (peek p30 >>= convert res i (b+30)) <*> (peek p31 >>= convert res i (b+31))
           <*> (peek p32 >>= convert res i (b+32)) <*> (peek p33 >>= convert res i (b+33))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -862,8 +871,8 @@ instance (
           <*> (peek p32 >>= convert res i (b+32)) <*> (peek p33 >>= convert res i (b+33))
           <*> (peek p34 >>= convert res i (b+34))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -900,8 +909,8 @@ instance (
           <*> (peek p32 >>= convert res i (b+32)) <*> (peek p33 >>= convert res i (b+33))
           <*> (peek p34 >>= convert res i (b+34)) <*> (peek p35 >>= convert res i (b+35))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -940,8 +949,8 @@ instance (
           <*> (peek p34 >>= convert res i (b+34)) <*> (peek p35 >>= convert res i (b+35))
           <*> (peek p36 >>= convert res i (b+36))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -980,8 +989,8 @@ instance (
           <*> (peek p34 >>= convert res i (b+34)) <*> (peek p35 >>= convert res i (b+35))
           <*> (peek p36 >>= convert res i (b+36)) <*> (peek p37 >>= convert res i (b+37))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1021,8 +1030,8 @@ instance (
           <*> (peek p36 >>= convert res i (b+36)) <*> (peek p37 >>= convert res i (b+37))
           <*> (peek p38 >>= convert res i (b+38))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1062,8 +1071,8 @@ instance (
           <*> (peek p36 >>= convert res i (b+36)) <*> (peek p37 >>= convert res i (b+37))
           <*> (peek p38 >>= convert res i (b+38)) <*> (peek p39 >>= convert res i (b+39))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1105,8 +1114,8 @@ instance (
           <*> (peek p38 >>= convert res i (b+38)) <*> (peek p39 >>= convert res i (b+39))
           <*> (peek p40 >>= convert res i (b+40))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1148,8 +1157,8 @@ instance (
           <*> (peek p38 >>= convert res i (b+38)) <*> (peek p39 >>= convert res i (b+39))
           <*> (peek p40 >>= convert res i (b+40)) <*> (peek p41 >>= convert res i (b+41))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1193,8 +1202,8 @@ instance (
           <*> (peek p40 >>= convert res i (b+40)) <*> (peek p41 >>= convert res i (b+41))
           <*> (peek p42 >>= convert res i (b+42))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1238,8 +1247,8 @@ instance (
           <*> (peek p40 >>= convert res i (b+40)) <*> (peek p41 >>= convert res i (b+41))
           <*> (peek p42 >>= convert res i (b+42)) <*> (peek p43 >>= convert res i (b+43))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1284,8 +1293,8 @@ instance (
           <*> (peek p42 >>= convert res i (b+42)) <*> (peek p43 >>= convert res i (b+43))
           <*> (peek p44 >>= convert res i (b+44))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1331,8 +1340,8 @@ instance (
           <*> (peek p42 >>= convert res i (b+42)) <*> (peek p43 >>= convert res i (b+43))
           <*> (peek p44 >>= convert res i (b+44)) <*> (peek p45 >>= convert res i (b+45))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1379,8 +1388,8 @@ instance (
           <*> (peek p44 >>= convert res i (b+44)) <*> (peek p45 >>= convert res i (b+45))
           <*> (peek p46 >>= convert res i (b+46))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1427,8 +1436,8 @@ instance (
           <*> (peek p44 >>= convert res i (b+44)) <*> (peek p45 >>= convert res i (b+45))
           <*> (peek p46 >>= convert res i (b+46)) <*> (peek p47 >>= convert res i (b+47))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24
@@ -1477,8 +1486,8 @@ instance (
           <*> (peek p46 >>= convert res i (b+46)) <*> (peek p47 >>= convert res i (b+47))
           <*> (peek p48 >>= convert res i (b+48))
 
-instance (
-    FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
+instance
+  ( FromSQL t1, FromSQL t2, FromSQL t3, FromSQL t4, FromSQL t5, FromSQL t6
   , FromSQL t7, FromSQL t8, FromSQL t9, FromSQL t10, FromSQL t11, FromSQL t12
   , FromSQL t13, FromSQL t14, FromSQL t15, FromSQL t16, FromSQL t17, FromSQL t18
   , FromSQL t19, FromSQL t20, FromSQL t21, FromSQL t22, FromSQL t23, FromSQL t24

@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Fold (
-    queryResult
+module Database.PostgreSQL.PQTypes.Fold
+  ( queryResult
   , foldrDB
   , foldlDB
   , mapDB_
@@ -21,8 +21,10 @@ import Database.PostgreSQL.PQTypes.Utils
 queryResult
   :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row)
   => m (QueryResult row)
-queryResult = withFrozenCallStack $ getQueryResult
-  >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") return
+queryResult =
+  withFrozenCallStack $
+    getQueryResult
+      >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") return
 
 ----------------------------------------
 
@@ -32,8 +34,10 @@ foldrDB
   => (row -> acc -> m acc)
   -> acc
   -> m acc
-foldrDB f acc = withFrozenCallStack $ getQueryResult
-  >>= maybe (return acc) (foldrImpl False f acc)
+foldrDB f acc =
+  withFrozenCallStack $
+    getQueryResult
+      >>= maybe (return acc) (foldrImpl False f acc)
 
 -- | Fetcher of rows returned by a query as a monadic left fold.
 foldlDB
@@ -41,16 +45,20 @@ foldlDB
   => (acc -> row -> m acc)
   -> acc
   -> m acc
-foldlDB f acc = withFrozenCallStack $ getQueryResult
-  >>= maybe (return acc) (foldlImpl False f acc)
+foldlDB f acc =
+  withFrozenCallStack $
+    getQueryResult
+      >>= maybe (return acc) (foldlImpl False f acc)
 
 -- | Fetcher of rows returned by a query as a monadic map.
 mapDB_
   :: (HasCallStack, MonadDB m, FromRow row)
   => (row -> m r)
   -> m ()
-mapDB_ f = withFrozenCallStack $ getQueryResult
-  >>= maybe (return ()) (foldlImpl False (\() row -> () <$ f row) ())
+mapDB_ f =
+  withFrozenCallStack $
+    getQueryResult
+      >>= maybe (return ()) (foldlImpl False (\() row -> () <$ f row) ())
 
 ----------------------------------------
 
@@ -70,10 +78,12 @@ fetchMaybe f = withFrozenCallStack $ do
     Just qr -> fst <$> foldlDB go (Nothing, f <$> qr)
   where
     go (Nothing, qr) row = return (Just $ f row, qr)
-    go (Just _, qr) _ = throwDB AffectedRowsMismatch {
-        rowsExpected  = [(0, 1)]
-      , rowsDelivered = ntuples qr
-      }
+    go (Just _, qr) _ =
+      throwDB
+        AffectedRowsMismatch
+          { rowsExpected = [(0, 1)]
+          , rowsDelivered = ntuples qr
+          }
 
 -- | Specialization of 'fetchMaybe' that fetches exactly one row. If
 -- no row is delivered, 'AffectedRowsMismatch' exception is thrown.
@@ -81,8 +91,10 @@ fetchOne :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row) => (row -> t) -
 fetchOne f = withFrozenCallStack $ do
   mt <- fetchMaybe f
   case mt of
-    Just t  -> return t
-    Nothing -> throwDB AffectedRowsMismatch {
-      rowsExpected = [(1, 1)]
-    , rowsDelivered = 0
-    }
+    Just t -> return t
+    Nothing ->
+      throwDB
+        AffectedRowsMismatch
+          { rowsExpected = [(1, 1)]
+          , rowsDelivered = 0
+          }

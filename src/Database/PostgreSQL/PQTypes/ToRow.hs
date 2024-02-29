@@ -1,14 +1,15 @@
 {-# LANGUAGE TypeApplications #-}
-module Database.PostgreSQL.PQTypes.ToRow (
-    ToRow(..)
+
+module Database.PostgreSQL.PQTypes.ToRow
+  ( ToRow (..)
   , toRow'
   ) where
 
+import Data.ByteString.Unsafe qualified as BS
 import Data.Functor.Identity
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import qualified Data.ByteString.Unsafe as BS
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Put
@@ -33,14 +34,21 @@ toRow' row pa param = alloca $ \err -> toRow row pa param err
 -- | Class which represents \"from Haskell tuple to SQL row\" transformation.
 class PQFormat row => ToRow row where
   -- | Put supplied tuple into 'PGparam' using given format string.
-  toRow :: row            -- ^ Tuple to be put into 'PGparam'.
-        -> ParamAllocator -- ^ 'PGparam' allocator for 'toSQL'.
-        -> Ptr PGparam    -- ^ 'PGparam' to put tuple into.
-        -> Ptr PGerror    -- ^ Local error info.
-        -> IO ()
+  toRow
+    :: row
+    -- ^ Tuple to be put into 'PGparam'.
+    -> ParamAllocator
+    -- ^ 'PGparam' allocator for 'toSQL'.
+    -> Ptr PGparam
+    -- ^ 'PGparam' to put tuple into.
+    -> Ptr PGerror
+    -- ^ Local error info.
+    -> IO ()
 
-instance (
-    ToRow row1, ToRow row2
+{- FOURMOLU_DISABLE -}
+
+instance
+  ( ToRow row1, ToRow row2
   ) => ToRow (row1 :*: row2) where
     toRow (row1 :*: row2) pa param err = do
       toRow row1 pa param err
@@ -55,8 +63,8 @@ instance ToSQL t => ToRow (Identity t) where
     where
       Identity t = row
 
-instance (
-    ToSQL t1, ToSQL t2
+instance
+  ( ToSQL t1, ToSQL t2
   ) => ToRow (t1, t2) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 ->
@@ -64,8 +72,8 @@ instance (
       where
         (t1, t2) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3
   ) => ToRow (t1, t2, t3) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
@@ -73,8 +81,8 @@ instance (
       where
         (t1, t2, t3) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4
   ) => ToRow (t1, t2, t3, t4) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
@@ -83,8 +91,8 @@ instance (
       where
         (t1, t2, t3, t4) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5
   ) => ToRow (t1, t2, t3, t4, t5) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
@@ -93,8 +101,8 @@ instance (
       where
         (t1, t2, t3, t4, t5) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6
   ) => ToRow (t1, t2, t3, t4, t5, t6) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
@@ -103,8 +111,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7) where
     toRow row pa param err = withFormat row $ \fmt ->
       toSQL t1 pa $ \p1 -> toSQL t2 pa $ \p2 -> toSQL t3 pa $ \p3 ->
@@ -114,8 +122,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -126,8 +134,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -138,8 +146,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -151,8 +159,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -164,8 +172,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -177,8 +185,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -191,8 +199,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
     toRow row pa param err = withFormat row $ \fmt ->
@@ -205,8 +213,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
@@ -220,8 +228,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
@@ -236,8 +244,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
@@ -252,8 +260,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
@@ -268,8 +276,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19) where
@@ -285,8 +293,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20) where
@@ -302,8 +310,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   ) => ToRow (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21) where
@@ -319,8 +327,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22
@@ -338,8 +346,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23
@@ -357,8 +365,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24
@@ -376,8 +384,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25
@@ -396,8 +404,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26
@@ -416,8 +424,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27
@@ -436,8 +444,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -457,8 +465,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -479,8 +487,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -501,8 +509,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -524,8 +532,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -547,8 +555,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -570,8 +578,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -594,8 +602,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -618,8 +626,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -643,8 +651,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -669,8 +677,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -695,8 +703,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -721,8 +729,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -748,8 +756,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -775,8 +783,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -802,8 +810,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -831,8 +839,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -860,8 +868,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -889,8 +897,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44, t45) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -919,8 +927,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -949,8 +957,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -979,8 +987,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47, t48) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28
@@ -1010,8 +1018,8 @@ instance (
       where
         (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31, t32, t33, t34, t35,  t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t46, t47, t48, t49) = row
 
-instance (
-    ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
+instance
+  ( ToSQL t1, ToSQL t2, ToSQL t3, ToSQL t4, ToSQL t5, ToSQL t6, ToSQL t7
   , ToSQL t8, ToSQL t9, ToSQL t10, ToSQL t11, ToSQL t12, ToSQL t13, ToSQL t14
   , ToSQL t15, ToSQL t16, ToSQL t17, ToSQL t18, ToSQL t19, ToSQL t20, ToSQL t21
   , ToSQL t22, ToSQL t23, ToSQL t24, ToSQL t25, ToSQL t26, ToSQL t27, ToSQL t28

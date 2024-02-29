@@ -1,16 +1,17 @@
 {-# LANGUAGE TypeApplications #-}
+
 module Database.PostgreSQL.PQTypes.JSON
-  ( JSON(..)
-  , JSONB(..)
+  ( JSON (..)
+  , JSONB (..)
   , aesonFromSQL
   , aesonToSQL
   ) where
 
+import Control.Exception qualified as E
 import Data.Aeson
+import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as BSL
 import Foreign.Ptr
-import qualified Control.Exception as E
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as BSL
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
@@ -18,7 +19,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Wrapper for (de)serializing underlying type as 'json'.
-newtype JSON json = JSON { unJSON :: json }
+newtype JSON json = JSON {unJSON :: json}
   deriving (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSON json) where
@@ -51,7 +52,7 @@ instance ToSQL (JSON Value) where
 ----------------------------------------
 
 -- | Wrapper for (de)serializing underlying type as 'jsonb'.
-newtype JSONB jsonb = JSONB { unJSONB :: jsonb }
+newtype JSONB jsonb = JSONB {unJSONB :: jsonb}
   deriving (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSONB jsonb) where

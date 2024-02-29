@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Internal.Monad (
-    DBT_(..)
+module Database.PostgreSQL.PQTypes.Internal.Monad
+  ( DBT_ (..)
   , DBT
   , runDBT
   , mapDBT
@@ -11,14 +11,14 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Error.Class
+import Control.Monad.Fail qualified as MF
 import Control.Monad.Reader.Class
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.State.Strict qualified as S
 import Control.Monad.Writer.Class
 import Data.Bifunctor
 import GHC.Stack
-import qualified Control.Monad.Trans.State.Strict as S
-import qualified Control.Monad.Fail as MF
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -35,7 +35,7 @@ type InnerDBT m = StateT (DBState m)
 
 -- | Monad transformer for adding database
 -- interaction capabilities to the underlying monad.
-newtype DBT_ m n a = DBT { unDBT :: InnerDBT m n a }
+newtype DBT_ m n a = DBT {unDBT :: InnerDBT m n a}
   deriving (Alternative, Applicative, Functor, Monad, MF.MonadFail, MonadBase b, MonadCatch, MonadIO, MonadMask, MonadPlus, MonadThrow, MonadTrans)
 
 type DBT m = DBT_ m m
@@ -49,18 +49,21 @@ runDBT
   -> DBT m a
   -> m a
 runDBT cs ts m = withConnection cs $ \conn -> do
-  evalStateT action $ DBState {
-    dbConnection = conn
-  , dbConnectionSource = cs
-  , dbTransactionSettings = ts
-  , dbLastQuery = SomeSQL (mempty::SQL)
-  , dbRecordLastQuery = True
-  , dbQueryResult = Nothing
-  }
+  evalStateT action $
+    DBState
+      { dbConnection = conn
+      , dbConnectionSource = cs
+      , dbTransactionSettings = ts
+      , dbLastQuery = SomeSQL (mempty :: SQL)
+      , dbRecordLastQuery = True
+      , dbQueryResult = Nothing
+      }
   where
-    action = unDBT $ if tsAutoTransaction ts
-      then withTransaction' (ts { tsAutoTransaction = False }) m
-      else m
+    action =
+      unDBT $
+        if tsAutoTransaction ts
+          then withTransaction' (ts {tsAutoTransaction = False}) m
+          else m
 
 -- | Transform the underlying monad.
 mapDBT
@@ -81,9 +84,9 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   getLastQuery = DBT . gets $ dbLastQuery
 
   withFrozenLastQuery callback = DBT . StateT $ \st -> do
-    let st' = st { dbRecordLastQuery = False }
+    let st' = st {dbRecordLastQuery = False}
     (x, st'') <- runStateT (unDBT callback) st'
-    pure (x, st'' { dbRecordLastQuery = dbRecordLastQuery st })
+    pure (x, st'' {dbRecordLastQuery = dbRecordLastQuery st})
 
   getConnectionStats = withFrozenCallStack $ do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
@@ -92,13 +95,14 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
       Just cd -> return $ cdStats cd
 
   getQueryResult = DBT . gets $ \st -> dbQueryResult st
-  clearQueryResult = DBT . modify $ \st -> st { dbQueryResult = Nothing }
+  clearQueryResult = DBT . modify $ \st -> st {dbQueryResult = Nothing}
 
   getTransactionSettings = DBT . gets $ dbTransactionSettings
-  setTransactionSettings ts = DBT . modify $ \st -> st { dbTransactionSettings = ts }
+  setTransactionSettings ts = DBT . modify $ \st -> st {dbTransactionSettings = ts}
 
-  getNotification time = DBT . StateT $ \st -> (, st)
-    <$> liftBase (getNotificationIO st time)
+  getNotification time = DBT . StateT $ \st ->
+    (,st)
+      <$> liftBase (getNotificationIO st time)
 
   withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st
@@ -116,7 +120,7 @@ instance MonadTransControl (DBT_ m) where
 instance (m ~ n, MonadBaseControl b m) => MonadBaseControl b (DBT_ m n) where
   type StM (DBT_ m n) a = ComposeSt (DBT_ m) m a
   liftBaseWith = defaultLiftBaseWith
-  restoreM     = defaultRestoreM
+  restoreM = defaultRestoreM
 
 instance (m ~ n, MonadError e m) => MonadError e (DBT_ m n) where
   throwError = lift . throwError
