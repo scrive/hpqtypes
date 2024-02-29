@@ -12,10 +12,10 @@ import Foreign.Ptr
 import Foreign.Storable
 import System.Posix.Types
 import System.Timeout
-import qualified Control.Exception as E
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Control.Exception qualified as E
+import Data.ByteString.Char8 qualified as BS
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types

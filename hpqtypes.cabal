@@ -178,6 +178,12 @@ test-suite hpqtypes-tests
   other-modules:     Prelude.Instances
                      Test.Aeson.Compat
                      Test.QuickCheck.Arbitrary.Instances
+
+  -- make sure examples compile
+  hs-source-dirs:    examples
+  other-modules:     Catalog
+                     OuterJoins
+
   build-depends:       hpqtypes
                      , base >= 4.14 && < 5
                      , HUnit >= 1.2
@@ -189,6 +195,8 @@ test-suite hpqtypes-tests
                      , monad-control >= 1.0.3
                      , mtl >= 2.1
                      , random >= 1.0
+                     , readline >= 1.0.3.0
+                     , resource-pool >= 0.4
                      , scientific
                      , test-framework >= 0.8
                      , test-framework-hunit >= 0.3

@@ -13,8 +13,8 @@ import Data.Text (Text)
 #if MIN_VERSION_aeson(2,0,0)
 
 import Data.Bifunctor (first)
-import qualified Data.Aeson.Key as K
-import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson.Key qualified as K
+import Data.Aeson.KeyMap qualified as KM
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes
@@ -46,7 +46,7 @@ mkValue0 = Value0
 
 #else
 
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 
 fromList :: [(Text, v)] -> HM.HashMap Text v
 fromList = HM.fromList

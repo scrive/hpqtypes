@@ -43,8 +43,8 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
-import qualified Data.ByteString as BS
-import qualified Data.Vector.Storable as V
+import Data.ByteString qualified as BS
+import Data.Vector.Storable qualified as V
 
 data PGcancel
 data PGconn
