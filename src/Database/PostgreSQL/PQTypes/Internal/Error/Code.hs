@@ -1,15 +1,15 @@
-module Database.PostgreSQL.PQTypes.Internal.Error.Code (
-    ErrorCode(..)
+module Database.PostgreSQL.PQTypes.Internal.Error.Code
+  ( ErrorCode (..)
   , stringToErrorCode
   ) where
 
 -- | SQL error code. Reference:
 -- <http://www.postgresql.org/docs/devel/static/errcodes-appendix.html>.
 data ErrorCode
-  -- Class 00 — Successful Completion
-  = SuccessfulCompletion
-  -- Class 01 — Warning
-  | Warning
+  = -- Class 00 — Successful Completion
+    SuccessfulCompletion
+  | -- Class 01 — Warning
+    Warning
   | DynamicResultSetsReturned
   | ImplicitZeroBitPadding
   | NullValueEliminatedInSetFunction
@@ -17,42 +17,42 @@ data ErrorCode
   | PrivilegeNotRevoked
   | StringDataRightTruncation_01
   | DeprecatedFeature
-  -- Class 02 — No Data (this is also a warning class per the SQL standard)
-  | NoData
+  | -- Class 02 — No Data (this is also a warning class per the SQL standard)
+    NoData
   | NoAdditionalDynamicResultSetsReturned
-  -- Class 03 — SQL Statement Not Yet Complete
-  | SqlStatementNotYetComplete
-  -- Class 08 — Connection Exception
-  | ConnectionException
+  | -- Class 03 — SQL Statement Not Yet Complete
+    SqlStatementNotYetComplete
+  | -- Class 08 — Connection Exception
+    ConnectionException
   | ConnectionDoesNotExist
   | ConnectionFailure
   | SqlclientUnableToEstablishSqlconnection
   | SqlserverRejectedEstablishmentOfSqlconnection
   | TransactionResolutionUnknown
   | ProtocolViolation
-  -- Class 09 — Triggered Action Exception
-  | TriggeredActionException
-  -- Class 0A — Feature Not Supported
-  | FeatureNotSupported
-  -- Class 0B — Invalid Transaction Initiation
-  | InvalidTransactionInitiation
-  -- Class 0F — Locator Exception
-  | LocatorException
+  | -- Class 09 — Triggered Action Exception
+    TriggeredActionException
+  | -- Class 0A — Feature Not Supported
+    FeatureNotSupported
+  | -- Class 0B — Invalid Transaction Initiation
+    InvalidTransactionInitiation
+  | -- Class 0F — Locator Exception
+    LocatorException
   | InvalidLocatorSpecification
-  -- Class 0L — Invalid Grantor
-  | InvalidGrantor
+  | -- Class 0L — Invalid Grantor
+    InvalidGrantor
   | InvalidGrantOperation
-  -- Class 0P — Invalid Role Specification
-  | InvalidRoleSpecification
-  -- Class 0Z — Diagnostics Exception
-  | DiagnosticsException
+  | -- Class 0P — Invalid Role Specification
+    InvalidRoleSpecification
+  | -- Class 0Z — Diagnostics Exception
+    DiagnosticsException
   | StackedDiagnosticsAccessedWithoutActiveHandler
-  -- Class 20 — Case Not Found
-  | CaseNotFound
-  -- Class 21 — Cardinality Violation
-  | CardinalityViolation
-  -- Class 22 — Data Exception
-  | DataException
+  | -- Class 20 — Case Not Found
+    CaseNotFound
+  | -- Class 21 — Cardinality Violation
+    CardinalityViolation
+  | -- Class 22 — Data Exception
+    DataException
   | ArraySubscriptError
   | CharacterNotInRepertoire
   | DatetimeFieldOverflow
@@ -99,18 +99,18 @@ data ErrorCode
   | InvalidXmlContent
   | InvalidXmlComment
   | InvalidXmlProcessingInstruction
-  -- Class 23 — Integrity Constraint Violation
-  | IntegrityConstraintViolation
+  | -- Class 23 — Integrity Constraint Violation
+    IntegrityConstraintViolation
   | RestrictViolation
   | NotNullViolation
   | ForeignKeyViolation
   | UniqueViolation
   | CheckViolation
   | ExclusionViolation
-  -- Class 24 — Invalid Cursor State
-  | InvalidCursorState
-  -- Class 25 — Invalid Transaction State
-  | InvalidTransactionState
+  | -- Class 24 — Invalid Cursor State
+    InvalidCursorState
+  | -- Class 25 — Invalid Transaction State
+    InvalidTransactionState
   | ActiveSqlTransaction
   | BranchTransactionAlreadyActive
   | HeldCursorRequiresSameIsolationLevel
@@ -121,53 +121,53 @@ data ErrorCode
   | SchemaAndDataStatementMixingNotSupported
   | NoActiveSqlTransaction
   | InFailedSqlTransaction
-  -- Class 26 — Invalid SQL Statement Name
-  | InvalidSqlStatementName
-  -- Class 27 — Triggered Data Change Violation
-  | TriggeredDataChangeViolation
-  -- Class 28 — Invalid Authorization Specification
-  | InvalidAuthorizationSpecification
+  | -- Class 26 — Invalid SQL Statement Name
+    InvalidSqlStatementName
+  | -- Class 27 — Triggered Data Change Violation
+    TriggeredDataChangeViolation
+  | -- Class 28 — Invalid Authorization Specification
+    InvalidAuthorizationSpecification
   | InvalidPassword
-  -- Class 2B — Dependent Privilege Descriptors Still Exist
-  | DependentPrivilegeDescriptorsStillExist
+  | -- Class 2B — Dependent Privilege Descriptors Still Exist
+    DependentPrivilegeDescriptorsStillExist
   | DependentObjectsStillExist
-  -- Class 2D — Invalid Transaction Termination
-  | InvalidTransactionTermination
-  -- Class 2F — SQL Routine Exception
-  | SqlRoutineException
+  | -- Class 2D — Invalid Transaction Termination
+    InvalidTransactionTermination
+  | -- Class 2F — SQL Routine Exception
+    SqlRoutineException
   | FunctionExecutedNoReturnStatement
   | ModifyingSqlDataNotPermitted_2F
   | ProhibitedSqlStatementAttempted_2F
   | ReadingSqlDataNotPermitted_2F
-  -- Class 34 — Invalid Cursor Name
-  | InvalidCursorName
-  -- Class 38 — External Routine Exception
-  | ExternalRoutineException
+  | -- Class 34 — Invalid Cursor Name
+    InvalidCursorName
+  | -- Class 38 — External Routine Exception
+    ExternalRoutineException
   | ContainingSqlNotPermitted
   | ModifyingSqlDataNotPermitted_38
   | ProhibitedSqlStatementAttempted_38
   | ReadingSqlDataNotPermitted_38
-  -- Class 39 — External Routine Invocation Exception
-  | ExternalRoutineInvocationException
+  | -- Class 39 — External Routine Invocation Exception
+    ExternalRoutineInvocationException
   | InvalidSqlstateReturned
   | NullValueNotAllowed_39
   | TriggerProtocolViolated
   | SrfProtocolViolated
-  -- Class 3B — Savepoint Exception
-  | SavepointException
+  | -- Class 3B — Savepoint Exception
+    SavepointException
   | InvalidSavepointSpecification
-  -- Class 3D — Invalid Catalog Name
-  | InvalidCatalogName
-  -- Class 3F — Invalid Schema Name
-  | InvalidSchemaName
-  -- Class 40 — Transaction Rollback
-  | TransactionRollback
+  | -- Class 3D — Invalid Catalog Name
+    InvalidCatalogName
+  | -- Class 3F — Invalid Schema Name
+    InvalidSchemaName
+  | -- Class 40 — Transaction Rollback
+    TransactionRollback
   | TransactionIntegrityConstraintViolation
   | SerializationFailure
   | StatementCompletionUnknown
   | DeadlockDetected
-  -- Class 42 — Syntax Error or Access Rule Violation
-  | SyntaxErrorOrAccessRuleViolation
+  | -- Class 42 — Syntax Error or Access Rule Violation
+    SyntaxErrorOrAccessRuleViolation
   | SyntaxError
   | InsufficientPrivilege
   | CannotCoerce
@@ -210,41 +210,41 @@ data ErrorCode
   | InvalidSchemaDefinition
   | InvalidTableDefinition
   | InvalidObjectDefinition
-  -- Class 44 — WITH CHECK OPTION Violation
-  | WithCheckOptionViolation
-  -- Class 53 — Insufficient Resources
-  | InsufficientResources
+  | -- Class 44 — WITH CHECK OPTION Violation
+    WithCheckOptionViolation
+  | -- Class 53 — Insufficient Resources
+    InsufficientResources
   | DiskFull
   | OutOfMemory
   | TooManyConnections
   | ConfigurationLimitExceeded
-  -- Class 54 — Program Limit Exceeded
-  | ProgramLimitExceeded
+  | -- Class 54 — Program Limit Exceeded
+    ProgramLimitExceeded
   | StatementTooComplex
   | TooManyColumns
   | TooManyArguments
-  -- Class 55 — Object Not In Prerequisite State
-  | ObjectNotInPrerequisiteState
+  | -- Class 55 — Object Not In Prerequisite State
+    ObjectNotInPrerequisiteState
   | ObjectInUse
   | CantChangeRuntimeParam
   | LockNotAvailable
-  -- Class 57 — Operator Intervention
-  | OperatorIntervention
+  | -- Class 57 — Operator Intervention
+    OperatorIntervention
   | QueryCanceled
   | AdminShutdown
   | CrashShutdown
   | CannotConnectNow
   | DatabaseDropped
-  -- Class 58 — System Error (errors external to PostgreSQL itself)
-  | SystemError
+  | -- Class 58 — System Error (errors external to PostgreSQL itself)
+    SystemError
   | IoError
   | UndefinedFile
   | DuplicateFile
-  -- Class F0 — Configuration File Error
-  | ConfigFileError
+  | -- Class F0 — Configuration File Error
+    ConfigFileError
   | LockFileExists
-  -- Class HV — Foreign Data Wrapper Error (SQL/MED)
-  | FdwError
+  | -- Class HV — Foreign Data Wrapper Error (SQL/MED)
+    FdwError
   | FdwColumnNameNotFound
   | FdwDynamicParameterValueNeeded
   | FdwFunctionSequenceError
@@ -271,17 +271,17 @@ data ErrorCode
   | FdwUnableToCreateExecution
   | FdwUnableToCreateReply
   | FdwUnableToEstablishConnection
-  -- Class P0 — PL/pgSQL Error
-  | PlpgsqlError
+  | -- Class P0 — PL/pgSQL Error
+    PlpgsqlError
   | RaiseException
   | NoDataFound
   | TooManyRows
-  -- Class XX — Internal Error
-  | InternalError
+  | -- Class XX — Internal Error
+    InternalError
   | DataCorrupted
   | IndexCorrupted
-  -- Unknown error code
-  | UnknownErrorCode String
+  | -- Unknown error code
+    UnknownErrorCode String
   deriving (Eq, Ord, Show)
 
 -- | Convert 'String' to corresponding 'ErrorCode'.
@@ -562,4 +562,4 @@ stringToErrorCode code = case code of
   "XX001" -> DataCorrupted
   "XX002" -> IndexCorrupted
   -- Unknown error code
-  _       -> UnknownErrorCode code
+  _ -> UnknownErrorCode code

@@ -1,15 +1,15 @@
-module Database.PostgreSQL.PQTypes.SQL.Raw (
-    RawSQL
+module Database.PostgreSQL.PQTypes.SQL.Raw
+  ( RawSQL
   , rawSQL
   , unRawSQL
   ) where
 
+import Data.ByteString.Char8 qualified as BS
+import Data.Semigroup qualified as SG
 import Data.String
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Foreign.Marshal.Alloc
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Semigroup as SG
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToRow

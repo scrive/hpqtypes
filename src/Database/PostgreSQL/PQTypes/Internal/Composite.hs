@@ -1,13 +1,13 @@
-module Database.PostgreSQL.PQTypes.Internal.Composite (
-    registerComposites
+module Database.PostgreSQL.PQTypes.Internal.Composite
+  ( registerComposites
   ) where
 
+import Data.Text qualified as T
 import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
-import qualified Data.Text as T
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -24,8 +24,9 @@ registerComposites conn names = do
       >>= verifyPQTRes err "registerComposites"
     mapM_ touchForeignPtr cnames
   where
-    nameToTypeRep name = PGregisterType {
-      pgRegisterTypeTypName = unsafeForeignPtrToPtr name
-    , pgRegisterTypeTypPut = nullFunPtr
-    , pgRegisterTypeTypGet = nullFunPtr
-    }
+    nameToTypeRep name =
+      PGregisterType
+        { pgRegisterTypeTypName = unsafeForeignPtrToPtr name
+        , pgRegisterTypeTypPut = nullFunPtr
+        , pgRegisterTypeTypGet = nullFunPtr
+        }

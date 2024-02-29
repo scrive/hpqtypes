@@ -1,5 +1,5 @@
-module Data.Monoid.Utils (
-    mintercalate
+module Data.Monoid.Utils
+  ( mintercalate
   , mspace
   , smappend
   , smconcat
@@ -28,4 +28,5 @@ smconcat = mintercalate mspace
 -- | Infix version of 'smappend'.
 (<+>) :: (IsString m, Monoid m) => m -> m -> m
 (<+>) = smappend
+
 infixr 6 <+>

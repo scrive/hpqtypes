@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Utils (
-    throwDB
+module Database.PostgreSQL.PQTypes.Utils
+  ( throwDB
   , raw
   , runQuery_
   , runQuery01
@@ -35,14 +35,15 @@ import Database.PostgreSQL.PQTypes.SQL.Raw
 -- wrap it in 'DBException' with the current query context first.
 throwDB :: (HasCallStack, Exception e, MonadDB m, MonadThrow m) => e -> m a
 throwDB e = case fromException $ toException e of
-  Just (dbe::DBException) -> throwM dbe
+  Just (dbe :: DBException) -> throwM dbe
   Nothing -> do
     SomeSQL sql <- getLastQuery
-    throwM DBException {
-      dbeQueryContext = sql
-    , dbeError = e
-    , dbeCallStack = callStack
-    }
+    throwM
+      DBException
+        { dbeQueryContext = sql
+        , dbeError = e
+        , dbeCallStack = callStack
+        }
 
 ----------------------------------------
 
@@ -62,10 +63,12 @@ runQuery_ = withFrozenCallStack $ void . runQuery
 runQuery01 :: (HasCallStack, IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Bool
 runQuery01 sql = withFrozenCallStack $ do
   n <- runQuery sql
-  when (n > 1) $ throwDB AffectedRowsMismatch {
-    rowsExpected = [(0, 1)]
-  , rowsDelivered = n
-  }
+  when (n > 1) $
+    throwDB
+      AffectedRowsMismatch
+        { rowsExpected = [(0, 1)]
+        , rowsDelivered = n
+        }
   return $ n == 1
 
 -- | Specialization of 'runQuery01' that discards the result.
@@ -106,10 +109,12 @@ runPreparedQuery01
   -> m Bool
 runPreparedQuery01 name sql = withFrozenCallStack $ do
   n <- runPreparedQuery name sql
-  when (n > 1) $ throwDB AffectedRowsMismatch {
-    rowsExpected = [(0, 1)]
-  , rowsDelivered = n
-  }
+  when (n > 1) $
+    throwDB
+      AffectedRowsMismatch
+        { rowsExpected = [(0, 1)]
+        , rowsDelivered = n
+        }
   return $ n == 1
 
 -- | Specialization of 'runPreparedQuery01' that discards the result.

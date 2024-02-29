@@ -12,8 +12,8 @@ module Database.PostgreSQL.PQTypes.Interval (
 import Data.Int
 import Data.List
 import Foreign.Storable
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Semigroup as SG
+import Data.ByteString.Char8 qualified as BS
+import Data.Semigroup qualified as SG
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL

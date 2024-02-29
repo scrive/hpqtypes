@@ -1,23 +1,24 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications    #-}
-module Database.PostgreSQL.PQTypes.Format (
-    PQFormat(..)
+{-# LANGUAGE TypeApplications #-}
+
+module Database.PostgreSQL.PQTypes.Format
+  ( PQFormat (..)
   , pqFormatP
   , pqFormat0P
   , pqVariablesP
-  , (:*:)(..)
+  , (:*:) (..)
   ) where
 
+import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as BSL
 import Data.Functor.Identity
 import Data.Int
 import Data.Proxy
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Time
-import Data.Word
 import Data.UUID.Types
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
+import Data.Word
 
 ----------------------------------------
 
@@ -40,13 +41,13 @@ class PQFormat t where
 
 -- Helpers that are parametrised by a 'Proxy t' instead of 't'.
 
-pqFormatP :: forall t . PQFormat t => Proxy t -> BS.ByteString
-pqFormatP    _ = pqFormat @t
+pqFormatP :: forall t. PQFormat t => Proxy t -> BS.ByteString
+pqFormatP _ = pqFormat @t
 
-pqFormat0P :: forall t . PQFormat t => Proxy t -> BS.ByteString
-pqFormat0P   _ = pqFormat0 @t
+pqFormat0P :: forall t. PQFormat t => Proxy t -> BS.ByteString
+pqFormat0P _ = pqFormat0 @t
 
-pqVariablesP :: forall t . PQFormat t => Proxy t -> Int
+pqVariablesP :: forall t. PQFormat t => Proxy t -> Int
 pqVariablesP _ = pqVariables @t
 
 -- CARTESIAN PRODUCT
@@ -56,13 +57,13 @@ data a :*: b = a :*: b
   deriving (Eq, Ord, Show)
 
 instance (PQFormat t1, PQFormat t2) => PQFormat (t1 :*: t2) where
-  pqFormat    = pqFormat @t1 `BS.append` pqFormat @t2
+  pqFormat = pqFormat @t1 `BS.append` pqFormat @t2
   pqVariables = pqVariables @t1 + pqVariables @t2
 
 -- NULLables
 
 instance PQFormat t => PQFormat (Maybe t) where
-  pqFormat    = pqFormat @t
+  pqFormat = pqFormat @t
   pqVariables = pqVariables @t
 
 -- NUMERICS
@@ -145,42 +146,44 @@ instance PQFormat Bool where
 
 -- TUPLES
 
+{- FOURMOLU_DISABLE -}
+
 instance PQFormat () where
   pqFormat = BS.empty
   pqVariables = 0
 
-instance (
-    PQFormat t
+instance
+  ( PQFormat t
   ) => PQFormat (Identity t) where
     pqFormat = pqFormat @t
     pqVariables = 1
 
-instance (
-    PQFormat t1, PQFormat t2
+instance
+  ( PQFormat t1, PQFormat t2
   ) => PQFormat (t1, t2) where
     pqFormat = BS.concat [
         pqFormat @t1, pqFormat @t2
       ]
     pqVariables = 2
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3
   ) => PQFormat (t1, t2, t3) where
     pqFormat = BS.concat [
         pqFormat @t1, pqFormat @t2, pqFormat @t3
       ]
     pqVariables = 3
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4
   ) => PQFormat (t1, t2, t3, t4) where
     pqFormat = BS.concat [
         pqFormat @t1, pqFormat @t2, pqFormat @t3, pqFormat @t4
       ]
     pqVariables = 4
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5
   ) => PQFormat (t1, t2, t3, t4, t5) where
     pqFormat = BS.concat [
         pqFormat @t1, pqFormat @t2, pqFormat @t3, pqFormat @t4
@@ -188,8 +191,8 @@ instance (
       ]
     pqVariables = 5
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   ) => PQFormat (t1, t2, t3, t4, t5, t6) where
     pqFormat = BS.concat [
         pqFormat @t1, pqFormat @t2, pqFormat @t3, pqFormat @t4
@@ -197,8 +200,8 @@ instance (
       ]
     pqVariables = 6
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7) where
     pqFormat = BS.concat [
@@ -207,8 +210,8 @@ instance (
       ]
     pqVariables = 7
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8) where
     pqFormat = BS.concat [
@@ -217,8 +220,8 @@ instance (
       ]
     pqVariables = 8
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9) where
     pqFormat = BS.concat [
@@ -228,8 +231,8 @@ instance (
       ]
     pqVariables = 9
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) where
     pqFormat = BS.concat [
@@ -239,8 +242,8 @@ instance (
       ]
     pqVariables = 10
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) where
     pqFormat = BS.concat [
@@ -250,8 +253,8 @@ instance (
       ]
     pqVariables = 11
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) where
     pqFormat = BS.concat [
@@ -261,8 +264,8 @@ instance (
       ]
     pqVariables = 12
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13) where
@@ -274,8 +277,8 @@ instance (
       ]
     pqVariables = 13
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) where
@@ -287,8 +290,8 @@ instance (
       ]
     pqVariables = 14
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15) where
@@ -300,8 +303,8 @@ instance (
       ]
     pqVariables = 15
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16) where
@@ -313,8 +316,8 @@ instance (
       ]
     pqVariables = 16
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17) where
@@ -327,8 +330,8 @@ instance (
       ]
     pqVariables = 17
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   ) => PQFormat (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18) where
@@ -341,8 +344,8 @@ instance (
       ]
     pqVariables = 18
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19
@@ -356,8 +359,8 @@ instance (
       ]
     pqVariables = 19
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20
@@ -371,8 +374,8 @@ instance (
       ]
     pqVariables = 20
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21
@@ -387,8 +390,8 @@ instance (
       ]
     pqVariables = 21
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22
@@ -403,8 +406,8 @@ instance (
       ]
     pqVariables = 22
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23
@@ -419,8 +422,8 @@ instance (
       ]
     pqVariables = 23
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -435,8 +438,8 @@ instance (
       ]
     pqVariables = 24
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -453,8 +456,8 @@ instance (
       ]
     pqVariables = 25
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -471,8 +474,8 @@ instance (
       ]
     pqVariables = 26
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -489,8 +492,8 @@ instance (
       ]
     pqVariables = 27
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -507,8 +510,8 @@ instance (
       ]
     pqVariables = 28
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -526,8 +529,8 @@ instance (
       ]
     pqVariables = 29
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -545,8 +548,8 @@ instance (
       ]
     pqVariables = 30
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -565,8 +568,8 @@ instance (
       ]
     pqVariables = 31
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -585,8 +588,8 @@ instance (
       ]
     pqVariables = 32
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -606,8 +609,8 @@ instance (
       ]
     pqVariables = 33
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -627,8 +630,8 @@ instance (
       ]
     pqVariables = 34
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -648,8 +651,8 @@ instance (
       ]
     pqVariables = 35
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -669,8 +672,8 @@ instance (
       ]
     pqVariables = 36
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -692,8 +695,8 @@ instance (
       ]
     pqVariables = 37
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -715,8 +718,8 @@ instance (
       ]
     pqVariables = 38
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -738,8 +741,8 @@ instance (
       ]
     pqVariables = 39
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -761,8 +764,8 @@ instance (
       ]
     pqVariables = 40
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -785,8 +788,8 @@ instance (
       ]
     pqVariables = 41
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -809,8 +812,8 @@ instance (
       ]
     pqVariables = 42
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -834,8 +837,8 @@ instance (
       ]
     pqVariables = 43
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -859,8 +862,8 @@ instance (
       ]
     pqVariables = 44
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -885,8 +888,8 @@ instance (
       ]
     pqVariables = 45
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -911,8 +914,8 @@ instance (
       ]
     pqVariables = 46
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -937,8 +940,8 @@ instance (
       ]
     pqVariables = 47
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -963,8 +966,8 @@ instance (
       ]
     pqVariables = 48
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24
@@ -991,8 +994,8 @@ instance (
       ]
     pqVariables = 49
 
-instance (
-    PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
+instance
+  ( PQFormat t1, PQFormat t2, PQFormat t3, PQFormat t4, PQFormat t5, PQFormat t6
   , PQFormat t7, PQFormat t8, PQFormat t9, PQFormat t10, PQFormat t11, PQFormat t12
   , PQFormat t13, PQFormat t14, PQFormat t15, PQFormat t16, PQFormat t17, PQFormat t18
   , PQFormat t19, PQFormat t20, PQFormat t21, PQFormat t22, PQFormat t23, PQFormat t24

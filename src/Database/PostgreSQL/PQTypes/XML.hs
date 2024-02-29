@@ -1,9 +1,9 @@
-module Database.PostgreSQL.PQTypes.XML (
-    XML(..)
+module Database.PostgreSQL.PQTypes.XML
+  ( XML (..)
   ) where
 
+import Data.ByteString.Char8 qualified as BSC
 import Data.Text
-import qualified Data.ByteString.Char8 as BSC
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
@@ -12,7 +12,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Representation of SQL XML types as 'Text'.  Users of hpqtypes may
 -- want to add conversion instances for their favorite XML type around 'XML'.
-newtype XML = XML { unXML :: Text }
+newtype XML = XML {unXML :: Text}
   deriving (Eq, Ord, Read, Show)
 
 instance PQFormat XML where

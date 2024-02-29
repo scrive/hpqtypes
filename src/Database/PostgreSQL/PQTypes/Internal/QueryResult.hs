@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeApplications #-}
-module Database.PostgreSQL.PQTypes.Internal.QueryResult (
-    QueryResult(..)
+
+module Database.PostgreSQL.PQTypes.Internal.QueryResult
+  ( QueryResult (..)
   , ntuples
   , nfields
 
@@ -9,6 +10,7 @@ module Database.PostgreSQL.PQTypes.Internal.QueryResult (
   , foldlImpl
   ) where
 
+import Control.Exception qualified as E
 import Control.Monad
 import Data.Coerce
 import Data.Foldable
@@ -19,7 +21,6 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import GHC.Stack
 import System.IO.Unsafe
-import qualified Control.Exception as E
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
@@ -33,8 +34,8 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 -- and 'Foldable' instances for data transformation and
 -- extraction appropriately.
 data QueryResult t = forall row. FromRow row => QueryResult
-  { qrSQL     :: !SomeSQL
-  , qrResult  :: !(ForeignPtr PGresult)
+  { qrSQL :: !SomeSQL
+  , qrResult :: !(ForeignPtr PGresult)
   , qrFromRow :: !(row -> t)
   }
 
@@ -42,11 +43,11 @@ instance Functor QueryResult where
   f `fmap` QueryResult ctx fres g = QueryResult ctx fres (f . g)
 
 instance Foldable QueryResult where
-  foldr  f acc = runIdentity . foldrImpl False (coerce f) acc
-  foldr' f acc = runIdentity . foldrImpl True  (coerce f) acc
+  foldr f acc = runIdentity . foldrImpl False (coerce f) acc
+  foldr' f acc = runIdentity . foldrImpl True (coerce f) acc
 
-  foldl  f acc = runIdentity . foldlImpl False (coerce f) acc
-  foldl' f acc = runIdentity . foldlImpl True  (coerce f) acc
+  foldl f acc = runIdentity . foldlImpl False (coerce f) acc
+  foldl' f acc = runIdentity . foldlImpl True (coerce f) acc
 
 foldrImpl
   :: (HasCallStack, Monad m)
@@ -82,28 +83,31 @@ foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) fres g)
     -- FrowRow and FromSQL instances are (the ones provided
     -- by the library fulfil this requirement).
     rowlen <- fromIntegral <$> c_PQnfields res
-    when (rowlen /= pqVariablesP rowp) $ E.throwIO DBException {
-      dbeQueryContext = ctx
-    , dbeError = RowLengthMismatch {
-        lengthExpected  = pqVariablesP rowp
-      , lengthDelivered = rowlen
-      }
-    , dbeCallStack = callStack
-    }
+    when (rowlen /= pqVariablesP rowp) $
+      E.throwIO
+        DBException
+          { dbeQueryContext = ctx
+          , dbeError =
+              RowLengthMismatch
+                { lengthExpected = pqVariablesP rowp
+                , lengthDelivered = rowlen
+                }
+          , dbeCallStack = callStack
+          }
     alloca $ \err -> do
       n <- termCtr res
       let worker acc i =
             if i == n
-            then return acc
-            else do
-              -- mask asynchronous exceptions so they won't be wrapped in DBException
-              obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
-              worker `apply` (f obj =<< acc) $ advCtr i
+              then return acc
+              else do
+                -- mask asynchronous exceptions so they won't be wrapped in DBException
+                obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
+                worker `apply` (f obj =<< acc) $ advCtr i
       worker (pure iacc) =<< initCtr res
   where
     -- ⊥ of existential type hidden in QueryResult
-    row      = let _ = g row in row
-    rowp     = pure row
+    row = let _ = g row in row
+    rowp = pure row
 
     apply = if strict then ($!) else ($)
 

@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Transaction (
-    Savepoint(..)
+module Database.PostgreSQL.PQTypes.Transaction
+  ( Savepoint (..)
   , withSavepoint
   , withTransaction
   , begin
@@ -37,13 +37,15 @@ instance IsString Savepoint where
 --
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
 withSavepoint :: (HasCallStack, MonadDB m, MonadMask m) => Savepoint -> m a -> m a
-withSavepoint (Savepoint savepoint) m = fst <$> generalBracket
-  (runQuery_ $ "SAVEPOINT" <+> savepoint)
-  (\() -> \case
-      ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
-      _                 -> rollbackAndReleaseSavepoint
-  )
-  (\() -> m)
+withSavepoint (Savepoint savepoint) m =
+  fst
+    <$> generalBracket
+      (runQuery_ $ "SAVEPOINT" <+> savepoint)
+      ( \() -> \case
+          ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
+          _ -> rollbackAndReleaseSavepoint
+      )
+      (\() -> m)
   where
     sqlReleaseSavepoint = "RELEASE SAVEPOINT" <+> savepoint
     rollbackAndReleaseSavepoint = do
@@ -78,34 +80,40 @@ rollback = getTransactionSettings >>= rollback'
 -- | Execute monadic action within a transaction using given transaction
 -- settings. Note that it won't work as expected if a transaction is already
 -- active (in such case 'withSavepoint' should be used instead).
-withTransaction' :: (HasCallStack, MonadDB m, MonadMask m)
-                 => TransactionSettings -> m a -> m a
+withTransaction'
+  :: (HasCallStack, MonadDB m, MonadMask m)
+  => TransactionSettings
+  -> m a
+  -> m a
 withTransaction' ts m = (`fix` 1) $ \loop n -> do
   -- Optimization for squashing possible space leaks.
   -- It looks like GHC doesn't like 'catch' and passes
   -- on introducing strictness in some cases.
   let maybeRestart = case tsRestartPredicate ts of
-        Just _  -> handleJust (expred n) (\_ -> loop $ n+1)
+        Just _ -> handleJust (expred n) (\_ -> loop $ n + 1)
         Nothing -> id
-  maybeRestart $ fst <$> generalBracket
-    (begin' ts)
-    (\() -> \case
-        ExitCaseSuccess _ -> commit' ts
-        _                 -> rollback' ts
-    )
-    (\() -> m)
+  maybeRestart $
+    fst
+      <$> generalBracket
+        (begin' ts)
+        ( \() -> \case
+            ExitCaseSuccess _ -> commit' ts
+            _ -> rollback' ts
+        )
+        (\() -> m)
   where
     expred :: Integer -> SomeException -> Maybe ()
     expred !n e = do
       -- check if the predicate exists
       RestartPredicate f <- tsRestartPredicate ts
       -- cast exception to the type expected by the predicate
-      err <- msum [
-          -- either cast the exception itself...
-          fromException e
-          -- ...or extract it from DBException
-        , fromException e >>= \DBException{..} -> cast dbeError
-        ]
+      err <-
+        msum
+          [ -- either cast the exception itself...
+            fromException e
+          , -- ...or extract it from DBException
+            fromException e >>= \DBException {..} -> cast dbeError
+          ]
       -- check if the predicate allows for the restart
       guard $ f err n
 
@@ -114,14 +122,14 @@ begin' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
 begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
   where
     isolationLevel = case tsIsolationLevel ts of
-      DefaultLevel   -> ""
-      ReadCommitted  -> "ISOLATION LEVEL READ COMMITTED"
+      DefaultLevel -> ""
+      ReadCommitted -> "ISOLATION LEVEL READ COMMITTED"
       RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
-      Serializable   -> "ISOLATION LEVEL SERIALIZABLE"
+      Serializable -> "ISOLATION LEVEL SERIALIZABLE"
     permissions = case tsPermissions ts of
       DefaultPermissions -> ""
-      ReadOnly           -> "READ ONLY"
-      ReadWrite          -> "READ WRITE"
+      ReadOnly -> "READ ONLY"
+      ReadWrite -> "READ WRITE"
 
 -- | Commit active transaction using given transaction settings.
 commit' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()

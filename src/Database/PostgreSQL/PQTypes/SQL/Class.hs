@@ -1,6 +1,6 @@
-module Database.PostgreSQL.PQTypes.SQL.Class (
-    SomeSQL(..)
-  , IsSQL(..)
+module Database.PostgreSQL.PQTypes.SQL.Class
+  ( SomeSQL (..)
+  , IsSQL (..)
   , unsafeSQL
   ) where
 
@@ -18,12 +18,15 @@ data SomeSQL = forall sql. IsSQL sql => SomeSQL sql
 class Show sql => IsSQL sql where
   -- | Convert 'sql' to libpqtypes representation and pass
   -- it to supplied continuation (usually for execution).
-  withSQL :: sql
-          -> ParamAllocator  -- ^ 'PGparam' allocator.
-          -> (Ptr PGparam -> CString -> IO r) -- ^ Continuation which takes 'sql'
-          -- converted to libpqtypes specific representation, ie. 'PGparam' object
-          -- containing query parameters and C string containing the query itself.
-          -> IO r
+  withSQL
+    :: sql
+    -> ParamAllocator
+    -- ^ 'PGparam' allocator.
+    -> (Ptr PGparam -> CString -> IO r)
+    -- ^ Continuation which takes 'sql'
+    -- converted to libpqtypes specific representation, ie. 'PGparam' object
+    -- containing query parameters and C string containing the query itself.
+    -> IO r
 
 ----------------------------------------
 

@@ -1,24 +1,25 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+
 module Test.QuickCheck.Arbitrary.Instances where
 
 import Data.Aeson
+import Data.ByteString qualified as BS
 import Data.Char
 import Data.Scientific
+import Data.Text qualified as T
 import Data.Time
+import Data.UUID.Types qualified as U
+import Data.Vector qualified as V
 import Data.Word
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
-import qualified Data.ByteString as BS
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import qualified Data.UUID.Types as U
 
 import Database.PostgreSQL.PQTypes
-import qualified Test.Aeson.Compat as C
+import Test.Aeson.Compat qualified as C
 
-newtype String0 = String0 { unString0 :: String }
+newtype String0 = String0 {unString0 :: String}
   deriving (Eq, Ord, Show)
 
 instance PQFormat String0 where
@@ -35,7 +36,7 @@ instance ToSQL String0 where
 instance Arbitrary String0 where
   arbitrary = String0 . map (chr . fromIntegral . unWord0) <$> arbitrary
 
-newtype Word0 = Word0 { unWord0 :: Word8 }
+newtype Word0 = Word0 {unWord0 :: Word8}
   deriving (Enum, Eq, Integral, Num, Ord, Real)
 
 instance Bounded Word0 where
@@ -53,7 +54,7 @@ instance Arbitrary T.Text where
   arbitrary = T.pack . unString0 <$> arbitrary
 
 uuidFromWords :: (Word32, Word32, Word32, Word32) -> U.UUID
-uuidFromWords (a,b,c,d) = U.fromWords a b c d
+uuidFromWords (a, b, c, d) = U.fromWords a b c d
 
 instance Arbitrary U.UUID where
   arbitrary = uuidFromWords <$> arbitrary
@@ -75,18 +76,18 @@ instance Arbitrary C.Value0 where
         | i == n = oneof branches
         | otherwise = oneof $ leafs ++ branches
         where
-          branches = [
-              Object . C.fromList <$> shortListOf ((,) <$> arbitrary <*> subValue)
-            , Array  . V.fromList <$> shortListOf subValue
+          branches =
+            [ Object . C.fromList <$> shortListOf ((,) <$> arbitrary <*> subValue)
+            , Array . V.fromList <$> shortListOf subValue
             ]
-          leafs = [
-              String <$> arbitrary
+          leafs =
+            [ String <$> arbitrary
             , Number <$> arbitrary
-            , Bool   <$> arbitrary
+            , Bool <$> arbitrary
             , pure Null
             ]
 
-          subValue = value (i-1) n
+          subValue = value (i - 1) n
           shortListOf = fmap (take depth) . listOf
 
 ----------------------------------------
@@ -111,12 +112,14 @@ instance Arbitrary UTCTime where
     return $ UTCTime day (realToFrac secs)
 
 instance Arbitrary TimeZone where
-  arbitrary = elements $ map hoursToTimeZone [-12..14]
+  arbitrary = elements $ map hoursToTimeZone [-12 .. 14]
 
 instance Arbitrary ZonedTime where
   arbitrary = ZonedTime <$> arbitrary <*> arbitrary
 
 ----------------------------------------
+
+{- FOURMOLU_DISABLE -}
 
 #if !MIN_VERSION_QuickCheck(2,9,0)
 instance Arbitrary a => Arbitrary (Identity a) where
@@ -124,40 +127,40 @@ instance Arbitrary a => Arbitrary (Identity a) where
 #endif
 
 #if !MIN_VERSION_QuickCheck(2,9,0)
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6
   ) => Arbitrary (a1, a2, a3, a4, a5, a6) where
     arbitrary = (,,,,,)
       <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7) where
     arbitrary = (,,,,,,)
       <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8) where
     arbitrary = (,,,,,,,)
       <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9) where
     arbitrary = (,,,,,,,,)
       <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) where
     arbitrary = (,,,,,,,,,)
@@ -165,8 +168,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 #endif
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) where
@@ -175,8 +178,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) where
@@ -185,8 +188,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) where
@@ -195,8 +198,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) where
@@ -205,8 +208,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) where
@@ -215,8 +218,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16
@@ -227,8 +230,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17
@@ -239,8 +242,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18
@@ -251,8 +254,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19
@@ -263,8 +266,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -275,8 +278,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -289,8 +292,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -303,8 +306,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -317,8 +320,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -331,8 +334,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -345,8 +348,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -361,8 +364,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -377,8 +380,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -393,8 +396,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -409,8 +412,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -425,8 +428,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -443,8 +446,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -461,8 +464,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -479,8 +482,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -497,8 +500,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -515,8 +518,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -535,8 +538,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -555,8 +558,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -575,8 +578,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -595,8 +598,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -615,8 +618,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -637,8 +640,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -659,8 +662,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -681,8 +684,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -703,8 +706,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -725,8 +728,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -749,8 +752,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -773,8 +776,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -797,8 +800,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
@@ -821,8 +824,8 @@ instance (
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-instance (
-    Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
+instance
+  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
   , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
   , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
   , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20

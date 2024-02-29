@@ -1,9 +1,9 @@
 module Database.PostgreSQL.PQTypes.Cursor
-  ( CursorName(..)
-  , Scroll(..)
-  , Hold(..)
+  ( CursorName (..)
+  , Scroll (..)
+  , Hold (..)
   , Cursor
-  , CursorDirection(..)
+  , CursorDirection (..)
   , cursorName
   , cursorQuery
   , withCursor
@@ -26,7 +26,7 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Utils
 
 -- | Name of a cursor.
-newtype CursorName sql = CursorName { unCursorName :: sql }
+newtype CursorName sql = CursorName {unCursorName :: sql}
   deriving (Eq, Ord)
 
 instance IsString sql => IsString (CursorName sql) where
@@ -70,22 +70,22 @@ data CursorDirection
   | CD_Backward_All
   | CD_Absolute Int
   | CD_Relative Int
-  | CD_Forward  Int
+  | CD_Forward Int
   | CD_Backward Int
   deriving (Eq, Ord, Show)
 
 cursorDirectionToSQL :: (IsString sql, IsSQL sql, Monoid sql) => CursorDirection -> sql
 cursorDirectionToSQL = \case
-  CD_Next         -> "NEXT"
-  CD_Prior        -> "PRIOR"
-  CD_First        -> "FIRST"
-  CD_Last         -> "LAST"
-  CD_Forward_All  -> "FORWARD ALL"
+  CD_Next -> "NEXT"
+  CD_Prior -> "PRIOR"
+  CD_First -> "FIRST"
+  CD_Last -> "LAST"
+  CD_Forward_All -> "FORWARD ALL"
   CD_Backward_All -> "BACKWARD ALL"
-  CD_Absolute n   -> "ABSOLUTE" <+> unsafeSQL (show n)
-  CD_Relative n   -> "RELATIVE" <+> unsafeSQL (show n)
-  CD_Forward n    -> "FORWARD"  <+> unsafeSQL (show n)
-  CD_Backward n   -> "BACKWARD" <+> unsafeSQL (show n)
+  CD_Absolute n -> "ABSOLUTE" <+> unsafeSQL (show n)
+  CD_Relative n -> "RELATIVE" <+> unsafeSQL (show n)
+  CD_Forward n -> "FORWARD" <+> unsafeSQL (show n)
+  CD_Backward n -> "BACKWARD" <+> unsafeSQL (show n)
 
 ----------------------------------------
 
@@ -106,35 +106,38 @@ withCursor
   -> sql
   -> (Cursor sql -> m r)
   -> m r
-withCursor name scroll hold sql k = bracket_
-  (runQuery_ declareCursor)
-  (runQuery_ closeCursor)
-  (k $ Cursor name sql)
+withCursor name scroll hold sql k =
+  bracket_
+    (runQuery_ declareCursor)
+    (runQuery_ closeCursor)
+    (k $ Cursor name sql)
   where
-    declareCursor = smconcat
-      [ "DECLARE"
-      , unCursorName name
-      , case scroll of
-          Scroll   -> "SCROLL"
-          NoScroll -> "NO SCROLL"
-      , "CURSOR"
-      , case hold of
-          Hold   -> "WITH HOLD"
-          NoHold -> "WITHOUT HOLD"
-      , "FOR"
-      , sql
-      ]
+    declareCursor =
+      smconcat
+        [ "DECLARE"
+        , unCursorName name
+        , case scroll of
+            Scroll -> "SCROLL"
+            NoScroll -> "NO SCROLL"
+        , "CURSOR"
+        , case hold of
+            Hold -> "WITH HOLD"
+            NoHold -> "WITHOUT HOLD"
+        , "FOR"
+        , sql
+        ]
 
     -- Because the cursor might potentially be closed within the continuation
     -- (either by an explicit CLOSE or finishing the current transaction), we
     -- need to supress a potential 'InvalidCursorName' exception.
-    closeCursor = smconcat
-      [ "DO $$"
-      , "BEGIN"
-      , "  EXECUTE 'CLOSE" <+> unCursorName name <+> "';"
-      , "EXCEPTION WHEN invalid_cursor_name THEN"
-      , "END $$"
-      ]
+    closeCursor =
+      smconcat
+        [ "DO $$"
+        , "BEGIN"
+        , "  EXECUTE 'CLOSE" <+> unCursorName name <+> "';"
+        , "EXCEPTION WHEN invalid_cursor_name THEN"
+        , "END $$"
+        ]
 
 -- | Version of 'withCursor' without the @sql@ type parameter for convenience.
 withCursorSQL
@@ -154,16 +157,19 @@ cursorFetch
   => Cursor sql
   -> CursorDirection
   -> m Int
-cursorFetch cursor direction = runQuery $ smconcat
-  [ "FETCH"
-  , cursorDirectionToSQL direction
-  , "FROM"
-  , unCursorName $ cursorName cursor
-  ]
+cursorFetch cursor direction =
+  runQuery $
+    smconcat
+      [ "FETCH"
+      , cursorDirectionToSQL direction
+      , "FROM"
+      , unCursorName $ cursorName cursor
+      ]
 
 -- | Same as 'cursorFetch', except the result (i.e. the number of fetched rows)
 -- is ignored.
-cursorFetch_ :: (IsSQL sql, IsString sql, Monoid sql, MonadDB m)
+cursorFetch_
+  :: (IsSQL sql, IsString sql, Monoid sql, MonadDB m)
   => Cursor sql
   -> CursorDirection
   -> m ()
@@ -177,12 +183,14 @@ cursorMove
   => Cursor sql
   -> CursorDirection
   -> m Int
-cursorMove cursor direction = runQuery $ smconcat
-  [ "MOVE"
-  , cursorDirectionToSQL direction
-  , "FROM"
-  , unCursorName $ cursorName cursor
-  ]
+cursorMove cursor direction =
+  runQuery $
+    smconcat
+      [ "MOVE"
+      , cursorDirectionToSQL direction
+      , "FROM"
+      , unCursorName $ cursorName cursor
+      ]
 
 -- | Same as 'cursorMove', except the result (i.e. the number of rows that would
 -- be fetched) is ignored.

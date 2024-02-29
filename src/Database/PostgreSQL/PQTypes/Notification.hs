@@ -1,6 +1,6 @@
-module Database.PostgreSQL.PQTypes.Notification (
-    Channel(..)
-  , Notification(..)
+module Database.PostgreSQL.PQTypes.Notification
+  ( Channel (..)
+  , Notification (..)
   , listen
   , unlisten
   , unlistenAll
@@ -30,5 +30,6 @@ unlistenAll = runSQL_ "UNLISTEN *"
 
 -- | Generate a notification on a given channel.
 notify :: (HasCallStack, MonadDB m) => Channel -> Text -> m ()
-notify (Channel chan) payload = runQuery_
-  $ rawSQL "SELECT pg_notify($1, $2)" (unRawSQL chan, payload)
+notify (Channel chan) payload =
+  runQuery_ $
+    rawSQL "SELECT pg_notify($1, $2)" (unRawSQL chan, payload)
