@@ -1,4 +1,5 @@
 # hpqtypes-1.12.0.0 (????-??-??)
+* Drop support for GHC 8.8.
 * Attach `CallStack` to `DBException`.
 
 # hpqtypes-1.11.1.2 (2023-11-08)
