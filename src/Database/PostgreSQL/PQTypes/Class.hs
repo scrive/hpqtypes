@@ -32,6 +32,9 @@ class (Applicative m, Monad m) => MonadDB m where
   -- 'getLastQuery'.
   withFrozenLastQuery :: m a -> m a
 
+  -- | Get ID of the server process attached to the current session.
+  getBackendPid :: m Int
+
   -- | Get current connection statistics.
   getConnectionStats :: HasCallStack => m ConnectionStats
 
@@ -89,6 +92,7 @@ instance
   runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
   getLastQuery = lift getLastQuery
   withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
+  getBackendPid = lift getBackendPid
   getConnectionStats = withFrozenCallStack $ lift getConnectionStats
   getQueryResult = lift getQueryResult
   clearQueryResult = lift clearQueryResult

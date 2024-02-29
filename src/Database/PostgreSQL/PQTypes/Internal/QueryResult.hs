@@ -2,6 +2,7 @@
 
 module Database.PostgreSQL.PQTypes.Internal.QueryResult
   ( QueryResult (..)
+  , mkQueryResult
   , ntuples
   , nfields
 
@@ -35,12 +36,27 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 -- extraction appropriately.
 data QueryResult t = forall row. FromRow row => QueryResult
   { qrSQL :: !SomeSQL
+  , qrBackendPid :: !Int
   , qrResult :: !(ForeignPtr PGresult)
   , qrFromRow :: !(row -> t)
   }
 
+mkQueryResult
+  :: (FromRow t, IsSQL sql)
+  => sql
+  -> Int
+  -> ForeignPtr PGresult
+  -> QueryResult t
+mkQueryResult sql pid res =
+  QueryResult
+    { qrSQL = SomeSQL sql
+    , qrBackendPid = pid
+    , qrResult = res
+    , qrFromRow = id
+    }
+
 instance Functor QueryResult where
-  f `fmap` QueryResult ctx fres g = QueryResult ctx fres (f . g)
+  f `fmap` QueryResult ctx pid fres g = QueryResult ctx pid fres (f . g)
 
 instance Foldable QueryResult where
   foldr f acc = runIdentity . foldrImpl False (coerce f) acc
@@ -77,7 +93,7 @@ foldImpl
   -> acc
   -> QueryResult t
   -> m acc
-foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) fres g) =
+foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) pid fres g) =
   unsafePerformIO $ withForeignPtr fres $ \res -> do
     -- This bit is referentially transparent iff appropriate
     -- FrowRow and FromSQL instances are (the ones provided
@@ -87,6 +103,7 @@ foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) fres g)
       E.throwIO
         DBException
           { dbeQueryContext = ctx
+          , dbeBackendPid = pid
           , dbeError =
               RowLengthMismatch
                 { lengthExpected = pqVariablesP rowp
@@ -101,7 +118,7 @@ foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) fres g)
               then return acc
               else do
                 -- mask asynchronous exceptions so they won't be wrapped in DBException
-                obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx)
+                obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx pid)
                 worker `apply` (f obj =<< acc) $ advCtr i
       worker (pure iacc) =<< initCtr res
   where

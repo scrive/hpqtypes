@@ -17,7 +17,6 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.State.Strict qualified as S
 import Control.Monad.Writer.Class
-import Data.Bifunctor
 import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Class
@@ -77,9 +76,9 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
-    second (updateStateWith st sql) <$> runQueryIO (dbConnection st) sql
+    updateStateWith st sql =<< runQueryIO (dbConnection st) sql
   runPreparedQuery name sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
-    second (updateStateWith st sql) <$> runPreparedQueryIO (dbConnection st) name sql
+    updateStateWith st sql =<< runPreparedQueryIO (dbConnection st) name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
 
@@ -87,6 +86,9 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     let st' = st {dbRecordLastQuery = False}
     (x, st'') <- runStateT (unDBT callback) st'
     pure (x, st'' {dbRecordLastQuery = dbRecordLastQuery st})
+
+  getBackendPid = DBT . StateT $ \st -> do
+    (,st) <$> liftBase (getBackendPidIO $ dbConnection st)
 
   getConnectionStats = withFrozenCallStack $ do
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
@@ -100,9 +102,8 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   getTransactionSettings = DBT . gets $ dbTransactionSettings
   setTransactionSettings ts = DBT . modify $ \st -> st {dbTransactionSettings = ts}
 
-  getNotification time = DBT . StateT $ \st ->
-    (,st)
-      <$> liftBase (getNotificationIO st time)
+  getNotification time = DBT . StateT $ \st -> do
+    (,st) <$> liftBase (getNotificationIO st time)
 
   withNewConnection m = DBT . StateT $ \st -> do
     let cs = dbConnectionSource st

@@ -1,6 +1,9 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Database.PostgreSQL.PQTypes.Internal.Connection
   ( -- * Connection
     Connection (..)
+  , getBackendPidIO
   , ConnectionData (..)
   , withConnectionData
   , ConnectionStats (..)
@@ -26,10 +29,11 @@ import Control.Exception qualified as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
-import Data.Bifunctor
 import Data.ByteString.Char8 qualified as BS
 import Data.Foldable qualified as F
+import Data.Functor.Identity
 import Data.IORef
+import Data.Int
 import Data.Kind
 import Data.Pool
 import Data.Set qualified as S
@@ -48,6 +52,7 @@ import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
@@ -114,6 +119,8 @@ initialStats =
 data ConnectionData = ConnectionData
   { cdPtr :: !(Ptr PGconn)
   -- ^ Pointer to connection object.
+  , cdBackendPid :: !Int
+  -- ^ Process ID of the server process attached to the current session.
   , cdStats :: !ConnectionStats
   -- ^ Statistics associated with the connection.
   , cdPreparedQueries :: !(IORef (S.Set T.Text))
@@ -125,6 +132,11 @@ newtype Connection = Connection
   { unConnection :: MVar (Maybe ConnectionData)
   }
 
+getBackendPidIO :: Connection -> IO Int
+getBackendPidIO conn = do
+  withConnectionData conn "getBackendPidIO" $ \cd -> do
+    pure (cd, cdBackendPid cd)
+
 withConnectionData
   :: Connection
   -> String
@@ -133,7 +145,9 @@ withConnectionData
 withConnectionData (Connection mvc) fname f =
   modifyMVar mvc $ \mc -> case mc of
     Nothing -> hpqTypesError $ fname ++ ": no connection"
-    Just cd -> first Just <$> f cd
+    Just cd -> do
+      (cd', r) <- f cd
+      cd' `seq` pure (Just cd', r)
 
 -- | Database connection supplier.
 newtype ConnectionSourceM m = ConnectionSourceM
@@ -215,10 +229,21 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
         Just
           ConnectionData
             { cdPtr = connPtr
+            , cdBackendPid = 0
             , cdStats = initialStats
             , cdPreparedQueries = preparedQueries
             }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
+
+    let selectPid = "SELECT pg_backend_pid()" :: RawSQL ()
+    (_, res) <- runQueryIO conn selectPid
+    case F.toList $ mkQueryResult @(Identity Int32) selectPid 0 res of
+      [pid] -> withConnectionData conn fname $ \cd -> do
+        pure (cd {cdBackendPid = fromIntegral pid}, ())
+      pids -> do
+        let err = HPQTypesError $ "unexpected backend pid: " ++ show pids
+        rethrowWithContext selectPid 0 $ toException err
+
     pure conn
   where
     fname = "connect"
@@ -317,6 +342,7 @@ runPreparedQueryIO conn (QueryName queryName) sql = do
       E.throwIO
         DBException
           { dbeQueryContext = sql
+          , dbeBackendPid = cdBackendPid
           , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
           , dbeCallStack = callStack
           }
@@ -329,7 +355,7 @@ runPreparedQueryIO conn (QueryName queryName) sql = do
           -- succeeds, we need to reflect that fact in cdPreparedQueries since
           -- you can't prepare a query with the same name more than once.
           res <- c_PQparamPrepare cdPtr nullPtr param cname query
-          void . withForeignPtr res $ verifyResult sql cdPtr
+          void . withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
           modifyIORef' cdPreparedQueries $ S.insert queryName
         (,)
           <$> (fromIntegral <$> c_PQparamCount param)
@@ -353,7 +379,7 @@ runQueryImpl fname conn sql execSql = do
     -- runtime system is used) and react appropriately.
     queryRunner <- async . restore $ do
       (paramCount, res) <- execSql cd
-      affected <- withForeignPtr res $ verifyResult sql cdPtr
+      affected <- withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
       stats' <- case affected of
         Left _ ->
           return
@@ -370,8 +396,7 @@ runQueryImpl fname conn sql execSql = do
               , statsValues = statsValues cdStats + (rows * columns)
               , statsParams = statsParams cdStats + paramCount
               }
-      -- Force evaluation of modified stats to squash a space leak.
-      stats' `seq` return (cd {cdStats = stats'}, (either id id affected, res))
+      return (cd {cdStats = stats'}, (either id id affected, res))
     -- If we receive an exception while waiting for the execution to complete,
     -- we need to send a request to PostgreSQL for query cancellation and wait
     -- for the query runner thread to terminate. It is paramount we make the
@@ -399,10 +424,11 @@ runQueryImpl fname conn sql execSql = do
 verifyResult
   :: (HasCallStack, IsSQL sql)
   => sql
+  -> Int
   -> Ptr PGconn
   -> Ptr PGresult
   -> IO (Either Int Int)
-verifyResult sql conn res = do
+verifyResult sql pid conn res = do
   -- works even if res is NULL
   rst <- c_PQresultStatus res
   case rst of
@@ -421,7 +447,7 @@ verifyResult sql conn res = do
     _ | otherwise -> return . Left $ 0
   where
     throwSQLError =
-      rethrowWithContext sql
+      rethrowWithContext sql pid
         =<< if res == nullPtr
           then
             return . E.toException . QueryError
@@ -451,6 +477,7 @@ verifyResult sql conn res = do
       E.throwIO
         DBException
           { dbeQueryContext = sql
+          , dbeBackendPid = pid
           , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
           , dbeCallStack = callStack
           }

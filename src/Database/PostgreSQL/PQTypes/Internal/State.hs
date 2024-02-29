@@ -29,15 +29,21 @@ data DBState m = DBState
   -- ^ Current query result.
   }
 
-updateStateWith :: IsSQL sql => DBState m -> sql -> ForeignPtr PGresult -> DBState m
-updateStateWith st sql res =
-  st
-    { dbLastQuery = if dbRecordLastQuery st then SomeSQL sql else dbLastQuery st
-    , dbQueryResult =
-        Just
-          QueryResult
-            { qrSQL = SomeSQL sql
-            , qrResult = res
-            , qrFromRow = id
-            }
-    }
+updateStateWith
+  :: IsSQL sql
+  => DBState m
+  -> sql
+  -> (r, ForeignPtr PGresult)
+  -> IO (r, DBState m)
+updateStateWith st sql (r, res) = do
+  pid <- getBackendPidIO $ dbConnection st
+  pure
+    ( r
+    , st
+        { dbLastQuery =
+            if dbRecordLastQuery st
+              then SomeSQL sql
+              else dbLastQuery st
+        , dbQueryResult = Just $ mkQueryResult sql pid res
+        }
+    )
