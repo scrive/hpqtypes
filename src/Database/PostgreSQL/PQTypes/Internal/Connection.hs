@@ -46,6 +46,7 @@ import Foreign.Ptr
 import GHC.Conc (closeFdWith)
 import GHC.Stack
 
+import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Composite
@@ -119,7 +120,7 @@ initialStats =
 data ConnectionData = ConnectionData
   { cdPtr :: !(Ptr PGconn)
   -- ^ Pointer to connection object.
-  , cdBackendPid :: !Int
+  , cdBackendPid :: !BackendPid
   -- ^ Process ID of the server process attached to the current session.
   , cdStats :: !ConnectionStats
   -- ^ Statistics associated with the connection.
@@ -132,7 +133,7 @@ newtype Connection = Connection
   { unConnection :: MVar (Maybe ConnectionData)
   }
 
-getBackendPidIO :: Connection -> IO Int
+getBackendPidIO :: Connection -> IO BackendPid
 getBackendPidIO conn = do
   withConnectionData conn "getBackendPidIO" $ \cd -> do
     pure (cd, cdBackendPid cd)
@@ -229,7 +230,7 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
         Just
           ConnectionData
             { cdPtr = connPtr
-            , cdBackendPid = 0
+            , cdBackendPid = noBackendPid
             , cdStats = initialStats
             , cdPreparedQueries = preparedQueries
             }
@@ -237,15 +238,17 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
 
     let selectPid = "SELECT pg_backend_pid()" :: RawSQL ()
     (_, res) <- runQueryIO conn selectPid
-    case F.toList $ mkQueryResult @(Identity Int32) selectPid 0 res of
+    case F.toList $ mkQueryResult @(Identity Int32) selectPid noBackendPid res of
       [pid] -> withConnectionData conn fname $ \cd -> do
-        pure (cd {cdBackendPid = fromIntegral pid}, ())
+        pure (cd {cdBackendPid = BackendPid $ fromIntegral pid}, ())
       pids -> do
         let err = HPQTypesError $ "unexpected backend pid: " ++ show pids
-        rethrowWithContext selectPid 0 $ toException err
+        rethrowWithContext selectPid noBackendPid $ toException err
 
     pure conn
   where
+    noBackendPid = BackendPid 0
+
     fname = "connect"
 
     openConnection :: (forall r. IO r -> IO r) -> CString -> IO (Ptr PGconn)
@@ -424,7 +427,7 @@ runQueryImpl fname conn sql execSql = do
 verifyResult
   :: (HasCallStack, IsSQL sql)
   => sql
-  -> Int
+  -> BackendPid
   -> Ptr PGconn
   -> Ptr PGresult
   -> IO (Either Int Int)

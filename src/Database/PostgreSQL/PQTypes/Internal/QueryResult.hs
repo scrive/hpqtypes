@@ -25,6 +25,7 @@ import System.IO.Unsafe
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromRow
+import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Error
@@ -36,7 +37,7 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 -- extraction appropriately.
 data QueryResult t = forall row. FromRow row => QueryResult
   { qrSQL :: !SomeSQL
-  , qrBackendPid :: !Int
+  , qrBackendPid :: !BackendPid
   , qrResult :: !(ForeignPtr PGresult)
   , qrFromRow :: !(row -> t)
   }
@@ -44,7 +45,7 @@ data QueryResult t = forall row. FromRow row => QueryResult
 mkQueryResult
   :: (FromRow t, IsSQL sql)
   => sql
-  -> Int
+  -> BackendPid
   -> ForeignPtr PGresult
   -> QueryResult t
 mkQueryResult sql pid res =

@@ -7,6 +7,7 @@ module Database.PostgreSQL.PQTypes.Internal.Exception
 import Control.Exception qualified as E
 import GHC.Stack
 
+import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.SQL.Class
 
 -- | Main exception type. All exceptions thrown by
@@ -14,7 +15,7 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 data DBException = forall e sql. (E.Exception e, Show sql) => DBException
   { dbeQueryContext :: !sql
   -- ^ Last SQL query that was executed.
-  , dbeBackendPid :: !Int
+  , dbeBackendPid :: !BackendPid
   -- ^ Process ID of the server process attached to the current session.
   , dbeError :: !e
   -- ^ Specific error.
@@ -26,7 +27,12 @@ deriving instance Show DBException
 instance E.Exception DBException
 
 -- | Rethrow supplied exception enriched with given SQL.
-rethrowWithContext :: (HasCallStack, IsSQL sql) => sql -> Int -> E.SomeException -> IO a
+rethrowWithContext
+  :: (HasCallStack, IsSQL sql)
+  => sql
+  -> BackendPid
+  -> E.SomeException
+  -> IO a
 rethrowWithContext sql pid (E.SomeException e) =
   E.throwIO
     DBException
