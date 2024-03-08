@@ -75,10 +75,12 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 ----------------------------------------
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
-  runQuery sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
-    updateStateWith st sql =<< runQueryIO (dbConnection st) sql
-  runPreparedQuery name sql = withFrozenCallStack $ DBT . StateT $ \st -> liftBase $ do
-    updateStateWith st sql =<< runPreparedQueryIO (dbConnection st) name sql
+  runQuery sql = withFrozenCallStack $ do
+    DBT . StateT $ \st -> liftBase $ do
+      updateStateWith st sql =<< runQueryIO (dbConnection st) sql
+  runPreparedQuery name sql = withFrozenCallStack $ do
+    DBT . StateT $ \st -> liftBase $ do
+      updateStateWith st sql =<< runPreparedQueryIO (dbConnection st) name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
 
@@ -94,7 +96,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
     case mconn of
       Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
-      Just cd -> return $ cdStats cd
+      Just cd -> pure $ cdStats cd
 
   getQueryResult = DBT . gets $ \st -> dbQueryResult st
   clearQueryResult = DBT . modify $ \st -> st {dbQueryResult = Nothing}
@@ -109,7 +111,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     let cs = dbConnectionSource st
         ts = dbTransactionSettings st
     res <- runDBT cs ts m
-    return (res, st)
+    pure (res, st)
 
 ----------------------------------------
 

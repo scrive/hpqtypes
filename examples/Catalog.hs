@@ -23,7 +23,7 @@ getConnSettings :: IO ConnectionSettings
 getConnSettings = do
   args <- getArgs
   case args of
-    [conninfo] -> return defaultConnectionSettings {csConnInfo = T.pack conninfo}
+    [conninfo] -> pure defaultConnectionSettings {csConnInfo = T.pack conninfo}
     _ -> do
       prog <- getProgName
       error $ "Usage:" <+> prog <+> "<connection info>"
@@ -113,7 +113,7 @@ processCommand cs cmd = case parse cmd of
     Just (name :: String) ->
       runDBT cs defaultTransactionSettings . runQuery_ $
         "INSERT INTO authors_ (name) VALUES (" <?> name <+> ")"
-    Nothing -> printLn $ "Invalid name"
+    Nothing -> printLn "Invalid name"
   -- Insert a book.
   ("insert_book", mbook) -> case mread mbook of
     Just record ->
@@ -121,7 +121,7 @@ processCommand cs cmd = case parse cmd of
         rawSQL
           "INSERT INTO books_ (name, year, author_id) VALUES ($1, $2, $3)"
           (record :: (String, Int32, Int64))
-    Nothing -> printLn $ "Invalid book record"
+    Nothing -> printLn "Invalid book record"
   -- Handle unknown commands.
   _ -> printLn $ "Unknown command:" <+> cmd
   where

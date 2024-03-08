@@ -213,7 +213,7 @@ timeOfDayToPGtime TimeOfDay {..} =
     , pgTimeTZAbbr = BS.empty
     }
   where
-    (sec, usec) = floor ((toRational todSec) * 1000000) `divMod` 1000000
+    (sec, usec) = floor (toRational todSec * 1000000) `divMod` 1000000
 
 dayToPGdate :: Day -> PGdate
 dayToPGdate day =

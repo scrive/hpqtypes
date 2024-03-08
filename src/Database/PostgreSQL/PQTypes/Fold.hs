@@ -9,6 +9,7 @@ module Database.PostgreSQL.PQTypes.Fold
   ) where
 
 import Control.Monad.Catch
+import Data.Functor
 import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Class
@@ -24,7 +25,7 @@ queryResult
 queryResult =
   withFrozenCallStack $
     getQueryResult
-      >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") return
+      >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") pure
 
 ----------------------------------------
 
@@ -37,7 +38,7 @@ foldrDB
 foldrDB f acc =
   withFrozenCallStack $
     getQueryResult
-      >>= maybe (return acc) (foldrImpl False f acc)
+      >>= maybe (pure acc) (foldrImpl False f acc)
 
 -- | Fetcher of rows returned by a query as a monadic left fold.
 foldlDB
@@ -48,7 +49,7 @@ foldlDB
 foldlDB f acc =
   withFrozenCallStack $
     getQueryResult
-      >>= maybe (return acc) (foldlImpl False f acc)
+      >>= maybe (pure acc) (foldlImpl False f acc)
 
 -- | Fetcher of rows returned by a query as a monadic map.
 mapDB_
@@ -58,13 +59,13 @@ mapDB_
 mapDB_ f =
   withFrozenCallStack $
     getQueryResult
-      >>= maybe (return ()) (foldlImpl False (\() row -> () <$ f row) ())
+      >>= maybe (pure ()) (foldlImpl False (\() row -> void (f row)) ())
 
 ----------------------------------------
 
 -- | Specialization of 'foldrDB' that fetches a list of rows.
 fetchMany :: (HasCallStack, MonadDB m, FromRow row) => (row -> t) -> m [t]
-fetchMany f = withFrozenCallStack $ foldrDB (\row acc -> return $ f row : acc) []
+fetchMany f = withFrozenCallStack $ foldrDB (\row acc -> pure $ f row : acc) []
 
 -- | Specialization of 'foldlDB' that fetches one or zero rows. If
 -- more rows are delivered, 'AffectedRowsMismatch' exception is thrown.
@@ -73,11 +74,11 @@ fetchMaybe
   => (row -> t)
   -> m (Maybe t)
 fetchMaybe f = withFrozenCallStack $ do
-  getQueryResult >>= \mqr -> case mqr of
-    Nothing -> return Nothing
+  getQueryResult >>= \case
+    Nothing -> pure Nothing
     Just qr -> fst <$> foldlDB go (Nothing, f <$> qr)
   where
-    go (Nothing, qr) row = return (Just $ f row, qr)
+    go (Nothing, qr) row = pure (Just $ f row, qr)
     go (Just _, qr) _ =
       throwDB
         AffectedRowsMismatch
@@ -91,7 +92,7 @@ fetchOne :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row) => (row -> t) -
 fetchOne f = withFrozenCallStack $ do
   mt <- fetchMaybe f
   case mt of
-    Just t -> return t
+    Just t -> pure t
     Nothing ->
       throwDB
         AffectedRowsMismatch

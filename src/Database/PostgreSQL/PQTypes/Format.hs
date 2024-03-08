@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Database.PostgreSQL.PQTypes.Format
   ( PQFormat (..)

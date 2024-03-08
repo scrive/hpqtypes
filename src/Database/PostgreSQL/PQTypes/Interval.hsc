@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Interval (
-    Interval(..)
+module Database.PostgreSQL.PQTypes.Interval
+  ( Interval(..)
   , iyears
   , imonths
   , idays
@@ -36,8 +36,8 @@ data Interval = Interval
   } deriving (Eq, Ord)
 
 instance Show Interval where
-  showsPrec _ Interval{..} = (++) . intercalate ", " $ filter (not . null) [
-      f intYears "year"
+  showsPrec _ Interval{..} = (++) . intercalate ", " $ filter (not . null)
+    [ f intYears "year"
     , f intMonths "month"
     , f intDays "day"
     , f intHours "hour"
@@ -52,15 +52,15 @@ instance Show Interval where
         _ -> show n ++ " " ++ desc ++ "s"
 
 instance SG.Semigroup Interval where
-  a <> b = Interval {
-    intYears = intYears a + intYears b
-  , intMonths = intMonths a + intMonths b
-  , intDays = intDays a + intDays b
-  , intHours = intHours a + intHours b
-  , intMinutes = intMinutes a + intMinutes b
-  , intSeconds = intSeconds a + intSeconds b
-  , intMicroseconds = intMicroseconds a + intMicroseconds b
-  }
+  a <> b = Interval
+    { intYears = intYears a + intYears b
+    , intMonths = intMonths a + intMonths b
+    , intDays = intDays a + intDays b
+    , intHours = intHours a + intHours b
+    , intMinutes = intMinutes a + intMinutes b
+    , intSeconds = intSeconds a + intSeconds b
+    , intMicroseconds = intMicroseconds a + intMicroseconds b
+    }
 
 instance Monoid Interval where
   mempty  = Interval 0 0 0 0 0 0 0
@@ -92,7 +92,7 @@ instance PQFormat Interval where
 instance FromSQL Interval where
   type PQBase Interval = Interval
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just int) = return int
+  fromSQL (Just int) = pure int
 
 instance ToSQL Interval where
   type PQDest Interval = Interval

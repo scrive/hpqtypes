@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.Composite
   ( Composite (..)
   , unComposite

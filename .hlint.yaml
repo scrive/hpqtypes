@@ -1,0 +1,15 @@
+# HLint configuration file
+# https://github.com/ndmitchell/hlint
+##########################
+
+# Replace a $ b $ c with a . b $ c
+- group: {name: dollar, enabled: true}
+
+- ignore: {name: "Functor law"}
+- ignore: {name: "Redundant do"}
+- ignore: {name: "Use <=<"}
+- ignore: {name: "Use camelCase"}
+
+- warn: {lhs: fmap f $ g, rhs: f <$> g}
+- warn: {lhs: maybe x identity, rhs: fromMaybe x}
+- warn: {lhs: return, rhs: pure}

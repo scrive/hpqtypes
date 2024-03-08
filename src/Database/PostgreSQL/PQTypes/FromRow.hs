@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.FromRow
   ( FromRow (..)
   , fromRow'
@@ -78,13 +76,13 @@ instance
         b' = b + fromIntegral (pqVariables @row1)
 
 instance FromRow () where
-  fromRow _ _ _ _ = return ()
+  fromRow _ _ _ _ = pure ()
 
 instance FromSQL t => FromRow (Identity t) where
   fromRow res err b i = withFormat $ \fmt -> alloca $ \p1 -> do
     verify err =<< c_PQgetf1 res err i fmt b p1
     t <- peek p1 >>= convert res i b
-    return (Identity t)
+    pure (Identity t)
 
 instance
   ( FromSQL t1, FromSQL t2

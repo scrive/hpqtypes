@@ -1,5 +1,5 @@
-module Database.PostgreSQL.PQTypes.Internal.Notification (
-    Channel(..)
+module Database.PostgreSQL.PQTypes.Internal.Notification
+  ( Channel(..)
   , Notification(..)
   , getNotificationIO
   ) where
@@ -57,13 +57,13 @@ instance Storable Notification where
   sizeOf _ = #{size PGnotify}
   alignment _ = #{alignment PGnotify}
   peek ptr = do
-    ntPID <- return . CPid
+    ntPID <- pure . CPid
       =<< #{peek PGnotify, be_pid} ptr
     ntChannel <- fmap (Channel . flip rawSQL () . T.decodeUtf8) . BS.packCString
       =<< #{peek PGnotify, relname} ptr
     ntPayload <- fmap T.decodeUtf8 . BS.packCString
       =<< #{peek PGnotify, extra} ptr
-    return Notification{..}
+    pure Notification{..}
   poke _ _ = error "Storable Notification: poke is not supposed to be used"
 
 ----------------------------------------
@@ -76,7 +76,7 @@ getNotificationIO st n = timeout n $ do
     let conn = cdPtr cd
     mmsg <- tryGet conn
     case mmsg of
-      Just msg -> return (cd, msg)
+      Just msg -> pure (cd, msg)
       Nothing -> do
         fd <- c_PQsocket conn
         if fd == -1
@@ -98,5 +98,5 @@ getNotificationIO st n = timeout n $ do
         then do
           msg <- peek ptr
           c_PQfreemem ptr
-          return $ Just msg
-        else return Nothing
+          pure $ Just msg
+        else pure Nothing

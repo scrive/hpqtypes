@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.JSON
   ( JSON (..)
   , JSONB (..)
@@ -92,7 +90,7 @@ aesonFromSQL mbase = do
   evalue <- eitherDecodeStrict' <$> fromSQL mbase
   case evalue of
     Left err -> E.throwIO . E.ErrorCall $ "aesonFromSQL: " ++ err
-    Right value -> return value
+    Right value -> pure value
 
 -- | Helper for defining 'ToSQL' instance for a type with 'ToJSON' instance.
 --

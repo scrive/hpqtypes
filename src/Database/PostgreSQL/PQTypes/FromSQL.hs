@@ -39,46 +39,46 @@ instance FromSQL t => FromSQL (Maybe t) where
   type PQBase (Maybe t) = PQBase t
   fromSQL mbase = case mbase of
     Just _ -> Just <$> fromSQL mbase
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
 
 -- NUMERICS
 
 instance FromSQL Int16 where
   type PQBase Int16 = CShort
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just n) = return . fromIntegral $ n
+  fromSQL (Just n) = pure . fromIntegral $ n
 
 instance FromSQL Int32 where
   type PQBase Int32 = CInt
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just n) = return . fromIntegral $ n
+  fromSQL (Just n) = pure . fromIntegral $ n
 
 instance FromSQL Int64 where
   type PQBase Int64 = CLLong
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just n) = return . fromIntegral $ n
+  fromSQL (Just n) = pure . fromIntegral $ n
 
 instance FromSQL Float where
   type PQBase Float = CFloat
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just n) = return . realToFrac $ n
+  fromSQL (Just n) = pure . realToFrac $ n
 
 instance FromSQL Double where
   type PQBase Double = CDouble
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just n) = return . realToFrac $ n
+  fromSQL (Just n) = pure . realToFrac $ n
 
 -- CHAR
 
 instance FromSQL Char where
   type PQBase Char = CChar
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just c) = return . castCCharToChar $ c
+  fromSQL (Just c) = pure . castCCharToChar $ c
 
 instance FromSQL Word8 where
   type PQBase Word8 = CChar
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just c) = return . fromIntegral $ c
+  fromSQL (Just c) = pure . fromIntegral $ c
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
@@ -86,7 +86,7 @@ instance FromSQL Word8 where
 -- with a different encoding, you should not rely on this instance.
 instance FromSQL T.Text where
   type PQBase T.Text = PGbytea
-  fromSQL mbytea = either E.throwIO return . decodeUtf8' =<< fromSQL mbytea
+  fromSQL mbytea = either E.throwIO pure . decodeUtf8' =<< fromSQL mbytea
 
 -- | Assumes that source C string is UTF-8, so if you are working
 -- with a different encoding, you should not rely on this instance
@@ -103,7 +103,7 @@ instance FromSQL String where
 instance FromSQL U.UUID where
   type PQBase U.UUID = PGuuid
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just (PGuuid w1 w2 w3 w4)) = return $ U.fromWords w1 w2 w3 w4
+  fromSQL (Just (PGuuid w1 w2 w3 w4)) = pure $ U.fromWords w1 w2 w3 w4
 
 -- BYTEA
 
@@ -121,21 +121,21 @@ instance FromSQL BSL.ByteString where
 instance FromSQL Day where
   type PQBase Day = PGdate
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just date) = return . pgDateToDay $ date
+  fromSQL (Just date) = pure . pgDateToDay $ date
 
 -- TIME
 
 instance FromSQL TimeOfDay where
   type PQBase TimeOfDay = PGtime
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just time) = return . pgTimeToTimeOfDay $ time
+  fromSQL (Just time) = pure . pgTimeToTimeOfDay $ time
 
 -- TIMESTAMP
 
 instance FromSQL LocalTime where
   type PQBase LocalTime = PGtimestamp
   fromSQL Nothing = unexpectedNULL
-  fromSQL (Just PGtimestamp {..}) = return $ LocalTime day tod
+  fromSQL (Just PGtimestamp {..}) = pure $ LocalTime day tod
     where
       day = pgDateToDay pgTimestampDate
       tod = pgTimeToTimeOfDay pgTimestampTime
@@ -151,7 +151,7 @@ instance FromSQL UTCTime where
   fromSQL jts@(Just PGtimestamp {..}) = do
     localTime <- fromSQL jts
     case rest of
-      0 -> return . localTimeToUTC (minutesToTimeZone mins) $ localTime
+      0 -> pure . localTimeToUTC (minutesToTimeZone mins) $ localTime
       _ -> hpqTypesError $ "Invalid gmtoff: " ++ show gmtoff
     where
       gmtoff = pgTimeGMTOff pgTimestampTime
@@ -163,8 +163,8 @@ instance FromSQL Bool where
   type PQBase Bool = CInt
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = case n of
-    0 -> return False
-    _ -> return True
+    0 -> pure False
+    _ -> pure True
 
 ----------------------------------------
 

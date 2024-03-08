@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.QuickCheck.Arbitrary.Instances where
@@ -100,7 +99,7 @@ instance Arbitrary TimeOfDay where
     hours <- choose (0, 23)
     mins <- choose (0, 59)
     secs :: Double <- choose (0, 60)
-    return $ TimeOfDay hours mins (realToFrac secs)
+    pure $ TimeOfDay hours mins (realToFrac secs)
 
 instance Arbitrary LocalTime where
   arbitrary = LocalTime <$> arbitrary <*> arbitrary
@@ -109,7 +108,7 @@ instance Arbitrary UTCTime where
   arbitrary = do
     day <- arbitrary
     secs :: Double <- choose (0, 86401)
-    return $ UTCTime day (realToFrac secs)
+    pure $ UTCTime day (realToFrac secs)
 
 instance Arbitrary TimeZone where
   arbitrary = elements $ map hoursToTimeZone [-12 .. 14]
