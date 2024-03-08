@@ -1,7 +1,6 @@
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Main where
+module Main (main) where
 
 import Control.Concurrent.Lifted
 import Control.Monad
@@ -55,14 +54,13 @@ newtype TestEnv a = TestEnv {unTestEnv :: InnerTestEnv a}
 
 instance MonadBaseControl IO TestEnv where
   type StM TestEnv a = StM InnerTestEnv a
-  liftBaseWith f = TestEnv $ liftBaseWith $ \run ->
-    f $ run . unTestEnv
+  liftBaseWith f = TestEnv $ liftBaseWith (\run -> f $ run . unTestEnv)
   restoreM = TestEnv . restoreM
 
 withQCGen :: (QCGen -> r) -> TestEnv r
 withQCGen f = do
   gen <- TestEnv $ S.state split
-  return (f gen)
+  pure (f gen)
 
 ----------------------------------------
 
@@ -75,7 +73,7 @@ runTestEnv (env, connSettings) ts m = runDBT cs ts $ S.evalStateT (unTestEnv m) 
 
 runTimes :: Monad m => Int -> m () -> m ()
 runTimes !n m = case n of
-  0 -> return ()
+  0 -> pure ()
   _ -> m >> runTimes (n - 1) m
 
 ----------------------------------------
@@ -184,28 +182,19 @@ epsilon = 0.00001
 
 eqTOD :: TimeOfDay -> TimeOfDay -> Bool
 eqTOD a b =
-  and
-    [ todHour a == todHour b
-    , todMin a == todMin b
-    , abs (todSec a - todSec b) < epsilon
-    ]
+  (todHour a == todHour b)
+    && (todMin a == todMin b)
+    && (abs (todSec a - todSec b) < epsilon)
 
 eqLT :: LocalTime -> LocalTime -> Bool
 eqLT a b =
-  and
-    [ localDay a == localDay b
-    , localTimeOfDay a `eqTOD` localTimeOfDay b
-    ]
+  (localDay a == localDay b)
+    && (localTimeOfDay a `eqTOD` localTimeOfDay b)
 
 eqUTCT :: UTCTime -> UTCTime -> Bool
 eqUTCT a b =
-  and
-    [ utctDay a == utctDay b
-    , abs (utctDayTime a - utctDayTime b) < epsilon
-    ]
-
-eqZT :: ZonedTime -> ZonedTime -> Bool
-eqZT a b = zonedTimeToUTC a `eqUTCT` zonedTimeToUTC b
+  (utctDay a == utctDay b)
+    && (abs (utctDayTime a - utctDayTime b) < epsilon)
 
 eqArray2 :: Eq a => Array2 a -> Array2 a -> Bool
 eqArray2 (Array2 []) (Array2 arr) = all null arr
@@ -236,10 +225,7 @@ assertEqual preface expected actual eq =
   liftBase $ unless (actual `eq` expected) (assertFailure msg)
   where
     msg =
-      concat
-        [ if null preface then "" else preface ++ "\n"
-        , "expected: " ++ show expected ++ "\n but got: " ++ show actual
-        ]
+      (if null preface then "" else preface ++ "\n") ++ ("expected: " ++ show expected ++ "\n but got: " ++ show actual)
 
 assertEqualEq :: (Eq a, Show a, MonadBase IO m) => String -> a -> a -> m ()
 assertEqualEq preface expected actual = assertEqual preface expected actual (==)
@@ -269,7 +255,7 @@ cursorTest td =
         withCursor "ints" NoScroll NoHold (sqlGenInts 5) $ \cursor -> do
           xs <- (`fix` []) $ \loop acc ->
             cursorFetch cursor CD_Next >>= \case
-              0 -> return $ reverse acc
+              0 -> pure $ reverse acc
               1 -> do
                 (n :: Int32) <- fetchOne runIdentity
                 loop $ n : acc
@@ -335,7 +321,7 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
       timeout 500000 (m $ runSQL_ sql) >>= \case
         Just _ -> liftBase $ do
           assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
-        Nothing -> return ()
+        Nothing -> pure ()
 
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works"
@@ -349,14 +335,13 @@ autocommitTest td = testCase "Autocommit mode works"
     runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
 
 setRoleTest :: TestData -> Test
-setRoleTest td = do
-  testCase "SET ROLE works" $ bracket createRole dropRole $ \case
-    False -> putStrLn "Cannot create role, skipping SET ROLE test"
-    True -> do
-      runDBT roledCs defaultTransactionSettings $ do
-        runSQL_ "SELECT CURRENT_USER::text"
-        role <- fetchOne (runIdentity @String)
-        assertEqualEq "Role set successfully" testRole role
+setRoleTest td = testCase "SET ROLE works" . bracket createRole dropRole $ \case
+  False -> putStrLn "Cannot create role, skipping SET ROLE test"
+  True -> do
+    runDBT roledCs defaultTransactionSettings $ do
+      runSQL_ "SELECT CURRENT_USER::text"
+      role <- fetchOne (runIdentity @String)
+      assertEqualEq "Role set successfully" testRole role
   where
     testRole :: String
     testRole = "hpqtypes_test_role"
@@ -390,7 +375,7 @@ preparedStatementTest td = testCase "Execution of prepared statements works"
 
     let i3 = "lalala" :: String
     -- Changing parameter type in an already prepared statement shouldn't work.
-    o3 <- try $ runPreparedQuery_ name $ "SELECT" <?> i3
+    o3 <- try . runPreparedQuery_ name $ ("SELECT" <?> i3)
     case o3 of
       Left DBException {} -> pure ()
       Right r3 -> liftBase . assertFailure $ "Expected DBException, but got" <+> show r3
@@ -415,7 +400,7 @@ readOnlyTest td = testCase "Read only transaction mode works"
     let sint = Identity (2 :: Int32)
     eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
     case eres :: Either DBException () of
-      Left _ -> return ()
+      Left _ -> pure ()
       Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"
     rollback
     n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
@@ -508,7 +493,7 @@ nullTest td t = testCase
     runSQL_ $ "SELECT" <?> (Nothing :: Maybe t)
     eres <- try $ fetchOne runIdentity
     case eres :: Either DBException t of
-      Left _ -> return ()
+      Left _ -> pure ()
       Right _ -> liftBase . assertFailure $ "DBException wasn't thrown"
 
 putGetTest
@@ -538,7 +523,7 @@ uuidTest td = testCase "UUID encoding / decoding test" $ do
   let uuidStr = "550e8400-e29b-41d4-a716-446655440000"
   Just uuid <- pure $ U.fromText uuidStr
   runTestEnv td defaultTransactionSettings $ do
-    runSQL_ $ mkSQL $ "SELECT '" `mappend` uuidStr `mappend` "' :: uuid"
+    runSQL_ . mkSQL $ ("SELECT '" `mappend` uuidStr `mappend` "' :: uuid")
     uuid2 <- fetchOne runIdentity
     assertEqual "UUID is decoded correctly" uuid uuid2 (==)
 
@@ -550,15 +535,15 @@ xmlTest :: TestData -> Test
 xmlTest td = testCase "Put and get XML value works"
   . runTestEnv td defaultTransactionSettings
   $ do
-    runSQL_ $ "SET CLIENT_ENCODING TO 'UTF8'"
+    runSQL_ "SET CLIENT_ENCODING TO 'UTF8'"
     let v = XML "some<tag>stringå</tag>"
-    runSQL_ $ "SELECT XML 'some<tag>stringå</tag>'"
+    runSQL_ "SELECT XML 'some<tag>stringå</tag>'"
     v' <- fetchOne runIdentity
     assertEqualEq "XML value correct" v v'
     runSQL_ $ "SELECT" <?> v
     v'' <- fetchOne runIdentity
     assertEqualEq "XML value correct" v v''
-    runSQL_ $ "SET CLIENT_ENCODING TO 'latin-1'"
+    runSQL_ "SET CLIENT_ENCODING TO 'latin-1'"
 
 rowTest
   :: forall row
@@ -586,7 +571,7 @@ _printTime m = do
   res <- m
   t' <- liftBase getCurrentTime
   liftBase . putStrLn $ "Time: " ++ show (diffUTCTime t' t)
-  return res
+  pure res
 
 tests :: TestData -> [Test]
 tests td =
@@ -733,10 +718,10 @@ dropStructures cs = runDBT cs defaultTransactionSettings $ do
 getConnString :: IO (T.Text, [String])
 getConnString =
   getArgs >>= \case
-    connString : args -> return (T.pack connString, args)
+    connString : args -> pure (T.pack connString, args)
     [] ->
       lookupEnv "GITHUB_ACTIONS" >>= \case
-        Just "true" -> return ("host=postgres user=postgres password=postgres", [])
+        Just "true" -> pure ("host=postgres user=postgres password=postgres", [])
         _ -> printUsage >> exitFailure
   where
     printUsage = do
@@ -760,5 +745,5 @@ main = do
   gen <- newQCGen
   putStrLn $ "PRNG:" <+> show gen
 
-  finally (defaultMainWithArgs (tests (gen, connSettings {csComposites = ["simple_", "nested_"]})) $ args) $ do
+  finally (defaultMainWithArgs (tests (gen, connSettings {csComposites = ["simple_", "nested_"]})) args) $ do
     dropStructures connSource

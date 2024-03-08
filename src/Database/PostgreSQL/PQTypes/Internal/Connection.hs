@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.Internal.Connection
   ( -- * Connection
     Connection (..)
@@ -35,6 +33,7 @@ import Data.Functor.Identity
 import Data.IORef
 import Data.Int
 import Data.Kind
+import Data.Maybe
 import Data.Pool
 import Data.Set qualified as S
 import Data.String
@@ -143,12 +142,11 @@ withConnectionData
   -> String
   -> (ConnectionData -> IO (ConnectionData, r))
   -> IO r
-withConnectionData (Connection mvc) fname f =
-  modifyMVar mvc $ \mc -> case mc of
-    Nothing -> hpqTypesError $ fname ++ ": no connection"
-    Just cd -> do
-      (cd', r) <- f cd
-      cd' `seq` pure (Just cd', r)
+withConnectionData (Connection mvc) fname f = modifyMVar mvc $ \case
+  Nothing -> hpqTypesError $ fname ++ ": no connection"
+  Just cd -> do
+    (cd', r) <- f cd
+    cd' `seq` pure (Just cd', r)
 
 -- | Database connection supplier.
 newtype ConnectionSourceM m = ConnectionSourceM
@@ -183,12 +181,13 @@ poolSource
   -> IO (ConnectionSource [MonadBase IO, MonadMask])
 poolSource cs mkPoolConfig = do
   pool <- newPool $ mkPoolConfig (connect cs) disconnect
-  return $
-    ConnectionSource $
+  pure $ ConnectionSource (sourceM pool)
+  where
+    sourceM pool =
       ConnectionSourceM
         { withConnection = doWithConnection pool . (clearStats >=>)
         }
-  where
+
     doWithConnection pool m =
       fst
         <$> generalBracket
@@ -201,8 +200,8 @@ poolSource cs mkPoolConfig = do
 
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
-        return $ (\cd -> cd {cdStats = initialStats}) <$> mconn
-      return conn
+        pure $ (\cd -> cd {cdStats = initialStats}) <$> mconn
+      pure conn
 
 ----------------------------------------
 
@@ -285,7 +284,7 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
         status <- c_PQstatus conn
         when (status /= c_CONNECTION_OK) $ do
           merr <- c_PQerrorMessage conn >>= safePeekCString
-          let reason = maybe "" (\err -> ": " <> err) merr
+          let reason = maybe "" (": " <>) merr
           throwError $ "openConnection failed" <> reason
         pure conn
       where
@@ -309,7 +308,7 @@ disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
         -1 -> c_PQfinish conn -- can happen if the connection is bad/lost
         fd -> closeFdWith (\_ -> c_PQfinish conn) fd
     Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
-  return Nothing
+  pure Nothing
 
 ----------------------------------------
 -- Query running
@@ -385,21 +384,21 @@ runQueryImpl fname conn sql execSql = do
       affected <- withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
       stats' <- case affected of
         Left _ ->
-          return
+          pure
             cdStats
               { statsQueries = statsQueries cdStats + 1
               , statsParams = statsParams cdStats + paramCount
               }
         Right rows -> do
           columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-          return
+          pure
             ConnectionStats
               { statsQueries = statsQueries cdStats + 1
               , statsRows = statsRows cdStats + rows
               , statsValues = statsValues cdStats + (rows * columns)
               , statsParams = statsParams cdStats + paramCount
               }
-      return (cd {cdStats = stats'}, (either id id affected, res))
+      pure (cd {cdStats = stats'}, (either id id affected, res))
     -- If we receive an exception while waiting for the execution to complete,
     -- we need to send a request to PostgreSQL for query cancellation and wait
     -- for the query runner thread to terminate. It is paramount we make the
@@ -417,7 +416,7 @@ runQueryImpl fname conn sql execSql = do
         -- cancel again and wait for the thread to terminate.
         Just _ ->
           poll queryRunner >>= \case
-            Just _ -> return ()
+            Just _ -> pure ()
             Nothing -> do
               void $ c_PQcancel cdPtr
               cancel queryRunner
@@ -439,23 +438,21 @@ verifyResult sql pid conn res = do
       sn <- c_PQcmdTuples res >>= BS.packCString
       case BS.readInt sn of
         Nothing
-          | BS.null sn -> return . Left $ 0
+          | BS.null sn -> pure . Left $ 0
           | otherwise -> throwParseError sn
         Just (n, rest)
           | rest /= BS.empty -> throwParseError sn
-          | otherwise -> return . Left $ n
+          | otherwise -> pure . Left $ n
     _ | rst == c_PGRES_TUPLES_OK -> Right . fromIntegral <$> c_PQntuples res
     _ | rst == c_PGRES_FATAL_ERROR -> throwSQLError
     _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
-    _ | otherwise -> return . Left $ 0
+    _ | otherwise -> pure . Left $ 0
   where
     throwSQLError =
       rethrowWithContext sql pid
         =<< if res == nullPtr
           then
-            return . E.toException . QueryError
-              =<< safePeekCString'
-              =<< c_PQerrorMessage conn
+            E.toException . QueryError <$> (safePeekCString' =<< c_PQerrorMessage conn)
           else
             E.toException
               <$> ( DetailedQueryError
@@ -473,7 +470,7 @@ verifyResult sql pid conn res = do
                       <*> mfield c_PG_DIAG_SOURCE_FUNCTION
                   )
       where
-        field f = maybe "" id <$> mfield f
+        field f = fromMaybe "" <$> mfield f
         mfield f = safePeekCString =<< c_PQresultErrorField res f
 
     throwParseError sn =

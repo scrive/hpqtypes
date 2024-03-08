@@ -15,7 +15,7 @@ import Database.PostgreSQL.PQTypes.Internal.Utils
 
 -- | Register a list of composite types.
 registerComposites :: Ptr PGconn -> [T.Text] -> IO ()
-registerComposites _ [] = return ()
+registerComposites _ [] = pure ()
 registerComposites conn names = do
   cnames <- mapM textToCString names
   withArray (map nameToTypeRep cnames) $ \typereps -> alloca $ \err -> do

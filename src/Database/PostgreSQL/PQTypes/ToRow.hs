@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.ToRow
   ( ToRow (..)
   , toRow'
@@ -55,7 +53,7 @@ instance
       toRow row2 pa param err
 
 instance ToRow () where
-  toRow _ _ _ _ = return ()
+  toRow _ _ _ _ = pure ()
 
 instance ToSQL t => ToRow (Identity t) where
   toRow row pa param err = withFormat row $ \fmt -> toSQL t pa $ \base ->

@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.SQL
   ( SQL
   , mkSQL
@@ -53,11 +51,11 @@ instance IsSQL SQL where
       BS.useAsCString (T.encodeUtf8 query) (execute param)
     where
       f param err nums chunk = case chunk of
-        SqlString s -> return s
+        SqlString s -> pure s
         SqlParam (v :: t) -> toSQL v pa $ \base ->
           BS.unsafeUseAsCString (pqFormat0 @t) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> return . (,"$" <> showt n) $! n + 1
+            modifyMVar nums $ \n -> pure . (,"$" <> showt n) $! n + 1
 
 instance SG.Semigroup SQL where
   SQL a <> SQL b = SQL (a S.>< b)

@@ -1,6 +1,6 @@
 -- | Mappings of types used by libpq/libpqtypes to Haskell ADTs.
-module Database.PostgreSQL.PQTypes.Internal.C.Types (
-    PGcancel
+module Database.PostgreSQL.PQTypes.Internal.C.Types
+  ( PGcancel
   , PGconn
   , PGparam
   , PGresult
@@ -148,9 +148,9 @@ newtype TypeClass = TypeClass CInt
 
 ----------------------------------------
 
-newtype PGerror = PGerror {
-  pgErrorMsg :: String
-} deriving Show
+newtype PGerror = PGerror
+  { pgErrorMsg :: String
+  } deriving Show
 
 instance Storable PGerror where
   sizeOf _ = #{size PGerror}
@@ -206,7 +206,7 @@ instance Storable PGarray where
         let len = c_MAXDIM
         fptr <- mallocForeignPtrArray len
         withForeignPtr fptr $ \dest -> copyArray dest src len
-        return (V.unsafeFromForeignPtr0 fptr len)
+        pure (V.unsafeFromForeignPtr0 fptr len)
 
   poke ptr PGarray{..} = do
     #{poke PGarray, ndims} ptr pgArrayNDims

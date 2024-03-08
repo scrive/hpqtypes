@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.Internal.QueryResult
   ( QueryResult (..)
   , mkQueryResult
@@ -73,7 +71,7 @@ foldrImpl
   -> acc
   -> QueryResult t
   -> m acc
-foldrImpl = foldImpl (fmap pred . c_PQntuples) (const . return $ -1) pred
+foldrImpl = foldImpl (fmap pred . c_PQntuples) (const . pure $ -1) pred
 
 foldlImpl
   :: (HasCallStack, Monad m)
@@ -82,7 +80,7 @@ foldlImpl
   -> acc
   -> QueryResult t
   -> m acc
-foldlImpl strict = foldImpl (const $ return 0) c_PQntuples succ strict . flip
+foldlImpl strict = foldImpl (const $ pure 0) c_PQntuples succ strict . flip
 
 foldImpl
   :: (HasCallStack, Monad m)
@@ -95,7 +93,7 @@ foldImpl
   -> QueryResult t
   -> m acc
 foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) pid fres g) =
-  unsafePerformIO $ withForeignPtr fres $ \res -> do
+  unsafePerformIO . withForeignPtr fres $ \res -> do
     -- This bit is referentially transparent iff appropriate
     -- FrowRow and FromSQL instances are (the ones provided
     -- by the library fulfil this requirement).
@@ -116,7 +114,7 @@ foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) pid fre
       n <- termCtr res
       let worker acc i =
             if i == n
-              then return acc
+              then pure acc
               else do
                 -- mask asynchronous exceptions so they won't be wrapped in DBException
                 obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx pid)

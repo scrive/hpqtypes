@@ -71,7 +71,7 @@ runQuery01 sql = withFrozenCallStack $ do
         { rowsExpected = [(0, 1)]
         , rowsDelivered = n
         }
-  return $ n == 1
+  pure $ n == 1
 
 -- | Specialization of 'runQuery01' that discards the result.
 runQuery01_ :: (HasCallStack, IsSQL sql, MonadDB m, MonadThrow m) => sql -> m ()
@@ -117,7 +117,7 @@ runPreparedQuery01 name sql = withFrozenCallStack $ do
         { rowsExpected = [(0, 1)]
         , rowsDelivered = n
         }
-  return $ n == 1
+  pure $ n == 1
 
 -- | Specialization of 'runPreparedQuery01' that discards the result.
 runPreparedQuery01_

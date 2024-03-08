@@ -19,7 +19,7 @@ getConnSettings :: IO ConnectionSettings
 getConnSettings = do
   args <- getArgs
   case args of
-    [conninfo] -> return defaultConnectionSettings {csConnInfo = T.pack conninfo}
+    [conninfo] -> pure defaultConnectionSettings {csConnInfo = T.pack conninfo}
     _ -> do
       prog <- getProgName
       error $ "Usage:" <+> prog <+> "<connection info>"

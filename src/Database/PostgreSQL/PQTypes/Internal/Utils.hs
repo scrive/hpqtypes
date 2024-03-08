@@ -19,6 +19,7 @@ import Control.Exception qualified as E
 import Control.Monad
 import Data.ByteString.Unsafe
 import Data.Kind (Type)
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Foreign.C
@@ -51,12 +52,12 @@ mread s = do
 -- | Safely peek C string.
 safePeekCString :: CString -> IO (Maybe String)
 safePeekCString cs
-  | cs == nullPtr = return Nothing
+  | cs == nullPtr = pure Nothing
   | otherwise = Just <$> peekCString cs
 
 -- | Safely peek C string and return "" if NULL.
 safePeekCString' :: CString -> IO String
-safePeekCString' cs = maybe "" id <$> safePeekCString cs
+safePeekCString' cs = fromMaybe "" <$> safePeekCString cs
 
 -- | Convert C string to 'PGbytea'.
 cStringLenToBytea :: CStringLen -> PGbytea
@@ -77,13 +78,13 @@ textToCString bs = unsafeUseAsCStringLen (T.encodeUtf8 bs) $ \(cs, len) -> do
   withForeignPtr fptr $ \ptr -> do
     copyBytes ptr cs len
     pokeByteOff ptr len (0 :: CChar)
-  return fptr
+  pure fptr
 
 -- | Check return value of a function from libpqtypes
 -- and if it indicates an error, throw appropriate exception.
 verifyPQTRes :: Ptr PGerror -> String -> CInt -> IO ()
 verifyPQTRes err ctx 0 = throwLibPQTypesError err ctx
-verifyPQTRes _ _ _ = return ()
+verifyPQTRes _ _ _ = pure ()
 
 -- 'alloca'-like function for managing usage of 'PGparam' object.
 withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
@@ -93,7 +94,7 @@ withPGparam conn = E.bracket create c_PQparamClear
       param <- c_PQparamCreate conn err
       when (param == nullPtr) $
         throwLibPQTypesError err "withPGparam.create"
-      return param
+      pure param
 
 ----------------------------------------
 

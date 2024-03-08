@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Database.PostgreSQL.PQTypes.Array
   ( -- * Array1
     Array1 (..)
@@ -59,7 +57,7 @@ instance FromSQL t => FromSQL (Array1 t) where
       getItem res err i ptr fmt = do
         verifyPQTRes err "fromSQL (Array1)" =<< c_PQgetf1 res err i fmt 0 ptr
         isNull <- c_PQgetisnull res i 0
-        mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
+        mbase <- if isNull == 1 then pure Nothing else Just <$> peek ptr
         fromSQL mbase
 
 instance ToSQL t => ToSQL (Array1 t) where
@@ -160,7 +158,7 @@ getArray1 con PGarray {..} getItem =
   where
     loop :: [t] -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
     loop acc !i err ptr fmt = case i of
-      -1 -> return . con $ acc
+      -1 -> pure . con $ acc
       _ -> do
         item <- getItem pgArrayRes err i ptr fmt `E.catch` rethrowWithArrayError i
         loop (item : acc) (i - 1) err ptr fmt
@@ -186,7 +184,7 @@ instance FromSQL t => FromSQL (Array2 t) where
       getItem res err i ptr fmt = do
         verifyPQTRes err "fromSQL (Array2)" =<< c_PQgetf1 res err i fmt 0 ptr
         isNull <- c_PQgetisnull res i 0
-        mbase <- if isNull == 1 then return Nothing else Just <$> peek ptr
+        mbase <- if isNull == 1 then pure Nothing else Just <$> peek ptr
         fromSQL mbase
 
 instance ToSQL t => ToSQL (Array2 t) where
@@ -258,17 +256,15 @@ putArray2 arr param conv putItem = do
   where
     loop :: [[t]] -> CInt -> CInt -> CString -> IO (V.Vector CInt)
     loop rows !size !innerSize fmt = case rows of
-      [] -> return . V.fromList $ [size, innerSize]
+      [] -> pure . V.fromList $ [size, innerSize]
       (row : rest) -> do
         nextInnerSize <- innLoop row 0 fmt
-        when (size > 0 && innerSize /= nextInnerSize) $
-          hpqTypesError $
-            "putArray2: inner rows have different sizes"
+        when (size > 0 && innerSize /= nextInnerSize) . hpqTypesError $ "putArray2: inner rows have different sizes"
         loop rest (size + 1) nextInnerSize fmt
 
     innLoop :: [t] -> CInt -> CString -> IO CInt
     innLoop items !size fmt = case items of
-      [] -> return size
+      [] -> pure size
       (item : rest) -> do
         putItem fmt item
         innLoop rest (size + 1) fmt
@@ -304,7 +300,7 @@ getArray2 con PGarray {..} getItem = flip E.finally (c_PQclear pgArrayRes) $ do
   where
     loop :: [[t]] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO array
     loop acc dim2 !i err ptr fmt = case i of
-      0 -> return . con $ acc
+      0 -> pure . con $ acc
       _ -> do
         let i' = i - dim2
         arr <- innLoop [] (dim2 - 1) i' err ptr fmt
@@ -312,7 +308,7 @@ getArray2 con PGarray {..} getItem = flip E.finally (c_PQclear pgArrayRes) $ do
 
     innLoop :: [t] -> CInt -> CInt -> Ptr PGerror -> Ptr a -> CString -> IO [t]
     innLoop acc !i baseIdx err ptr fmt = case i of
-      -1 -> return acc
+      -1 -> pure acc
       _ -> do
         let i' = baseIdx + i
         item <- getItem pgArrayRes err i' ptr fmt `E.catch` rethrowWithArrayError i'

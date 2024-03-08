@@ -131,7 +131,7 @@ c_PQcancel conn = E.bracket (c_PQgetCancel conn) c_PQfreeCancel $ \cancel -> do
   allocaBytes errbufsize $ \errbuf -> do
     c_rawPQcancel cancel errbuf (fromIntegral errbufsize) >>= \case
       0 -> Just <$> peekCString errbuf
-      _ -> return Nothing
+      _ -> pure Nothing
   where
     -- Size recommended by
     -- https://www.postgresql.org/docs/current/static/libpq-cancel.html
