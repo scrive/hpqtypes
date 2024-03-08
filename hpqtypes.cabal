@@ -77,6 +77,7 @@ library
                      , Database.PostgreSQL.PQTypes.SQL.Class
                      , Database.PostgreSQL.PQTypes.Transaction.Settings
                      , Database.PostgreSQL.PQTypes.XML
+                     , Database.PostgreSQL.PQTypes.Internal.BackendPid
                      , Database.PostgreSQL.PQTypes.Internal.Error
                      , Database.PostgreSQL.PQTypes.Internal.Error.Code
                      , Database.PostgreSQL.PQTypes.Internal.Composite
@@ -146,6 +147,7 @@ library
                     , ConstraintKinds
                     , DataKinds
                     , DeriveFunctor
+                    , DerivingStrategies
                     , ExistentialQuantification
                     , FlexibleContexts
                     , FlexibleInstances
@@ -213,6 +215,7 @@ test-suite hpqtypes-tests
                     , ConstraintKinds
                     , DataKinds
                     , DeriveFunctor
+                    , DerivingStrategies
                     , ExistentialQuantification
                     , FlexibleContexts
                     , FlexibleInstances

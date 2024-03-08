@@ -1,6 +1,10 @@
 module Database.PostgreSQL.PQTypes.Class
-  ( QueryName (..)
-  , MonadDB (..)
+  ( -- * Class
+    MonadDB (..)
+
+    -- * Misc
+  , BackendPid (..)
+  , QueryName (..)
   ) where
 
 import Control.Monad.Trans
@@ -8,6 +12,7 @@ import Control.Monad.Trans.Control
 import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.FromRow
+import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
@@ -31,6 +36,9 @@ class (Applicative m, Monad m) => MonadDB m where
   -- | Subsequent queries in the callback do not alter the result of
   -- 'getLastQuery'.
   withFrozenLastQuery :: m a -> m a
+
+  -- | Get ID of the server process attached to the current session.
+  getBackendPid :: m BackendPid
 
   -- | Get current connection statistics.
   getConnectionStats :: HasCallStack => m ConnectionStats
@@ -89,6 +97,7 @@ instance
   runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
   getLastQuery = lift getLastQuery
   withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
+  getBackendPid = lift getBackendPid
   getConnectionStats = withFrozenCallStack $ lift getConnectionStats
   getQueryResult = lift getQueryResult
   clearQueryResult = lift clearQueryResult
