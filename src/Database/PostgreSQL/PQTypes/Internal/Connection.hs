@@ -239,7 +239,13 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
     (_, res) <- runQueryIO conn selectPid
     case F.toList $ mkQueryResult @(Identity Int32) selectPid noBackendPid res of
       [pid] -> withConnectionData conn fname $ \cd -> do
-        pure (cd {cdBackendPid = BackendPid $ fromIntegral pid}, ())
+        pure
+          ( cd
+              { cdBackendPid = BackendPid $ fromIntegral pid
+              , cdStats = initialStats -- Statistics are for user queries.
+              }
+          , ()
+          )
       pids -> do
         let err = HPQTypesError $ "unexpected backend pid: " ++ show pids
         rethrowWithContext selectPid noBackendPid $ toException err
