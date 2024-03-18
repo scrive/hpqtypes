@@ -1,4 +1,4 @@
-# hpqtypes-1.12.0.0 (2024-03-08)
+# hpqtypes-1.12.0.0 (2024-03-18)
 * Drop support for GHC 8.8.
 * Attach `CallStack` and `BackendPid` to `DBException`.
 * Add `getBackendPid` to `MonadDB` for getting the ID of the server process
