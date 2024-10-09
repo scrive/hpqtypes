@@ -1,3 +1,7 @@
+# hpqtypes-1.12.1.0 (????-??-??)
+* Switch from `readline` to `haskeline`, to make example compile with newer
+  Cabal versions.
+
 # hpqtypes-1.12.0.0 (2024-03-18)
 * Drop support for GHC 8.8.
 * Attach `CallStack` and `BackendPid` to `DBException`.
