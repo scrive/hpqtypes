@@ -1,3 +1,4 @@
+distribution:   jammy
 branches:       master
 doctest:        False
 tests:          True

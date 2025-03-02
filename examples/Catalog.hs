@@ -4,14 +4,14 @@ import Control.Arrow (second)
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
-import Data.Function
+import Control.Monad.IO.Class (liftIO)
 import Data.Int
 import Data.Monoid.Utils
 import Data.Pool
 import Data.Text qualified as T
 import Database.PostgreSQL.PQTypes
 import Database.PostgreSQL.PQTypes.Internal.Utils (mread)
-import System.Console.Readline
+import System.Console.Haskeline
 import System.Environment
 
 -- | Generic 'putStrLn'.
@@ -144,13 +144,14 @@ catalog = do
   cs <- getConnSettings
   withCatalog cs $ do
     ConnectionSource pool <- poolSource (cs {csComposites = ["book_"]}) (\connect disconnect -> defaultPoolConfig connect disconnect 1 10)
-    fix $ \next ->
-      readline "> "
+    runInputT defaultSettings (loop pool)
+  where
+    loop pool = do
+      getInputLine "> "
         >>= maybe
-          (printLn "")
+          (outputStrLn "")
           ( \cmd -> do
               when (cmd /= "quit") $ do
-                processCommand pool cmd
-                addHistory cmd
-                next
+                liftIO $ processCommand pool cmd
+                loop pool
           )
