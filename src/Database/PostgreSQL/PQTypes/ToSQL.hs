@@ -84,6 +84,18 @@ instance ToSQL Double where
   type PQDest Double = CDouble
   toSQL n _ = putAsPtr (realToFrac n)
 
+instance ToSQL Word16 where
+  type PQDest Word16 = CUShort
+  toSQL n _ = putAsPtr (fromIntegral n)
+
+instance ToSQL Word32 where
+  type PQDest Word32 = CUInt
+  toSQL n _ = putAsPtr (fromIntegral n)
+
+instance ToSQL Word64 where
+  type PQDest Word64 = CULLong
+  toSQL n _ = putAsPtr (fromIntegral n)
+
 -- CHAR
 
 instance ToSQL Char where
