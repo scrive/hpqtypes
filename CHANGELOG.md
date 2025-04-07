@@ -1,3 +1,7 @@
+# hpqtypes-1.13.0.0 (2025-??-??)
+* Include time spent executing queries in `ConnectionStats`.
+* Add `initialConnectionStats`.
+
 # hpqtypes-1.12.0.0 (2024-03-18)
 * Drop support for GHC 8.8.
 * Attach `CallStack` and `BackendPid` to `DBException`.
