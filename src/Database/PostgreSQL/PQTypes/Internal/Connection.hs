@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.Internal.Connection
   , ConnectionData (..)
   , withConnectionData
   , ConnectionStats (..)
+  , initialConnectionStats
   , ConnectionSettings (..)
   , defaultConnectionSettings
   , ConnectionSourceM (..)
@@ -42,6 +43,7 @@ import Data.Text.Encoding qualified as T
 import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
+import GHC.Clock (getMonotonicTime)
 import GHC.Conc (closeFdWith)
 import GHC.Stack
 
@@ -95,17 +97,20 @@ data ConnectionStats = ConnectionStats
   -- ^ Number of values fetched from the database.
   , statsParams :: !Int
   -- ^ Number of parameters sent to the database.
+  , statsTime :: !Double
+  -- ^ Time spent executing queries (in seconds).
   }
   deriving (Eq, Ord, Show)
 
 -- | Initial connection statistics.
-initialStats :: ConnectionStats
-initialStats =
+initialConnectionStats :: ConnectionStats
+initialConnectionStats =
   ConnectionStats
     { statsQueries = 0
     , statsRows = 0
     , statsValues = 0
     , statsParams = 0
+    , statsTime = 0
     }
 
 -- | Representation of a connection object.
@@ -200,7 +205,7 @@ poolSource cs mkPoolConfig = do
 
     clearStats conn@(Connection mv) = do
       liftBase . modifyMVar_ mv $ \mconn ->
-        pure $ (\cd -> cd {cdStats = initialStats}) <$> mconn
+        pure $ (\cd -> cd {cdStats = initialConnectionStats}) <$> mconn
       pure conn
 
 ----------------------------------------
@@ -230,7 +235,7 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
           ConnectionData
             { cdPtr = connPtr
             , cdBackendPid = noBackendPid
-            , cdStats = initialStats
+            , cdStats = initialConnectionStats
             , cdPreparedQueries = preparedQueries
             }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
@@ -380,7 +385,9 @@ runQueryImpl fname conn sql execSql = do
     -- are able to receive asynchronous exceptions (assuming that threaded GHC
     -- runtime system is used) and react appropriately.
     queryRunner <- async . restore $ do
+      t1 <- getMonotonicTime
       (paramCount, res) <- execSql cd
+      t2 <- getMonotonicTime
       affected <- withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
       stats' <- case affected of
         Left _ ->
@@ -388,6 +395,7 @@ runQueryImpl fname conn sql execSql = do
             cdStats
               { statsQueries = statsQueries cdStats + 1
               , statsParams = statsParams cdStats + paramCount
+              , statsTime = statsTime cdStats + (t2 - t1)
               }
         Right rows -> do
           columns <- fromIntegral <$> withForeignPtr res c_PQnfields
@@ -397,6 +405,7 @@ runQueryImpl fname conn sql execSql = do
               , statsRows = statsRows cdStats + rows
               , statsValues = statsValues cdStats + (rows * columns)
               , statsParams = statsParams cdStats + paramCount
+              , statsTime = statsTime cdStats + (t2 - t1)
               }
       pure (cd {cdStats = stats'}, (either id id affected, res))
     -- If we receive an exception while waiting for the execution to complete,
