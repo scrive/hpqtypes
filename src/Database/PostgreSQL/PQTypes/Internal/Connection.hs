@@ -97,7 +97,7 @@ data ConnectionStats = ConnectionStats
   -- ^ Number of values fetched from the database.
   , statsParams :: !Int
   -- ^ Number of parameters sent to the database.
-  , statsTime :: Double
+  , statsTime :: !Double
   -- ^ Time spent executing queries (in seconds).
   }
   deriving (Eq, Ord, Show)
