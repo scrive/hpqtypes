@@ -30,18 +30,16 @@ class (Applicative m, Monad m) => MonadDB m where
   -- given name.
   runPreparedQuery :: (HasCallStack, IsSQL sql) => QueryName -> sql -> m Int
 
-  -- | Get last SQL query that was executed.
-  getLastQuery :: m SomeSQL
+  -- | Get last SQL query that was executed and ID of the server process
+  -- attached to the session that executed it.
+  getLastQuery :: m (BackendPid, SomeSQL)
 
   -- | Subsequent queries in the callback do not alter the result of
   -- 'getLastQuery'.
   withFrozenLastQuery :: m a -> m a
 
-  -- | Get ID of the server process attached to the current session.
-  getBackendPid :: m BackendPid
-
   -- | Get current connection statistics.
-  getConnectionStats :: HasCallStack => m ConnectionStats
+  getConnectionStats :: m ConnectionStats
 
   -- | Get current query result.
   getQueryResult :: FromRow row => m (Maybe (QueryResult row))
@@ -49,13 +47,17 @@ class (Applicative m, Monad m) => MonadDB m where
   -- | Clear current query result.
   clearQueryResult :: m ()
 
-  -- | Get current transaction settings.
-  getTransactionSettings :: m TransactionSettings
+  -- | Get current connection acquisition mode.
+  getConnectionAcquisitionMode :: HasCallStack => m ConnectionAcquisitionMode
 
-  -- | Set transaction settings to supplied ones. Note that it
-  -- won't change any properties of currently running transaction,
-  -- only the subsequent ones.
-  setTransactionSettings :: TransactionSettings -> m ()
+  -- | Acquire and hold a connection with a given isolation level and
+  -- permissions. If the connection is already held, nothing happens.
+  acquireAndHoldConnection :: HasCallStack => IsolationLevel -> Permissions -> m ()
+
+  -- | Unsafely switch to the 'AcquireOnDemand' mode. This function is unsafe
+  -- because if a connection is already held, the transaction in progress is
+  -- commited, so atomicity guarantee is lost.
+  unsafeAcquireOnDemandConnection :: HasCallStack => m ()
 
   -- | Attempt to receive a notification from the server. This
   -- function waits until a notification arrives or specified
@@ -72,7 +74,7 @@ class (Applicative m, Monad m) => MonadDB m where
   -- for further info), therefore calling this function within
   -- a transaction block will return 'Just' only if notifications
   -- were received before the transaction began.
-  getNotification :: Int -> m (Maybe Notification)
+  getNotification :: HasCallStack => Int -> m (Maybe Notification)
 
   -- | Execute supplied monadic action with new connection
   -- using current connection source and transaction settings.
@@ -80,7 +82,7 @@ class (Applicative m, Monad m) => MonadDB m where
   -- Particularly useful when you want to spawn a new thread, but
   -- do not want the connection in child thread to be shared with
   -- the parent one.
-  withNewConnection :: m a -> m a
+  withNewConnection :: HasCallStack => m a -> m a
 
 -- | Generic, overlappable instance.
 instance
@@ -97,11 +99,11 @@ instance
   runPreparedQuery name = withFrozenCallStack $ lift . runPreparedQuery name
   getLastQuery = lift getLastQuery
   withFrozenLastQuery m = controlT $ \run -> withFrozenLastQuery (run m)
-  getBackendPid = lift getBackendPid
-  getConnectionStats = withFrozenCallStack $ lift getConnectionStats
+  getConnectionStats = lift getConnectionStats
   getQueryResult = lift getQueryResult
   clearQueryResult = lift clearQueryResult
-  getTransactionSettings = lift getTransactionSettings
-  setTransactionSettings = lift . setTransactionSettings
+  getConnectionAcquisitionMode = lift getConnectionAcquisitionMode
+  acquireAndHoldConnection isoLevel = lift . acquireAndHoldConnection isoLevel
+  unsafeAcquireOnDemandConnection = lift unsafeAcquireOnDemandConnection
   getNotification = lift . getNotification
   withNewConnection m = controlT $ \run -> withNewConnection (run m)

@@ -6,7 +6,6 @@ module Database.PostgreSQL.PQTypes.Internal.Monad
   ) where
 
 import Control.Applicative
-import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -21,14 +20,9 @@ import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
-import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.State
-import Database.PostgreSQL.PQTypes.SQL
-import Database.PostgreSQL.PQTypes.SQL.Class
-import Database.PostgreSQL.PQTypes.Transaction
 import Database.PostgreSQL.PQTypes.Transaction.Settings
-import Database.PostgreSQL.PQTypes.Utils
 
 type InnerDBT m = StateT (DBState m)
 
@@ -47,22 +41,8 @@ runDBT
   -> TransactionSettings
   -> DBT m a
   -> m a
-runDBT cs ts m = withConnection cs $ \conn -> do
-  evalStateT action $
-    DBState
-      { dbConnection = conn
-      , dbConnectionSource = cs
-      , dbTransactionSettings = ts
-      , dbLastQuery = SomeSQL (mempty :: SQL)
-      , dbRecordLastQuery = True
-      , dbQueryResult = Nothing
-      }
-  where
-    action =
-      unDBT $
-        if tsAutoTransaction ts
-          then withTransaction' (ts {tsAutoTransaction = False}) m
-          else m
+runDBT cs ts action = withConnectionData cs ts $ \cd -> do
+  evalStateT (unDBT action) $ mkDBState cd ts
 
 -- | Transform the underlying monad.
 mapDBT
@@ -76,11 +56,11 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = withFrozenCallStack $ do
-    DBT . StateT $ \st -> liftBase $ do
-      updateStateWith st sql =<< runQueryIO (dbConnection st) sql
+    DBT . StateT $ \st -> withConnection (dbConnectionData st) $ \conn -> do
+      liftBase $ updateStateWith conn st sql =<< runQueryIO conn sql
   runPreparedQuery name sql = withFrozenCallStack $ do
-    DBT . StateT $ \st -> liftBase $ do
-      updateStateWith st sql =<< runPreparedQueryIO (dbConnection st) name sql
+    DBT . StateT $ \st -> withConnection (dbConnectionData st) $ \conn -> do
+      liftBase $ updateStateWith conn st sql =<< runPreparedQueryIO conn name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
 
@@ -89,27 +69,32 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     (x, st'') <- runStateT (unDBT callback) st'
     pure (x, st'' {dbRecordLastQuery = dbRecordLastQuery st})
 
-  getBackendPid = DBT . StateT $ \st -> do
-    (,st) <$> liftBase (getBackendPidIO $ dbConnection st)
+  getConnectionStats = DBT $ gets dbConnectionStats
 
-  getConnectionStats = withFrozenCallStack $ do
-    mconn <- DBT $ liftBase . readMVar =<< gets (unConnection . dbConnection)
-    case mconn of
-      Nothing -> throwDB $ HPQTypesError "getConnectionStats: no connection"
-      Just cd -> pure $ cdStats cd
+  getQueryResult = DBT $ gets dbQueryResult
+  clearQueryResult = DBT . modify' $ \st -> st {dbQueryResult = Nothing}
 
-  getQueryResult = DBT . gets $ \st -> dbQueryResult st
-  clearQueryResult = DBT . modify $ \st -> st {dbQueryResult = Nothing}
+  getConnectionAcquisitionMode = DBT . StateT $ \st -> do
+    (,st) <$> liftBase (getConnectionAcquisitionModeIO $ dbConnectionData st)
 
-  getTransactionSettings = DBT . gets $ dbTransactionSettings
-  setTransactionSettings ts = DBT . modify $ \st -> st {dbTransactionSettings = ts}
+  acquireAndHoldConnection isolationLevel permissions = DBT . StateT $ \st -> do
+    (,st) <$> changeAcquisitionModeTo (AcquireAndHold isolationLevel permissions) (dbConnectionData st)
+
+  unsafeAcquireOnDemandConnection = DBT . StateT $ \st -> do
+    (,st) <$> changeAcquisitionModeTo AcquireOnDemand (dbConnectionData st)
 
   getNotification time = DBT . StateT $ \st -> do
-    (,st) <$> liftBase (getNotificationIO st time)
+    withConnection (dbConnectionData st) $ \conn -> do
+      (,st) <$> liftBase (getNotificationIO conn time)
 
   withNewConnection m = DBT . StateT $ \st -> do
-    let cs = dbConnectionSource st
-        ts = dbTransactionSettings st
+    cam <- liftBase . getConnectionAcquisitionModeIO $ dbConnectionData st
+    let cs = getConnectionSource $ dbConnectionData st
+        ts =
+          TransactionSettings
+            { tsRestartPredicate = dbRestartPredicate st
+            , tsConnectionAcquisitionMode = cam
+            }
     res <- runDBT cs ts m
     pure (res, st)
 

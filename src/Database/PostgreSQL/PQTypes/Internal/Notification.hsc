@@ -10,6 +10,7 @@ import Control.Monad.Fix
 import Data.String
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.Stack
 import System.Posix.Types
 import System.Timeout
 import Control.Exception qualified as E
@@ -20,7 +21,6 @@ import Data.Text.Encoding qualified as T
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
-import Database.PostgreSQL.PQTypes.Internal.State
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Raw
 
@@ -70,23 +70,21 @@ instance Storable Notification where
 
 -- | Low-level function that waits for a notification for a given
 -- number of microseconds (it uses 'timeout' function internally).
-getNotificationIO :: DBState m -> Int -> IO (Maybe Notification)
-getNotificationIO st n = timeout n $ do
-  withConnectionData (dbConnection st) fname $ \cd -> fix $ \loop -> do
-    let conn = cdPtr cd
-    mmsg <- tryGet conn
-    case mmsg of
-      Just msg -> pure (cd, msg)
-      Nothing -> do
-        fd <- c_PQsocket conn
-        if fd == -1
-          then hpqTypesError $ fname ++ ": invalid file descriptor"
-          else do
-            threadWaitRead fd
-            res <- c_PQconsumeInput conn
-            when (res /= 1) $ do
-              throwLibPQError conn fname
-            loop
+getNotificationIO :: HasCallStack => Connection -> Int -> IO (Maybe Notification)
+getNotificationIO conn n = timeout n $ fix $ \loop -> do
+  mmsg <- tryGet $ connPtr conn
+  case mmsg of
+    Just msg -> pure msg
+    Nothing -> do
+      fd <- c_PQsocket $ connPtr conn
+      if fd == -1
+        then hpqTypesError $ fname ++ ": invalid file descriptor"
+        else do
+          threadWaitRead fd
+          res <- c_PQconsumeInput $ connPtr conn
+          when (res /= 1) $ do
+            throwLibPQError (connPtr conn) fname
+          loop
   where
     fname :: String
     fname = "getNotificationIO"

@@ -37,8 +37,7 @@ throwDB :: (HasCallStack, Exception e, MonadDB m, MonadThrow m) => e -> m a
 throwDB e = case fromException $ toException e of
   Just (dbe :: DBException) -> throwM dbe
   Nothing -> do
-    SomeSQL sql <- getLastQuery
-    pid <- getBackendPid
+    (pid, SomeSQL sql) <- getLastQuery
     throwM
       DBException
         { dbeQueryContext = sql
