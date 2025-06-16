@@ -68,6 +68,21 @@ instance FromSQL Double where
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = pure . realToFrac $ n
 
+instance FromSQL Word16 where
+  type PQBase Word16 = CUShort
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just n) = pure . fromIntegral $ n
+
+instance FromSQL Word32 where
+  type PQBase Word32 = CUInt
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just n) = pure . fromIntegral $ n
+
+instance FromSQL Word64 where
+  type PQBase Word64 = CULLong
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just n) = pure . fromIntegral $ n
+
 -- CHAR
 
 instance FromSQL Char where
