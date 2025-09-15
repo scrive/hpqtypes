@@ -437,7 +437,7 @@ notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
   listen chan
   forkNewConn $ notify chan payload
-  mnt1 <- getNotification 500000
+  mnt1 <- getNotification 250000
   liftBase $ assertBool "Notification received" (isJust mnt1)
   Just nt1 <- pure mnt1
   assertEqualEq "Channels are equal" chan (ntChannel nt1)
@@ -445,18 +445,28 @@ notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransaction
 
   unlisten chan
   forkNewConn $ notify chan payload
-  mnt2 <- getNotification 500000
+  mnt2 <- getNotification 250000
   assertEqualEq "No notification received after unlisten" Nothing mnt2
 
   listen chan
   unlistenAll
   forkNewConn $ notify chan payload
-  mnt3 <- getNotification 500000
+  mnt3 <- getNotification 250000
   assertEqualEq "No notification received after unlistenAll" Nothing mnt3
   where
     chan = "test_channel"
     payload = "test_payload"
-    forkNewConn = void . fork . withNewConnection
+    forkNewConn action = do
+      sem <- newEmptyMVar
+      void . fork . withNewConnection $ do
+        -- withNewConnection needs access to the connection state to get current
+        -- ConnectionAcquisitionMode, but getNotification called immediately
+        -- after takes ownership of the connection state for its duration, so if
+        -- CPU gets to it first, withNewConnection will block and notification
+        -- will never be sent.
+        putMVar sem ()
+        action
+      takeMVar sem
 
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl =
