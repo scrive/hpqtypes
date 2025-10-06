@@ -91,6 +91,10 @@ rollback = uninterruptibleMask_ $ do
       runSQL_ "ROLLBACK"
       begin
 
+-- | Run a block of code without an open transaction.
+--
+-- This function is unsafe, because if there is a transaction in progress, it's
+-- commited, so the atomicity guarantee is lost.
 unsafeWithoutTransaction
   :: (HasCallStack, MonadDB m, MonadMask m)
   => m a

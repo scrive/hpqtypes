@@ -44,9 +44,18 @@ data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializab
 data Permissions = DefaultPermissions | ReadOnly | ReadWrite
   deriving (Eq, Ord, Show)
 
+-- | Acquisition mode of a database connection.
 data ConnectionAcquisitionMode
-  = AcquireOnDemand
-  | AcquireAndHold !IsolationLevel !Permissions
+  = -- | Acquire a connection on demand, i.e. only when a query needs to be
+    -- run. This mode enables you to have a
+    -- t'Database.PostgreSQL.PQTypes.Class.MonadDB' constraint in scope without
+    -- keeping a transaction open, but allows only execution of read only
+    -- queries.
+    AcquireOnDemand
+  | -- | Acquire a connection, start a transaction with a given isolation level
+    -- and permissions and hold onto it for the duration of a
+    -- t'Database.PostgreSQL.PQTypes.Class.MonadDB' constraint in scope.
+    AcquireAndHold !IsolationLevel !Permissions
   deriving (Eq, Ord, Show)
 
 -- | Default transaction settings.

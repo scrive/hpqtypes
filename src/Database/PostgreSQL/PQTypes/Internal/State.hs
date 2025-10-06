@@ -39,6 +39,14 @@ data ConnectionState cdata
   | Acquired !IsolationLevel !Permissions !Connection !cdata
   | Finalized
 
+-- Note: initConnectionState and finalizeConnectionState are invoked inside
+-- bracket and run with asynchronous exceptions softly masked. However, both of
+-- them may run queries that start/finish a transaction. Running queries is a
+-- blocking (and thus interruptible) operation, but if these queries are
+-- interrupted with an asynchronous exception, then a connection is leaked, so
+-- they need to be run with asynchronous exceptions hard masked with
+-- uninterruptibleMask.
+
 initConnectionState
   :: MonadBase IO m
   => InternalConnectionSource m cdata

@@ -51,12 +51,17 @@ class (Applicative m, Monad m) => MonadDB m where
   getConnectionAcquisitionMode :: HasCallStack => m ConnectionAcquisitionMode
 
   -- | Acquire and hold a connection with a given isolation level and
-  -- permissions. If the connection is already held, nothing happens.
+  -- permissions.
+  --
+  -- If the connection is already held, a check is performed if the isolation
+  -- level and permissions are the same as the ones currently in place. If so,
+  -- nothing happens, otherwise an error is thrown.
   acquireAndHoldConnection :: HasCallStack => IsolationLevel -> Permissions -> m ()
 
-  -- | Unsafely switch to the 'AcquireOnDemand' mode. This function is unsafe
-  -- because if a connection is already held, the transaction in progress is
-  -- commited, so atomicity guarantee is lost.
+  -- | Unsafely switch to the 'AcquireOnDemand' mode.
+  --
+  -- This function is unsafe because if a connection is already held, the
+  -- transaction in progress is commited, so atomicity guarantee is lost.
   unsafeAcquireOnDemandConnection :: HasCallStack => m ()
 
   -- | Attempt to receive a notification from the server. This
