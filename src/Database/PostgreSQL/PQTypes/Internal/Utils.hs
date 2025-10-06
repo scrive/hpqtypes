@@ -29,6 +29,7 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 import GHC.Exts
+import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
@@ -82,12 +83,12 @@ textToCString bs = unsafeUseAsCStringLen (T.encodeUtf8 bs) $ \(cs, len) -> do
 
 -- | Check return value of a function from libpqtypes
 -- and if it indicates an error, throw appropriate exception.
-verifyPQTRes :: Ptr PGerror -> String -> CInt -> IO ()
+verifyPQTRes :: HasCallStack => Ptr PGerror -> String -> CInt -> IO ()
 verifyPQTRes err ctx 0 = throwLibPQTypesError err ctx
 verifyPQTRes _ _ _ = pure ()
 
 -- 'alloca'-like function for managing usage of 'PGparam' object.
-withPGparam :: Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
+withPGparam :: HasCallStack => Ptr PGconn -> (Ptr PGparam -> IO r) -> IO r
 withPGparam conn = E.bracket create c_PQparamClear
   where
     create = alloca $ \err -> do
@@ -99,21 +100,21 @@ withPGparam conn = E.bracket create c_PQparamClear
 ----------------------------------------
 
 -- | Throw libpq specific error.
-throwLibPQError :: Ptr PGconn -> String -> IO a
+throwLibPQError :: HasCallStack => Ptr PGconn -> String -> IO a
 throwLibPQError conn ctx = do
   msg <- safePeekCString' =<< c_PQerrorMessage conn
   E.throwIO . LibPQError $
     if null ctx then msg else ctx ++ ": " ++ msg
 
 -- | Throw libpqtypes specific error.
-throwLibPQTypesError :: Ptr PGerror -> String -> IO a
+throwLibPQTypesError :: HasCallStack => Ptr PGerror -> String -> IO a
 throwLibPQTypesError err ctx = do
   msg <- pgErrorMsg <$> peek err
   E.throwIO . LibPQError $
     if null ctx then msg else ctx ++ ": " ++ msg
 
 -- | Rethrow supplied exception enriched with array index.
-rethrowWithArrayError :: CInt -> E.SomeException -> IO a
+rethrowWithArrayError :: HasCallStack => CInt -> E.SomeException -> IO a
 rethrowWithArrayError i (E.SomeException e) =
   E.throwIO
     ArrayItemError
@@ -122,9 +123,9 @@ rethrowWithArrayError i (E.SomeException e) =
       }
 
 -- | Throw 'HPQTypesError exception.
-hpqTypesError :: String -> IO a
+hpqTypesError :: HasCallStack => String -> IO a
 hpqTypesError = E.throwIO . HPQTypesError
 
 -- | Throw 'unexpected NULL' exception.
-unexpectedNULL :: IO a
+unexpectedNULL :: HasCallStack => IO a
 unexpectedNULL = hpqTypesError "unexpected NULL"

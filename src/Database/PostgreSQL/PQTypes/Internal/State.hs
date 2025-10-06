@@ -189,7 +189,7 @@ withConnection ConnectionData {..} action = do
     Finalized -> error "finalized connection"
 
 initConnectionData
-  :: (MonadBase IO m, MonadMask m)
+  :: MonadBase IO m
   => ConnectionSourceM m
   -> ConnectionAcquisitionMode
   -> m (ConnectionData m)
