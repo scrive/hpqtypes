@@ -181,8 +181,8 @@ withConnection ConnectionData {..} action = do
           (putConnection cdConnectionSource)
           ( \(conn, _cdata) ->
               bracket_
-                (liftBase $ runQueryIO @SQL conn "BEGIN READ ONLY")
-                (liftBase $ runQueryIO @SQL conn "ROLLBACK")
+                (liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn "BEGIN READ ONLY")
+                (liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn "ROLLBACK")
                 (action conn)
           )
     Acquired _ _ conn _ -> action conn
