@@ -47,16 +47,18 @@ withSavepoint (Savepoint savepoint) m = do
 
 ----------------------------------------
 
+-- Note: below functions that modify transaction state need to not be
+-- interruptible so we don't end up in unexpected transaction state.
+
 -- | Begin transaction using given transaction settings.
-begin :: (HasCallStack, MonadDB m, MonadThrow m) => m ()
-begin = do
+begin :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+begin = uninterruptibleMask_ $ do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> do
       throwDB $ HPQTypesError "Can't begin a transaction in OnDemand mode"
     AcquireAndHold isolationLevel permissions -> do
       runSQL_ $
-        mintercalate
-          " "
+        smconcat
           [ "BEGIN"
           , case isolationLevel of
               DefaultLevel -> ""
@@ -70,8 +72,8 @@ begin = do
           ]
 
 -- | Commit active transaction using given transaction settings.
-commit :: (HasCallStack, MonadDB m, MonadThrow m) => m ()
-commit = do
+commit :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+commit = uninterruptibleMask_ $ do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> do
       throwDB $ HPQTypesError "Can't commit a transaction in OnDemand mode"
@@ -80,8 +82,8 @@ commit = do
       begin
 
 -- | Rollback active transaction using given transaction settings.
-rollback :: (HasCallStack, MonadDB m, MonadThrow m) => m ()
-rollback = do
+rollback :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+rollback = uninterruptibleMask_ $ do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> do
       throwDB $ HPQTypesError "Can't rollback a transaction in OnDemand mode"
@@ -96,4 +98,8 @@ unsafeWithoutTransaction
 unsafeWithoutTransaction action = do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> action
-    AcquireAndHold {} -> bracket_ (runSQL_ "COMMIT") begin action
+    AcquireAndHold {} ->
+      bracket_
+        (uninterruptibleMask_ $ runSQL_ "COMMIT")
+        begin
+        action

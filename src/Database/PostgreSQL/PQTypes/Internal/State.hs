@@ -47,21 +47,25 @@ initConnectionState
 initConnectionState ics = \case
   AcquireOnDemand -> pure OnDemand
   AcquireAndHold tsIsolationLevel tsPermissions -> do
-    let isolationLevel = case tsIsolationLevel of
-          DefaultLevel -> ""
-          ReadCommitted -> "ISOLATION LEVEL READ COMMITTED"
-          RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
-          Serializable -> "ISOLATION LEVEL SERIALIZABLE"
-        permissions = case tsPermissions of
-          DefaultPermissions -> ""
-          ReadOnly -> "READ ONLY"
-          ReadWrite -> "READ WRITE"
+    let initSql =
+          smconcat
+            [ "BEGIN"
+            , case tsIsolationLevel of
+                DefaultLevel -> ""
+                ReadCommitted -> "ISOLATION LEVEL READ COMMITTED"
+                RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
+                Serializable -> "ISOLATION LEVEL SERIALIZABLE"
+            , case tsPermissions of
+                DefaultPermissions -> ""
+                ReadOnly -> "READ ONLY"
+                ReadWrite -> "READ WRITE"
+            ]
     (conn, cdata) <- takeConnection ics
-    _ <- liftBase . runQueryIO @SQL conn $ "BEGIN" <+> isolationLevel <+> permissions
+    _ <- liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn initSql
     pure $ Acquired tsIsolationLevel tsPermissions conn cdata
 
 finalizeConnectionState
-  :: (HasCallStack, MonadBase IO m, MonadMask m)
+  :: (HasCallStack, MonadBase IO m)
   => InternalConnectionSource m cdata
   -> ExitCase r
   -> ConnectionState cdata
@@ -69,9 +73,10 @@ finalizeConnectionState
 finalizeConnectionState ics ec = \case
   OnDemand -> pure ()
   Acquired _ _ conn cdata -> do
-    _ <- liftBase . runQueryIO @SQL conn $ case ec of
-      ExitCaseSuccess _ -> "COMMIT"
-      _ -> "ROLLBACK"
+    let finalizeSql = case ec of
+          ExitCaseSuccess _ -> "COMMIT"
+          _ -> "ROLLBACK"
+    _ <- liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn finalizeSql
     putConnection ics (conn, cdata) ec
   Finalized -> error "finalized connection"
 
@@ -184,7 +189,7 @@ withConnection ConnectionData {..} action = do
     Finalized -> error "finalized connection"
 
 initConnectionData
-  :: MonadBase IO m
+  :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
   -> ConnectionAcquisitionMode
   -> m (ConnectionData m)

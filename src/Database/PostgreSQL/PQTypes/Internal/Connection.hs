@@ -334,14 +334,16 @@ runQueryImpl
   -> IO (Int, ForeignPtr PGresult)
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
 runQueryImpl Connection {..} sql execSql = do
-  E.mask $ \restore -> do
+  E.uninterruptibleMask $ \restore -> do
     -- While the query runs, the current thread will not be able to receive
     -- asynchronous exceptions. This prevents clients of the library from
     -- interrupting execution of the query. To remedy that we spawn a separate
     -- thread for the query execution and while we wait for its completion, we
     -- are able to receive asynchronous exceptions (assuming that threaded GHC
     -- runtime system is used) and react appropriately.
-    queryRunner <- async . restore $ do
+    queryRunner <- asyncWithUnmask $ \unmask -> unmask $ do
+      -- Uncoditionally unmask asynchronous exceptions here so that 'cancel'
+      -- operation potentially invoked below works as expected.
       t1 <- getMonotonicTime
       (paramCount, res) <- execSql
       t2 <- getMonotonicTime
@@ -370,7 +372,7 @@ runQueryImpl Connection {..} sql execSql = do
     -- for the query runner thread to terminate. It is paramount we make the
     -- exception handler uninterruptible as we can't exit from the main block
     -- until the query runner thread has terminated.
-    E.onException (restore $ wait queryRunner) . E.uninterruptibleMask_ $ do
+    E.onException (restore $ wait queryRunner) $ do
       c_PQcancel connPtr >>= \case
         -- If query cancellation request was successfully processed, there is
         -- nothing else to do apart from waiting for the runner to terminate.
