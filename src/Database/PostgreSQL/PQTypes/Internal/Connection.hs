@@ -129,13 +129,13 @@ data Connection = Connection
   }
 
 data InternalConnectionSource m cdata = InternalConnectionSource
-  { takeConnection :: m (Connection, cdata)
-  , putConnection :: forall r. (Connection, cdata) -> ExitCase r -> m ()
+  { takeConnection :: !(m (Connection, cdata))
+  , putConnection :: !(forall r. (Connection, cdata) -> ExitCase r -> m ())
   }
 
 -- | Database connection supplier.
 data ConnectionSourceM m
-  = forall cdata. ConnectionSourceM (InternalConnectionSource m cdata)
+  = forall cdata. ConnectionSourceM !(InternalConnectionSource m cdata)
 
 -- | Wrapper for a polymorphic connection source.
 newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSource
