@@ -342,7 +342,7 @@ runQueryImpl Connection {..} sql execSql = do
     -- are able to receive asynchronous exceptions (assuming that threaded GHC
     -- runtime system is used) and react appropriately.
     queryRunner <- asyncWithUnmask $ \unmask -> unmask $ do
-      -- Uncoditionally unmask asynchronous exceptions here so that 'cancel'
+      -- Unconditionally unmask asynchronous exceptions here so that 'cancel'
       -- operation potentially invoked below works as expected.
       t1 <- getMonotonicTime
       (paramCount, res) <- execSql
