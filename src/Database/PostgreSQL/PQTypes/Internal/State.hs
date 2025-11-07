@@ -107,7 +107,7 @@ getConnectionAcquisitionModeIO ConnectionData {..} = do
     OnDemand -> pure AcquireOnDemand
     Acquired isolationLevel permissions _ _ -> do
       pure $ AcquireAndHold isolationLevel permissions
-    Finalized -> error "finalized connectio"
+    Finalized -> error "finalized connection"
 
 withConnectionData
   :: (HasCallStack, MonadBase IO m, MonadMask m)
