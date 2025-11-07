@@ -39,13 +39,13 @@ data ConnectionState cdata
   | Acquired !IsolationLevel !Permissions !Connection !cdata
   | Finalized
 
--- Note: initConnectionState and finalizeConnectionState are invoked inside
--- bracket and run with asynchronous exceptions softly masked. However, both of
--- them may run queries that start/finish a transaction. Running queries is a
--- blocking (and thus interruptible) operation, but if these queries are
--- interrupted with an asynchronous exception, then a connection is leaked, so
--- they need to be run with asynchronous exceptions hard masked with
--- uninterruptibleMask.
+-- Note: initConnection{State,Data} and finalizeConnection{State,Data} need to
+-- be invoked inside bracket and run with asynchronous exceptions softly
+-- masked. In addition, they may run queries that start/finish a
+-- transaction. Running queries is a blocking (and thus interruptible)
+-- operation, but if these queries are interrupted with an asynchronous
+-- exception, then a connection is leaked, so they need to be run with
+-- asynchronous exceptions hard masked with uninterruptibleMask.
 
 initConnectionState
   :: MonadBase IO m
@@ -146,15 +146,20 @@ changeAcquisitionModeTo
   => ConnectionAcquisitionMode
   -> ConnectionData m
   -> m ()
-changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
+changeAcquisitionModeTo cam ConnectionData {..} = do
   bracketOnError (takeMVar cdConnectionState) (putMVar cdConnectionState) $ \case
     OnDemand -> case cam of
       AcquireOnDemand -> putMVar cdConnectionState OnDemand
-      _ -> do
+      _ -> mask_ $ do
+        -- Need to mask, if asynchronous exception arrives between
+        -- initConnectionState and putMVar, the connection leaks.
         newConnState <- initConnectionState cdConnectionSource cam
         putMVar cdConnectionState newConnState
     connState@(Acquired isolationLevel permissions _ _) -> case cam of
-      AcquireOnDemand -> do
+      AcquireOnDemand -> mask_ $ do
+        -- Need to mask, if asynchronous exception arrives between
+        -- finalizeConnectionState and putMVar, we end up with an invalid
+        -- (finalized) connection state.
         finalizeConnectionState cdConnectionSource (ExitCaseSuccess ()) connState
         putMVar cdConnectionState OnDemand
       AcquireAndHold newIsolationLevel newPermissions -> do
