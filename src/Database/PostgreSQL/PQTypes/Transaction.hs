@@ -30,7 +30,7 @@ instance IsString Savepoint where
 --
 -- See <http://www.postgresql.org/docs/current/static/sql-savepoint.html>
 withSavepoint :: (HasCallStack, MonadDB m, MonadMask m) => Savepoint -> m a -> m a
-withSavepoint (Savepoint savepoint) m = do
+withSavepoint (Savepoint savepoint) m =
   fst
     <$> generalBracket
       (runQuery_ $ "SAVEPOINT" <+> savepoint)
