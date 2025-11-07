@@ -49,7 +49,7 @@ data ConnectionAcquisitionMode
   = -- | Acquire a connection on demand, i.e. only when a query needs to be
     -- run. This mode enables you to have a
     -- t'Database.PostgreSQL.PQTypes.Class.MonadDB' constraint in scope without
-    -- keeping a transaction open, but allows only execution of read only
+    -- keeping a transaction open, but is limited to executionn of read only
     -- queries.
     AcquireOnDemand
   | -- | Acquire a connection, start a transaction with a given isolation level
