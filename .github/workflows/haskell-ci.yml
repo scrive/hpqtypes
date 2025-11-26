@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.19.20250917
+# version: 0.19.20251118
 #
-# REGENDATA ("0.19.20250917",["github","--config=cabal.haskell-ci","cabal.project"])
+# REGENDATA ("0.19.20251118",["github","--config=cabal.haskell-ci","cabal.project"])
 #
 name: Haskell-CI
 on:
@@ -41,9 +41,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: ghc-9.14.0.20250908
+          - compiler: ghc-9.14.0.20251104
             compilerKind: ghc
-            compilerVersion: 9.14.0.20250908
+            compilerVersion: 9.14.0.20251104
             setup-method: ghcup-prerelease
             allow-failure: false
           - compiler: ghc-9.12.2
