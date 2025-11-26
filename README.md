@@ -1,8 +1,7 @@
 # hpqtypes
 
-[![Build Status](https://github.com/scrive/hpqtypes/workflows/Haskell-CI/badge.svg?branch=master)](https://github.com/scrive/hpqtypes/actions?query=branch%3Amaster)
+[![CI](https://github.com/scrive/hpqtypes/actions/workflows/haskell-ci.yml/badge.svg?branch=master)](https://github.com/scrive/hpqtypes/actions/workflows/haskell-ci.yml)
 [![Hackage](https://img.shields.io/hackage/v/hpqtypes.svg)](https://hackage.haskell.org/package/hpqtypes)
-[![Dependencies](https://img.shields.io/hackage-deps/v/hpqtypes.svg)](https://packdeps.haskellers.com/feed?needle=andrzej@rybczak.net)
 [![Stackage LTS](https://www.stackage.org/package/hpqtypes/badge/lts)](https://www.stackage.org/lts/package/hpqtypes)
 [![Stackage Nightly](https://www.stackage.org/package/hpqtypes/badge/nightly)](https://www.stackage.org/nightly/package/hpqtypes)
 
