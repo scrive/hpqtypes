@@ -1,26 +1,19 @@
 module Database.PostgreSQL.PQTypes.Transaction
   ( Savepoint (..)
   , withSavepoint
-  , withTransaction
   , begin
   , commit
   , rollback
-  , withTransaction'
-  , begin'
-  , commit'
-  , rollback'
+  , unsafeWithoutTransaction
   ) where
 
-import Control.Monad
 import Control.Monad.Catch
-import Data.Function
 import Data.String
-import Data.Typeable
 import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
@@ -54,93 +47,65 @@ withSavepoint (Savepoint savepoint) m =
 
 ----------------------------------------
 
--- | Same as 'withTransaction'' except that it uses current
--- transaction settings instead of custom ones.  It is worth
--- noting that changing transaction settings inside supplied
--- monadic action won't have any effect  on the final 'commit'
--- / 'rollback' as settings that were in effect during the call
--- to 'withTransaction' will be used.
-withTransaction :: (HasCallStack, MonadDB m, MonadMask m) => m a -> m a
-withTransaction m = getTransactionSettings >>= flip withTransaction' m
-
--- | Begin transaction using current transaction settings.
-begin :: (HasCallStack, MonadDB m) => m ()
-begin = getTransactionSettings >>= begin'
-
--- | Commit active transaction using current transaction settings.
-commit :: (HasCallStack, MonadDB m) => m ()
-commit = getTransactionSettings >>= commit'
-
--- | Rollback active transaction using current transaction settings.
-rollback :: (HasCallStack, MonadDB m) => m ()
-rollback = getTransactionSettings >>= rollback'
-
-----------------------------------------
-
--- | Execute monadic action within a transaction using given transaction
--- settings. Note that it won't work as expected if a transaction is already
--- active (in such case 'withSavepoint' should be used instead).
-withTransaction'
-  :: (HasCallStack, MonadDB m, MonadMask m)
-  => TransactionSettings
-  -> m a
-  -> m a
-withTransaction' ts m = (`fix` 1) $ \loop n -> do
-  -- Optimization for squashing possible space leaks.
-  -- It looks like GHC doesn't like 'catch' and passes
-  -- on introducing strictness in some cases.
-  let maybeRestart = case tsRestartPredicate ts of
-        Just _ -> handleJust (expred n) (\_ -> loop $ n + 1)
-        Nothing -> id
-  maybeRestart $
-    fst
-      <$> generalBracket
-        (begin' ts)
-        ( \() -> \case
-            ExitCaseSuccess _ -> commit' ts
-            _ -> rollback' ts
-        )
-        (\() -> m)
-  where
-    expred :: Integer -> SomeException -> Maybe ()
-    expred !n e = do
-      -- check if the predicate exists
-      RestartPredicate f <- tsRestartPredicate ts
-      -- cast exception to the type expected by the predicate
-      err <-
-        msum
-          [ -- either cast the exception itself...
-            fromException e
-          , -- ...or extract it from DBException
-            fromException e >>= \DBException {..} -> cast dbeError
-          ]
-      -- check if the predicate allows for the restart
-      guard $ f err n
+-- Note: sql queries in below functions that modify transaction state need to
+-- not be interruptible so we don't end up in unexpected transaction
+-- state. However, getConnectionAcquisitionMode should be interruptible to not
+-- lead to deadlocks if a connection ends up being used from multiple threads.
 
 -- | Begin transaction using given transaction settings.
-begin' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
-begin' ts = runSQL_ . mintercalate " " $ ["BEGIN", isolationLevel, permissions]
-  where
-    isolationLevel = case tsIsolationLevel ts of
-      DefaultLevel -> ""
-      ReadCommitted -> "ISOLATION LEVEL READ COMMITTED"
-      RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
-      Serializable -> "ISOLATION LEVEL SERIALIZABLE"
-    permissions = case tsPermissions ts of
-      DefaultPermissions -> ""
-      ReadOnly -> "READ ONLY"
-      ReadWrite -> "READ WRITE"
+begin :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+begin = do
+  getConnectionAcquisitionMode >>= \case
+    AcquireOnDemand -> do
+      throwDB $ HPQTypesError "Can't begin a transaction in OnDemand mode"
+    AcquireAndHold isolationLevel permissions -> uninterruptibleMask_ $ do
+      runSQL_ $
+        smconcat
+          [ "BEGIN"
+          , case isolationLevel of
+              DefaultLevel -> ""
+              ReadCommitted -> "ISOLATION LEVEL READ COMMITTED"
+              RepeatableRead -> "ISOLATION LEVEL REPEATABLE READ"
+              Serializable -> "ISOLATION LEVEL SERIALIZABLE"
+          , case permissions of
+              DefaultPermissions -> ""
+              ReadOnly -> "READ ONLY"
+              ReadWrite -> "READ WRITE"
+          ]
 
 -- | Commit active transaction using given transaction settings.
-commit' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
-commit' ts = do
-  runSQL_ "COMMIT"
-  when (tsAutoTransaction ts) $
-    begin' ts
+commit :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+commit = do
+  getConnectionAcquisitionMode >>= \case
+    AcquireOnDemand -> do
+      throwDB $ HPQTypesError "Can't commit a transaction in OnDemand mode"
+    AcquireAndHold {} -> uninterruptibleMask_ $ do
+      runSQL_ "COMMIT"
+      begin
 
 -- | Rollback active transaction using given transaction settings.
-rollback' :: (HasCallStack, MonadDB m) => TransactionSettings -> m ()
-rollback' ts = do
-  runSQL_ "ROLLBACK"
-  when (tsAutoTransaction ts) $
-    begin' ts
+rollback :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+rollback = do
+  getConnectionAcquisitionMode >>= \case
+    AcquireOnDemand -> do
+      throwDB $ HPQTypesError "Can't rollback a transaction in OnDemand mode"
+    AcquireAndHold {} -> uninterruptibleMask_ $ do
+      runSQL_ "ROLLBACK"
+      begin
+
+-- | Run a block of code without an open transaction.
+--
+-- This function is unsafe, because if there is a transaction in progress, it's
+-- commited, so the atomicity guarantee is lost.
+unsafeWithoutTransaction
+  :: (HasCallStack, MonadDB m, MonadMask m)
+  => m a
+  -> m a
+unsafeWithoutTransaction action = do
+  getConnectionAcquisitionMode >>= \case
+    AcquireOnDemand -> action
+    AcquireAndHold {} ->
+      bracket_
+        (uninterruptibleMask_ $ runSQL_ "COMMIT")
+        begin
+        action

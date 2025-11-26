@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-deprecations -Wno-orphans #-}
 
 module Main (main) where
 
@@ -208,9 +208,6 @@ eqCompositeArray2 a b = a == b
 
 ----------------------------------------
 
-tsNoTrans :: TransactionSettings
-tsNoTrans = defaultTransactionSettings {tsAutoTransaction = False}
-
 randomValue :: Arbitrary t => Int -> TestEnv t
 randomValue n = withQCGen $ \gen -> unGen arbitrary gen n
 
@@ -294,7 +291,7 @@ cursorTest td =
             moved
 
     withHoldCursorWorks = testCase "Cursor declared as WITH HOLD works" $ do
-      runTestEnv td tsNoTrans $ do
+      runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
         withCursor "ints" NoScroll Hold (sqlGenInts 10) $ \cursor -> do
           cursorFetch_ cursor CD_Forward_All
           sum_ :: Int32 <- sum . fmap runIdentity <$> queryResult
@@ -310,7 +307,7 @@ queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
   let sleep = "SELECT pg_sleep(2)"
       ints = sqlGenInts 5000000
-  runTestEnv td tsNoTrans $ do
+  runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
     testQuery id sleep
     testQuery id ints
   runTestEnv td defaultTransactionSettings $ do
@@ -325,7 +322,8 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
 
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works"
-  . runTestEnv td tsNoTrans
+  . runTestEnv td defaultTransactionSettings
+  . unsafeWithoutTransaction
   $ do
     let sint = Identity (1 :: Int32)
     runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
@@ -395,7 +393,7 @@ readOnlyTest :: TestData -> Test
 readOnlyTest td = testCase "Read only transaction mode works"
   . runTestEnv
     td
-    defaultTransactionSettings {tsPermissions = ReadOnly}
+    defaultTransactionSettings {tsConnectionAcquisitionMode = AcquireAndHold DefaultLevel ReadOnly}
   $ do
     let sint = Identity (2 :: Int32)
     eres <- try . runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
@@ -436,7 +434,7 @@ savepointTest td = testCase "Savepoint support works"
     assertEqualEq "Result of all queries is visible" [int1, int2] res2
 
 notifyTest :: TestData -> Test
-notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
+notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
   listen chan
   forkNewConn $ notify chan payload
   mnt1 <- getNotification 250000
@@ -458,7 +456,17 @@ notifyTest td = testCase "Notifications work" . runTestEnv td tsNoTrans $ do
   where
     chan = "test_channel"
     payload = "test_payload"
-    forkNewConn = void . fork . withNewConnection
+    forkNewConn action = do
+      sem <- newEmptyMVar
+      void . fork . withNewConnection $ do
+        -- withNewConnection needs access to the connection state to get current
+        -- ConnectionAcquisitionMode, but getNotification called immediately
+        -- after takes ownership of the connection state for its duration, so if
+        -- CPU gets to it first, withNewConnection will block and notification
+        -- will never be sent.
+        putMVar sem ()
+        action
+      takeMVar sem
 
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl =
@@ -468,7 +476,7 @@ transactionTest td lvl =
     )
     . runTestEnv
       td
-      defaultTransactionSettings {tsIsolationLevel = lvl}
+      defaultTransactionSettings {tsConnectionAcquisitionMode = AcquireAndHold lvl DefaultPermissions}
     $ do
       let sint = Identity (5 :: Int32)
       runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
@@ -545,6 +553,39 @@ xmlTest td = testCase "Put and get XML value works"
     assertEqualEq "XML value correct" v v''
     runSQL_ "SET CLIENT_ENCODING TO 'latin-1'"
 
+onDemandTest :: TestData -> Test
+onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do
+  runSQL_ "SELECT a FROM test1_"
+  _ <- fetchMany $ id @(Identity Int32)
+
+  er <- try . runSQL_ $ "INSERT INTO test1_ (a) VALUES (" <?> v <+> ")"
+  liftBase $ case er of
+    Left DBException {..}
+      | Just DetailedQueryError {..} <- cast dbeError -> do
+          assertEqualEq "Unexpected error code" ReadOnlySqlTransaction qeErrorCode
+      | otherwise -> assertFailure $ "Unexpected exception: " ++ show dbeError
+    Right () -> assertFailure "DBException wasn't thrown"
+
+  acquireAndHoldConnection DefaultLevel DefaultPermissions
+  runSQL_ "SHOW transaction_read_only"
+  Identity ("off" :: T.Text) <- fetchOne id
+  -- Switch twice to check idempotency.
+  acquireAndHoldConnection DefaultLevel DefaultPermissions
+  runSQL_ $ "INSERT INTO test1_ (a) VALUES (" <?> v <+> ")"
+
+  unsafeAcquireOnDemandConnection
+  runSQL_ "SHOW transaction_read_only"
+  Identity ("on" :: T.Text) <- fetchOne id
+  -- Switch twice to check idempotency.
+  unsafeAcquireOnDemandConnection
+  n <- runSQL $ "SELECT TRUE FROM test1_ WHERE a =" <?> v
+  assertEqualEq "Unexpected amount of rows" 1 n
+  where
+    ts = defaultTransactionSettings {tsConnectionAcquisitionMode = AcquireOnDemand}
+
+    v :: Int32
+    v = 1337
+
 rowTest
   :: forall row
    . (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
@@ -585,6 +626,7 @@ tests td =
   , queryInterruptionTest td
   , cursorTest td
   , uuidTest td
+  , onDemandTest td
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
   , transactionTest td Serializable

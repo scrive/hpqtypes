@@ -1,14 +1,12 @@
 module Database.PostgreSQL.PQTypes.Internal.Connection
   ( -- * Connection
     Connection (..)
-  , getBackendPidIO
-  , ConnectionData (..)
-  , withConnectionData
   , ConnectionStats (..)
   , initialConnectionStats
   , ConnectionSettings (..)
   , defaultConnectionSettings
   , ConnectionSourceM (..)
+  , InternalConnectionSource (..)
   , ConnectionSource (..)
   , simpleSource
   , poolSource
@@ -121,58 +119,41 @@ initialConnectionStats =
 -- executing an SQL query).
 --
 -- See https://gitlab.haskell.org/ghc/ghc/-/issues/10975 for more info.
-data ConnectionData = ConnectionData
-  { cdPtr :: !(Ptr PGconn)
+data Connection = Connection
+  { connPtr :: !(Ptr PGconn)
   -- ^ Pointer to connection object.
-  , cdBackendPid :: !BackendPid
+  , connBackendPid :: !BackendPid
   -- ^ Process ID of the server process attached to the current session.
-  , cdStats :: !ConnectionStats
-  -- ^ Statistics associated with the connection.
-  , cdPreparedQueries :: !(IORef (S.Set T.Text))
+  , connPreparedQueries :: !(IORef (S.Set T.Text))
   -- ^ A set of named prepared statements of the connection.
   }
 
--- | Wrapper for hiding representation of a connection object.
-newtype Connection = Connection
-  { unConnection :: MVar (Maybe ConnectionData)
+data InternalConnectionSource m cdata = InternalConnectionSource
+  { takeConnection :: !(m (Connection, cdata))
+  , putConnection :: !(forall r. (Connection, cdata) -> ExitCase r -> m ())
   }
-
-getBackendPidIO :: Connection -> IO BackendPid
-getBackendPidIO conn = do
-  withConnectionData conn "getBackendPidIO" $ \cd -> do
-    pure (cd, cdBackendPid cd)
-
-withConnectionData
-  :: Connection
-  -> String
-  -> (ConnectionData -> IO (ConnectionData, r))
-  -> IO r
-withConnectionData (Connection mvc) fname f = modifyMVar mvc $ \case
-  Nothing -> hpqTypesError $ fname ++ ": no connection"
-  Just cd -> do
-    (cd', r) <- f cd
-    cd' `seq` pure (Just cd', r)
 
 -- | Database connection supplier.
-newtype ConnectionSourceM m = ConnectionSourceM
-  { withConnection :: forall r. (Connection -> m r) -> m r
-  }
+data ConnectionSourceM m
+  = forall cdata. ConnectionSourceM !(InternalConnectionSource m cdata)
 
 -- | Wrapper for a polymorphic connection source.
 newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSource
   { unConnectionSource :: forall m. MkConstraint m cs => ConnectionSourceM m
   }
 
--- | Default connection supplier. It establishes new
--- database connection each time 'withConnection' is called.
+-- | Default connection supplier. It establishes new database connection each
+-- time 'withConnection' is called.
 simpleSource
   :: ConnectionSettings
   -> ConnectionSource [MonadBase IO, MonadMask]
 simpleSource cs =
   ConnectionSource $
     ConnectionSourceM
-      { withConnection = bracket (liftBase $ connect cs) (liftBase . disconnect)
-      }
+      InternalConnectionSource
+        { takeConnection = (,()) <$> liftBase (connect cs)
+        , putConnection = \(conn, ()) _ -> liftBase $ disconnect conn
+        }
 
 -- | Pooled source. It uses striped pool from @resource-pool@ package to cache
 -- established connections and reuse them.
@@ -190,23 +171,12 @@ poolSource cs mkPoolConfig = do
   where
     sourceM pool =
       ConnectionSourceM
-        { withConnection = doWithConnection pool . (clearStats >=>)
-        }
-
-    doWithConnection pool m =
-      fst
-        <$> generalBracket
-          (liftBase $ takeResource pool)
-          ( \(resource, local) -> \case
+        InternalConnectionSource
+          { takeConnection = liftBase $ takeResource pool
+          , putConnection = \(resource, local) -> \case
               ExitCaseSuccess _ -> liftBase $ putResource local resource
               _ -> liftBase $ destroyResource pool local resource
-          )
-          (\(resource, _) -> m resource)
-
-    clearStats conn@(Connection mv) = do
-      liftBase . modifyMVar_ mv $ \mconn ->
-        pure $ (\cd -> cd {cdStats = initialConnectionStats}) <$> mconn
-      pure conn
+          }
 
 ----------------------------------------
 
@@ -230,29 +200,22 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
     registerComposites connPtr csComposites
     conn <- do
       preparedQueries <- newIORef S.empty
-      fmap Connection . newMVar $
-        Just
-          ConnectionData
-            { cdPtr = connPtr
-            , cdBackendPid = noBackendPid
-            , cdStats = initialConnectionStats
-            , cdPreparedQueries = preparedQueries
-            }
+      pure
+        Connection
+          { connPtr = connPtr
+          , connBackendPid = noBackendPid
+          , connPreparedQueries = preparedQueries
+          }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
 
     let selectPid = "SELECT pg_backend_pid()" :: RawSQL ()
-    (_, res) <- runQueryIO conn selectPid
+    (_, res, _) <- runQueryIO conn selectPid
     case F.toList $ mkQueryResult @(Identity Int32) selectPid noBackendPid res of
-      [pid] -> withConnectionData conn fname $ \cd -> do
-        pure (cd {cdBackendPid = BackendPid $ fromIntegral pid}, ())
+      [pid] -> pure $ conn {connBackendPid = BackendPid $ fromIntegral pid}
       pids -> do
         let err = HPQTypesError $ "unexpected backend pid: " ++ show pids
         rethrowWithContext selectPid noBackendPid $ toException err
-
-    pure conn
   where
-    noBackendPid = BackendPid 0
-
     fname = "connect"
 
     openConnection :: (forall r. IO r -> IO r) -> CString -> IO (Ptr PGconn)
@@ -299,21 +262,16 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
 -- | Low-level function for disconnecting from the database. Useful if one wants
 -- to implement custom connection source.
 disconnect :: Connection -> IO ()
-disconnect (Connection mvconn) = modifyMVar_ mvconn $ \mconn -> do
-  case mconn of
-    Just cd -> do
-      let conn = cdPtr cd
-      -- This covers the case when a connection is closed while other Haskell
-      -- threads are using GHC's IO manager to wait on the descriptor. This is
-      -- commonly the case with asynchronous notifications, for example. Since
-      -- libpq is responsible for opening and closing the file descriptor, GHC's
-      -- IO manager needs to be informed that the file descriptor has been
-      -- closed. The IO manager will then raise an exception in those threads.
-      c_PQsocket conn >>= \case
-        -1 -> c_PQfinish conn -- can happen if the connection is bad/lost
-        fd -> closeFdWith (\_ -> c_PQfinish conn) fd
-    Nothing -> E.throwIO (HPQTypesError "disconnect: no connection (shouldn't happen)")
-  pure Nothing
+disconnect Connection {..} = do
+  -- This covers the case when a connection is closed while other Haskell
+  -- threads are using GHC's IO manager to wait on the descriptor. This is
+  -- commonly the case with asynchronous notifications, for example. Since libpq
+  -- is responsible for opening and closing the file descriptor, GHC's IO
+  -- manager needs to be informed that the file descriptor has been closed. The
+  -- IO manager will then raise an exception in those threads.
+  c_PQsocket connPtr >>= \case
+    -1 -> c_PQfinish connPtr -- can happen if the connection is bad/lost
+    fd -> closeFdWith (\_ -> c_PQfinish connPtr) fd
 
 ----------------------------------------
 -- Query running
@@ -323,14 +281,14 @@ runQueryIO
   :: (HasCallStack, IsSQL sql)
   => Connection
   -> sql
-  -> IO (Int, ForeignPtr PGresult)
-runQueryIO conn sql = do
-  runQueryImpl "runQueryIO" conn sql $ \ConnectionData {..} -> do
-    let allocParam = ParamAllocator $ withPGparam cdPtr
+  -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
+runQueryIO conn@Connection {..} sql = do
+  runQueryImpl conn sql $ do
+    let allocParam = ParamAllocator $ withPGparam connPtr
     withSQL sql allocParam $ \param query ->
       (,)
         <$> (fromIntegral <$> c_PQparamCount param)
-        <*> c_PQparamExec cdPtr nullPtr param query c_RESULT_BINARY
+        <*> c_PQparamExec connPtr nullPtr param query c_RESULT_BINARY
 
 -- | Name of a prepared query.
 newtype QueryName = QueryName T.Text
@@ -342,95 +300,103 @@ runPreparedQueryIO
   => Connection
   -> QueryName
   -> sql
-  -> IO (Int, ForeignPtr PGresult)
-runPreparedQueryIO conn (QueryName queryName) sql = do
-  runQueryImpl "runPreparedQueryIO" conn sql $ \ConnectionData {..} -> do
+  -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
+runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
+  runQueryImpl conn sql $ do
     when (T.null queryName) $ do
       E.throwIO
         DBException
           { dbeQueryContext = sql
-          , dbeBackendPid = cdBackendPid
+          , dbeBackendPid = connBackendPid
           , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
           , dbeCallStack = callStack
           }
-    let allocParam = ParamAllocator $ withPGparam cdPtr
+    let allocParam = ParamAllocator $ withPGparam connPtr
     withSQL sql allocParam $ \param query -> do
-      preparedQueries <- readIORef cdPreparedQueries
+      preparedQueries <- readIORef connPreparedQueries
       BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
         when (queryName `S.notMember` preparedQueries) . E.mask_ $ do
           -- Mask asynchronous exceptions, because if preparation of the query
           -- succeeds, we need to reflect that fact in cdPreparedQueries since
           -- you can't prepare a query with the same name more than once.
-          res <- c_PQparamPrepare cdPtr nullPtr param cname query
-          void . withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
-          modifyIORef' cdPreparedQueries $ S.insert queryName
+          res <- c_PQparamPrepare connPtr nullPtr param cname query
+          void . withForeignPtr res $ verifyResult sql connBackendPid connPtr
+          modifyIORef' connPreparedQueries $ S.insert queryName
         (,)
           <$> (fromIntegral <$> c_PQparamCount param)
-          <*> c_PQparamExecPrepared cdPtr nullPtr param cname c_RESULT_BINARY
+          <*> c_PQparamExecPrepared connPtr nullPtr param cname c_RESULT_BINARY
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
 runQueryImpl
   :: (HasCallStack, IsSQL sql)
-  => String
-  -> Connection
+  => Connection
   -> sql
-  -> (ConnectionData -> IO (Int, ForeignPtr PGresult))
   -> IO (Int, ForeignPtr PGresult)
-runQueryImpl fname conn sql execSql = do
-  withConnDo $ \cd@ConnectionData {..} -> E.mask $ \restore -> do
-    -- While the query runs, the current thread will not be able to receive
-    -- asynchronous exceptions. This prevents clients of the library from
-    -- interrupting execution of the query. To remedy that we spawn a separate
-    -- thread for the query execution and while we wait for its completion, we
-    -- are able to receive asynchronous exceptions (assuming that threaded GHC
-    -- runtime system is used) and react appropriately.
-    queryRunner <- async . restore $ do
+  -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
+runQueryImpl Connection {..} sql execSql = do
+  E.getMaskingState >>= \case
+    E.MaskedUninterruptible -> do
+      -- If asynchronous exceptions are already hard-masked, skip spawning a
+      -- separate worker thread and the interruption logic as it won't do
+      -- anything at this point.
+      doRunQuery
+    _ -> E.uninterruptibleMask $ \restore -> do
+      -- While the query runs, the current thread will not be able to receive
+      -- asynchronous exceptions. This prevents clients of the library from
+      -- interrupting execution of the query. To remedy that we spawn a separate
+      -- thread for the query execution and while we wait for its completion, we
+      -- are able to receive asynchronous exceptions (assuming that threaded GHC
+      -- runtime system is used) and react appropriately.
+      queryRunner <- asyncWithUnmask $ \unmask -> do
+        -- Unconditionally unmask asynchronous exceptions here so that 'cancel'
+        -- operation potentially invoked below works as expected.
+        unmask doRunQuery
+      -- If we receive an exception while waiting for the execution to complete,
+      -- we need to send a request to PostgreSQL for query cancellation and wait
+      -- for the query runner thread to terminate. It is paramount we make the
+      -- exception handler uninterruptible as we can't exit from the main block
+      -- until the query runner thread has terminated.
+      E.onException (restore $ wait queryRunner) $ do
+        c_PQcancel connPtr >>= \case
+          -- If query cancellation request was successfully processed, there is
+          -- nothing else to do apart from waiting for the runner to terminate.
+          Nothing -> cancel queryRunner
+          -- Otherwise we check what happened with the runner. If it already
+          -- finished we're fine, just ignore the result. If it didn't, something
+          -- weird is going on. Maybe the cancellation request went through when
+          -- the thread wasn't making a request to the server? In any case, try to
+          -- cancel again and wait for the thread to terminate.
+          Just _ ->
+            poll queryRunner >>= \case
+              Just _ -> pure ()
+              Nothing -> do
+                void $ c_PQcancel connPtr
+                cancel queryRunner
+  where
+    doRunQuery = do
       t1 <- getMonotonicTime
-      (paramCount, res) <- execSql cd
+      (paramCount, res) <- execSql
       t2 <- getMonotonicTime
-      affected <- withForeignPtr res $ verifyResult sql cdBackendPid cdPtr
-      stats' <- case affected of
+      affected <- withForeignPtr res $ verifyResult sql connBackendPid connPtr
+      updateStats <- case affected of
         Left _ ->
-          pure
-            cdStats
-              { statsQueries = statsQueries cdStats + 1
-              , statsParams = statsParams cdStats + paramCount
-              , statsTime = statsTime cdStats + (t2 - t1)
+          pure $ \stats ->
+            stats
+              { statsQueries = statsQueries stats + 1
+              , statsParams = statsParams stats + paramCount
+              , statsTime = statsTime stats + (t2 - t1)
               }
         Right rows -> do
           columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-          pure
+          pure $ \stats ->
             ConnectionStats
-              { statsQueries = statsQueries cdStats + 1
-              , statsRows = statsRows cdStats + rows
-              , statsValues = statsValues cdStats + (rows * columns)
-              , statsParams = statsParams cdStats + paramCount
-              , statsTime = statsTime cdStats + (t2 - t1)
+              { statsQueries = statsQueries stats + 1
+              , statsRows = statsRows stats + rows
+              , statsValues = statsValues stats + (rows * columns)
+              , statsParams = statsParams stats + paramCount
+              , statsTime = statsTime stats + (t2 - t1)
               }
-      pure (cd {cdStats = stats'}, (either id id affected, res))
-    -- If we receive an exception while waiting for the execution to complete,
-    -- we need to send a request to PostgreSQL for query cancellation and wait
-    -- for the query runner thread to terminate. It is paramount we make the
-    -- exception handler uninterruptible as we can't exit from the main block
-    -- until the query runner thread has terminated.
-    E.onException (restore $ wait queryRunner) . E.uninterruptibleMask_ $ do
-      c_PQcancel cdPtr >>= \case
-        -- If query cancellation request was successfully processed, there is
-        -- nothing else to do apart from waiting for the runner to terminate.
-        Nothing -> cancel queryRunner
-        -- Otherwise we check what happened with the runner. If it already
-        -- finished we're fine, just ignore the result. If it didn't, something
-        -- weird is going on. Maybe the cancellation request went through when
-        -- the thread wasn't making a request to the server? In any case, try to
-        -- cancel again and wait for the thread to terminate.
-        Just _ ->
-          poll queryRunner >>= \case
-            Just _ -> pure ()
-            Nothing -> do
-              void $ c_PQcancel cdPtr
-              cancel queryRunner
-  where
-    withConnDo = withConnectionData conn fname
+      pure (either id id affected, res, updateStats)
 
 verifyResult
   :: (HasCallStack, IsSQL sql)

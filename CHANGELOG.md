@@ -1,6 +1,8 @@
 # hpqtypes-1.13.0.0 (2025-??-??)
+* Drop support for GHC < 9.2.
 * Include time spent executing queries in `ConnectionStats`.
 * Add `initialConnectionStats`.
+* Introduce on-demand connection acquisition mode.
 
 # hpqtypes-1.12.0.0 (2024-03-18)
 * Drop support for GHC 8.8.
