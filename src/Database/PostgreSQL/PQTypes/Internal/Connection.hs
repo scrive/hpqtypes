@@ -334,16 +334,46 @@ runQueryImpl
   -> IO (Int, ForeignPtr PGresult)
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
 runQueryImpl Connection {..} sql execSql = do
-  E.uninterruptibleMask $ \restore -> do
-    -- While the query runs, the current thread will not be able to receive
-    -- asynchronous exceptions. This prevents clients of the library from
-    -- interrupting execution of the query. To remedy that we spawn a separate
-    -- thread for the query execution and while we wait for its completion, we
-    -- are able to receive asynchronous exceptions (assuming that threaded GHC
-    -- runtime system is used) and react appropriately.
-    queryRunner <- asyncWithUnmask $ \unmask -> unmask $ do
-      -- Unconditionally unmask asynchronous exceptions here so that 'cancel'
-      -- operation potentially invoked below works as expected.
+  E.getMaskingState >>= \case
+    E.MaskedUninterruptible -> do
+      -- If asynchronous exceptions are already hard-masked, skip spawning a
+      -- separate worker thread and the interruption logic as it won't do
+      -- anything at this point.
+      doRunQuery
+    _ -> E.uninterruptibleMask $ \restore -> do
+      -- While the query runs, the current thread will not be able to receive
+      -- asynchronous exceptions. This prevents clients of the library from
+      -- interrupting execution of the query. To remedy that we spawn a separate
+      -- thread for the query execution and while we wait for its completion, we
+      -- are able to receive asynchronous exceptions (assuming that threaded GHC
+      -- runtime system is used) and react appropriately.
+      queryRunner <- asyncWithUnmask $ \unmask -> do
+        -- Unconditionally unmask asynchronous exceptions here so that 'cancel'
+        -- operation potentially invoked below works as expected.
+        unmask doRunQuery
+      -- If we receive an exception while waiting for the execution to complete,
+      -- we need to send a request to PostgreSQL for query cancellation and wait
+      -- for the query runner thread to terminate. It is paramount we make the
+      -- exception handler uninterruptible as we can't exit from the main block
+      -- until the query runner thread has terminated.
+      E.onException (restore $ wait queryRunner) $ do
+        c_PQcancel connPtr >>= \case
+          -- If query cancellation request was successfully processed, there is
+          -- nothing else to do apart from waiting for the runner to terminate.
+          Nothing -> cancel queryRunner
+          -- Otherwise we check what happened with the runner. If it already
+          -- finished we're fine, just ignore the result. If it didn't, something
+          -- weird is going on. Maybe the cancellation request went through when
+          -- the thread wasn't making a request to the server? In any case, try to
+          -- cancel again and wait for the thread to terminate.
+          Just _ ->
+            poll queryRunner >>= \case
+              Just _ -> pure ()
+              Nothing -> do
+                void $ c_PQcancel connPtr
+                cancel queryRunner
+  where
+    doRunQuery = do
       t1 <- getMonotonicTime
       (paramCount, res) <- execSql
       t2 <- getMonotonicTime
@@ -367,27 +397,6 @@ runQueryImpl Connection {..} sql execSql = do
               , statsTime = statsTime stats + (t2 - t1)
               }
       pure (either id id affected, res, updateStats)
-    -- If we receive an exception while waiting for the execution to complete,
-    -- we need to send a request to PostgreSQL for query cancellation and wait
-    -- for the query runner thread to terminate. It is paramount we make the
-    -- exception handler uninterruptible as we can't exit from the main block
-    -- until the query runner thread has terminated.
-    E.onException (restore $ wait queryRunner) $ do
-      c_PQcancel connPtr >>= \case
-        -- If query cancellation request was successfully processed, there is
-        -- nothing else to do apart from waiting for the runner to terminate.
-        Nothing -> cancel queryRunner
-        -- Otherwise we check what happened with the runner. If it already
-        -- finished we're fine, just ignore the result. If it didn't, something
-        -- weird is going on. Maybe the cancellation request went through when
-        -- the thread wasn't making a request to the server? In any case, try to
-        -- cancel again and wait for the thread to terminate.
-        Just _ ->
-          poll queryRunner >>= \case
-            Just _ -> pure ()
-            Nothing -> do
-              void $ c_PQcancel connPtr
-              cancel queryRunner
 
 verifyResult
   :: (HasCallStack, IsSQL sql)
