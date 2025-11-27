@@ -1,3 +1,7 @@
+# hpqtypes-1.13.0.1 (2025-11-27)
+* Fix a bug in `initConnectionState` and `finalizeConnectionState` that could
+  lead to leaking connections.
+
 # hpqtypes-1.13.0.0 (2025-11-26)
 * Drop support for GHC < 9.2.
 * Include time spent executing queries in `ConnectionStats`.
