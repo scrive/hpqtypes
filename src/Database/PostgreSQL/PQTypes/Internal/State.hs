@@ -46,9 +46,13 @@ data ConnectionState cdata
 -- operation, but if these queries are interrupted with an asynchronous
 -- exception, then a connection is leaked, so they need to be run with
 -- asynchronous exceptions hard masked with uninterruptibleMask.
+--
+-- What is more, these queries themselves can throw an exception if e.g. network
+-- goes bye-bye and PostgreSQL can't be reached, therefore they need exception
+-- handlers themselves so connections don't leak.
 
 initConnectionState
-  :: MonadBase IO m
+  :: (MonadBase IO m, MonadMask m)
   => InternalConnectionSource m cdata
   -> ConnectionAcquisitionMode
   -> m (ConnectionState cdata)
@@ -69,11 +73,14 @@ initConnectionState ics = \case
                 ReadWrite -> "READ WRITE"
             ]
     (conn, cdata) <- takeConnection ics
-    _ <- liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn initSql
+    _ <- uninterruptibleMask_ $ do
+      liftBase (runQueryIO @SQL conn initSql) `catch` \e -> do
+        putConnection ics (conn, cdata) (ExitCaseException e)
+        throwM e
     pure $ Acquired tsIsolationLevel tsPermissions conn cdata
 
 finalizeConnectionState
-  :: (HasCallStack, MonadBase IO m)
+  :: (HasCallStack, MonadBase IO m, MonadMask m)
   => InternalConnectionSource m cdata
   -> ExitCase r
   -> ConnectionState cdata
@@ -84,7 +91,10 @@ finalizeConnectionState ics ec = \case
     let finalizeSql = case ec of
           ExitCaseSuccess _ -> "COMMIT"
           _ -> "ROLLBACK"
-    _ <- liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn finalizeSql
+    _ <- uninterruptibleMask_ $ do
+      liftBase (runQueryIO @SQL conn finalizeSql) `catch` \e -> do
+        putConnection ics (conn, cdata) (ExitCaseException e)
+        throwM e
     putConnection ics (conn, cdata) ec
   Finalized -> error "finalized connection"
 
@@ -202,7 +212,7 @@ withConnection ConnectionData {..} action = do
     Finalized -> error "finalized connection"
 
 initConnectionData
-  :: MonadBase IO m
+  :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
   -> ConnectionAcquisitionMode
   -> m (ConnectionData m)
