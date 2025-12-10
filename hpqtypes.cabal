@@ -1,7 +1,7 @@
 cabal-version:       3.0
 build-type:          Simple
 name:                hpqtypes
-version:             1.13.0.1
+version:             1.14.0.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)

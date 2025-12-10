@@ -56,8 +56,7 @@ withSavepoint (Savepoint savepoint) m =
 begin :: (HasCallStack, MonadDB m, MonadMask m) => m ()
 begin = do
   getConnectionAcquisitionMode >>= \case
-    AcquireOnDemand -> do
-      throwDB $ HPQTypesError "Can't begin a transaction in OnDemand mode"
+    AcquireOnDemand -> pure ()
     AcquireAndHold isolationLevel permissions -> uninterruptibleMask_ $ do
       runSQL_ $
         smconcat
@@ -77,8 +76,7 @@ begin = do
 commit :: (HasCallStack, MonadDB m, MonadMask m) => m ()
 commit = do
   getConnectionAcquisitionMode >>= \case
-    AcquireOnDemand -> do
-      throwDB $ HPQTypesError "Can't commit a transaction in OnDemand mode"
+    AcquireOnDemand -> pure ()
     AcquireAndHold {} -> uninterruptibleMask_ $ do
       runSQL_ "COMMIT"
       begin
@@ -87,8 +85,7 @@ commit = do
 rollback :: (HasCallStack, MonadDB m, MonadMask m) => m ()
 rollback = do
   getConnectionAcquisitionMode >>= \case
-    AcquireOnDemand -> do
-      throwDB $ HPQTypesError "Can't rollback a transaction in OnDemand mode"
+    AcquireOnDemand -> pure ()
     AcquireAndHold {} -> uninterruptibleMask_ $ do
       runSQL_ "ROLLBACK"
       begin
