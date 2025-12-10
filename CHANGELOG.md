@@ -1,4 +1,4 @@
-# hpqtypes-1.14.0.0 (2025-??-??)
+# hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error
   if the on demand connection acquisition mode is active.
 
