@@ -1,3 +1,7 @@
+# hpqtypes-1.14.0.0 (2025-??-??)
+* Make `begin`, `commit` and `rollback` do nothing instead of throwing an error
+  if the on demand connection acquisition mode is active.
+
 # hpqtypes-1.13.0.1 (2025-11-27)
 * Fix a bug in `initConnectionState` and `finalizeConnectionState` that could
   lead to leaking connections.
