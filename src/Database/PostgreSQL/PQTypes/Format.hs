@@ -16,6 +16,7 @@ import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Time
+import Data.Tuple
 import Data.UUID.Types
 import Data.Word
 
@@ -154,6 +155,12 @@ instance PQFormat () where
 instance
   ( PQFormat t
   ) => PQFormat (Identity t) where
+    pqFormat = pqFormat @t
+    pqVariables = 1
+
+instance
+  ( PQFormat t
+  ) => PQFormat (Solo t) where
     pqFormat = pqFormat @t
     pqVariables = 1
 

@@ -6,6 +6,7 @@ module Database.PostgreSQL.PQTypes.FromRow
 import Control.Exception qualified as E
 import Data.ByteString.Unsafe qualified as BS
 import Data.Functor.Identity
+import Data.Tuple
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -83,6 +84,12 @@ instance FromSQL t => FromRow (Identity t) where
     verify err =<< c_PQgetf1 res err i fmt b p1
     t <- peek p1 >>= convert res i b
     pure (Identity t)
+
+instance FromSQL t => FromRow (Solo t) where
+  fromRow res err b i = withFormat $ \fmt -> alloca $ \p1 -> do
+    verify err =<< c_PQgetf1 res err i fmt b p1
+    t <- peek p1 >>= convert res i b
+    pure (MkSolo t)
 
 instance
   ( FromSQL t1, FromSQL t2

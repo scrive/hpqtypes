@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.ToRow
 
 import Data.ByteString.Unsafe qualified as BS
 import Data.Functor.Identity
+import Data.Tuple
 import Foreign.C
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
@@ -60,6 +61,12 @@ instance ToSQL t => ToRow (Identity t) where
     verify err =<< c_PQputf1 param err fmt base
     where
       Identity t = row
+
+instance ToSQL t => ToRow (Solo t) where
+  toRow row pa param err = withFormat row $ \fmt -> toSQL t pa $ \base ->
+    verify err =<< c_PQputf1 param err fmt base
+    where
+      t = getSolo row
 
 instance
   ( ToSQL t1, ToSQL t2

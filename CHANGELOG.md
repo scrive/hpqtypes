@@ -1,3 +1,6 @@
+# hpqtypes-1.xx.x.x (xxxx-xx-xx)
+* Add `FromRow`/`ToRow` instances for `Solo`
+
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error
   if the on demand connection acquisition mode is active.

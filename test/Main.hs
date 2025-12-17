@@ -16,6 +16,7 @@ import Data.Int
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Time
+import Data.Tuple
 import Data.Typeable
 import Data.UUID.Types qualified as U
 import Data.Word
@@ -111,6 +112,9 @@ instance Arbitrary Interval where
 
 instance (Arbitrary a1, Arbitrary a2) => Arbitrary (a1 :*: a2) where
   arbitrary = (:*:) <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (Solo a) where
+  arbitrary = MkSolo <$> arbitrary
 
 instance Arbitrary a => Arbitrary (Composite a) where
   arbitrary = Composite <$> arbitrary
@@ -688,6 +692,7 @@ tests td =
   , rowTest td (u :: Identity T.Text :*: (Double, Int16))
   , rowTest td (u :: (T.Text, Double) :*: Identity Int16)
   , rowTest td (u :: (Int16, T.Text, Int64, Double) :*: Identity Bool :*: (String0, AsciiChar))
+  , rowTest td (u :: Solo Int16)
   , rowTest td (u :: (Int16, Int32))
   , rowTest td (u :: (Int16, Int32, Int64))
   , rowTest td (u :: (Int16, Int32, Int64, Float))
