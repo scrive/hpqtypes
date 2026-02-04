@@ -26,6 +26,7 @@ tested-with:         GHC == { 9.2.8, 9.4.8, 9.6.7, 9.8.4, 9.10.3, 9.12.2, 9.14.1
 extra-source-files: README.md
                   , CHANGELOG.md
                   , examples/Catalog.hs
+                  , examples/OuterJoins.hs
                   , libpqtypes/AUTHORS
                   , libpqtypes/Makefile.in
                   , libpqtypes/config.guess
@@ -194,6 +195,7 @@ test-suite hpqtypes-tests
   hs-source-dirs:    examples
   other-modules:     Catalog
                      OuterJoins
+                     Observability
 
   build-depends:       hpqtypes
                      , base >= 4.14 && < 5

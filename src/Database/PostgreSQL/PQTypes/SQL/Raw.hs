@@ -27,6 +27,7 @@ instance (Show row, ToRow row) => IsSQL (RawSQL row) where
     alloca $ \err -> allocParam $ \param -> do
       toRow row pa param err
       BS.useAsCString (T.encodeUtf8 query) (execute param)
+  -- FIXME: Why the hell does it complile with only warning when `sqlDescription` is missing.
   sqlDescription _ = Nothing
 
 -- | Construct 'RawSQL' () from 'String'.
