@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.SQL.Raw
   ( RawSQL
   , rawSQL
@@ -26,6 +27,7 @@ instance (Show row, ToRow row) => IsSQL (RawSQL row) where
     alloca $ \err -> allocParam $ \param -> do
       toRow row pa param err
       BS.useAsCString (T.encodeUtf8 query) (execute param)
+  sqlDescription _ = Nothing
 
 -- | Construct 'RawSQL' () from 'String'.
 instance IsString (RawSQL ()) where
@@ -40,6 +42,9 @@ instance Monoid (RawSQL ()) where
   mappend = (SG.<>)
   mconcat xs = RawSQL (mconcat $ fmap (\(RawSQL s ()) -> s) xs) ()
 
+#ifdef WARN_UNOBSERVED
+{-# DEPRECATED raw "raw is deprecated: use of raw SQL reduces observability. (warn-unobserved flag)" #-}
+#endif
 -- | Construct 'RawSQL' from 'Text' and a tuple of parameters.
 rawSQL :: (Show row, ToRow row) => T.Text -> row -> RawSQL row
 rawSQL = RawSQL

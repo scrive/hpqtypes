@@ -54,6 +54,11 @@ source-repository head
   type:     git
   location: https://github.com/scrive/hpqtypes.git
 
+flag warn-unobserved
+  description: Warn when using functions that result in poor observability (e.g., missing span details).
+  default: False
+  manual: True
+
 library
   exposed-modules:     Data.Monoid.Utils
                      , Database.PostgreSQL.PQTypes
@@ -92,6 +97,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Types
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Get
+                     , Database.PostgreSQL.PQTypes.SQL.Observability
 
   build-depends:       base              >= 4.16    && < 5
                      , text              >= 0.11
@@ -116,7 +122,11 @@ library
 
   hs-source-dirs:    src
 
+  if flag(warn-unobserved)
+    cpp-options: -DWARN_UNOBSERVED
+
   ghc-options:       -Wall -Werror=prepositive-qualified-module
+
 
   include-dirs:      libpqtypes/src
 

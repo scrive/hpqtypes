@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.Utils
   ( throwDB
   , raw
@@ -49,8 +50,12 @@ throwDB e = case fromException $ toException e of
 ----------------------------------------
 
 -- | Convert 'RawSQL' () to 'SQL'.
+#ifdef WARN_UNOBSERVED
+{-# DEPRECATED raw "raw is deprecated: use of raw SQL reduces observability. (warn-unobserved flag)" #-}
+#endif
 raw :: RawSQL () -> SQL
 raw = mkSQL . unRawSQL
+
 
 ----------------------------------------
 

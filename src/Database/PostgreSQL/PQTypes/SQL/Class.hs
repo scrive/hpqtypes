@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Database.PostgreSQL.PQTypes.SQL.Class
   ( SomeSQL (..)
   , IsSQL (..)
@@ -10,6 +11,8 @@ import Foreign.Ptr
 
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.ToSQL
+import Database.PostgreSQL.PQTypes.SQL.Observability (SQLDescription)
+
 
 -- | Container for SQL-like type storage.
 data SomeSQL = forall sql. IsSQL sql => SomeSQL sql
@@ -28,10 +31,17 @@ class Show sql => IsSQL sql where
     -- containing query parameters and C string containing the query itself.
     -> IO r
 
+  -- | Provide a structured description of the SQL for observability.
+  sqlDescription :: sql -> Maybe SQLDescription
+
+
 ----------------------------------------
 
 -- | Convert unsafely from 'String' to 'sql' (Note: reckless usage
 -- of this function may introduce security vulnerabilities such
 -- as proneness to SQL injection attacks).
+#ifdef WARN_UNOBSERVED
+{-# DEPRECATED raw "raw is deprecated: use of raw SQL reduces observability. (warn-unobserved flag)" #-}
+#endif
 unsafeSQL :: (IsSQL sql, IsString sql) => String -> sql
 unsafeSQL = fromString

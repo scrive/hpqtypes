@@ -57,6 +57,9 @@ instance IsSQL SQL where
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
             modifyMVar nums $ \n -> pure . (,"$" <> showt n) $! n + 1
 
+  sqlDescription _ = Nothing
+
+
 instance SG.Semigroup SQL where
   SQL a <> SQL b = SQL (a S.>< b)
 
