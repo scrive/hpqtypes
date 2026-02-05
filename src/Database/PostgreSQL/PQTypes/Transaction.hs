@@ -13,7 +13,7 @@ import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Internal.Error
+import Database.PostgreSQL.PQTypes.Internal.Error()
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
