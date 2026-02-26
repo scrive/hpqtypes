@@ -85,6 +85,15 @@ instance PQFormat Float where
 instance PQFormat Double where
   pqFormat = BS.pack "%float8"
 
+instance PQFormat Word16 where
+  pqFormat = BS.pack "%int2"
+
+instance PQFormat Word32 where
+  pqFormat = BS.pack "%int4"
+
+instance PQFormat Word64 where
+  pqFormat = BS.pack "%int8"
+
 -- CHAR
 
 instance PQFormat Char where
