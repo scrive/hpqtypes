@@ -1,8 +1,8 @@
 packages: .
 
--- GHC 9.6
 allow-newer: *:base
-           , *:ghc-prim
+           , *:containers
            , *:template-haskell
+           , *:time
 
 tests: True
