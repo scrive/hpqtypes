@@ -1,5 +1,5 @@
 # hpqtypes-1.14.1.0
-* Introduce From/ToSQL instances for Word16, Word32 and Word64
+* Introduce From/ToSQL instances for Word16, Word32 and Word64.
 
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error
