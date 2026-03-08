@@ -2,8 +2,8 @@ module Catalog (catalog) where
 
 import Control.Arrow (second)
 import Control.Monad
-import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Function
 import Data.Int
 import Data.Monoid.Utils
@@ -11,12 +11,12 @@ import Data.Pool
 import Data.Text qualified as T
 import Database.PostgreSQL.PQTypes
 import Database.PostgreSQL.PQTypes.Internal.Utils (mread)
-import System.Console.Readline
+import System.Console.Haskeline
 import System.Environment
 
 -- | Generic 'putStrLn'.
-printLn :: MonadBase IO m => String -> m ()
-printLn = liftBase . putStrLn
+printLn :: MonadIO m => String -> m ()
+printLn = liftIO . putStrLn
 
 -- | Get connection string from command line argument.
 getConnSettings :: IO ConnectionSettings
@@ -144,13 +144,12 @@ catalog = do
   cs <- getConnSettings
   withCatalog cs $ do
     ConnectionSource pool <- poolSource (cs {csComposites = ["book_"]}) (\connect disconnect -> defaultPoolConfig connect disconnect 1 10)
-    fix $ \next ->
-      readline "> "
+    runInputT defaultSettings . fix $ \next ->
+      getInputLine "> "
         >>= maybe
           (printLn "")
           ( \cmd -> do
               when (cmd /= "quit") $ do
-                processCommand pool cmd
-                addHistory cmd
+                liftIO $ processCommand pool cmd
                 next
           )
