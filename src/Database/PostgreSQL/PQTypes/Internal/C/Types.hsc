@@ -34,6 +34,10 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types
   , PGdate(..)
   , PGtime(..)
   , PGtimestamp(..)
+  , c_NUMERIC_POS
+  , c_NUMERIC_NEG
+  , c_NUMERIC_NAN
+  , NumericVar(..)
   ) where
 
 import Data.Word
@@ -355,3 +359,38 @@ instance Storable PGtimestamp where
     #{poke PGtimestamp, epoch} ptr pgTimestampEpoch
     #{poke PGtimestamp, date}  ptr pgTimestampDate
     #{poke PGtimestamp, time}  ptr pgTimestampTime
+
+----------------------------------------
+
+c_NUMERIC_POS :: CShort
+c_NUMERIC_POS = #{const NUMERIC_POS}
+
+c_NUMERIC_NEG :: CShort
+c_NUMERIC_NEG = #{const NUMERIC_NEG}
+
+c_NUMERIC_NAN :: CShort
+c_NUMERIC_NAN = #{const NUMERIC_NAN}
+
+data NumericVar = NumericVar
+  { numVarNdigits :: !CShort
+  , numVarWeight  :: !CShort
+  , numVarSign    :: !CShort
+  , numVarDscale  :: !CShort
+  , numVarDigits  :: !(Ptr CShort) -- elements in network byte order
+  }
+
+instance Storable NumericVar where
+  sizeOf _ = #{size NumericVar}
+  alignment _ = #{alignment NumericVar}
+  peek ptr = NumericVar
+    <$> #{peek NumericVar, ndigits} ptr
+    <*> #{peek NumericVar, weight} ptr
+    <*> #{peek NumericVar, sign} ptr
+    <*> #{peek NumericVar, dscale} ptr
+    <*> #{peek NumericVar, digits} ptr
+  poke ptr NumericVar{..} = do
+    #{poke NumericVar, ndigits} ptr numVarNdigits
+    #{poke NumericVar, weight} ptr numVarWeight
+    #{poke NumericVar, sign} ptr numVarSign
+    #{poke NumericVar, dscale} ptr numVarDscale
+    #{poke NumericVar, digits} ptr numVarDigits

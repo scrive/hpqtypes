@@ -94,6 +94,9 @@ instance PQFormat Word32 where
 instance PQFormat Word64 where
   pqFormat = BS.pack "%int8"
 
+instance PQFormat Integer where
+  pqFormat = BS.pack "%numeric"
+
 -- CHAR
 
 instance PQFormat Char where

@@ -6,6 +6,8 @@ module Database.PostgreSQL.PQTypes.Internal.Utils
   , cStringLenToBytea
   , byteaToCStringLen
   , textToCString
+  , numericVarToInteger
+  , withIntegerAsNumericVar
   , verifyPQTRes
   , withPGparam
   , throwLibPQError
@@ -22,6 +24,7 @@ import Data.Kind (Type)
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Vector.Storable qualified as V
 import Foreign.C
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
@@ -80,6 +83,54 @@ textToCString bs = unsafeUseAsCStringLen (T.encodeUtf8 bs) $ \(cs, len) -> do
     copyBytes ptr cs len
     pokeByteOff ptr len (0 :: CChar)
   pure fptr
+
+----------------------------------------
+
+-- Note: these can be generalized to convert from/to Scientific and support
+-- arbitrary floating point precision (relevant code can be borrowed from the
+-- postgresql-binary package), but while deserialization is easy either way,
+-- serialization is significantly more annoying, so let's leave this until it's
+-- actually needed.
+
+numericVarToInteger :: NumericVar -> IO Integer
+numericVarToInteger NumericVar {..}
+  | numVarDscale /= 0 = hpqTypesError "not an integer"
+  | numVarSign == c_NUMERIC_NAN = hpqTypesError "not a number"
+  | numVarSign == c_NUMERIC_POS = mkInteger 0 numVarDigits numVarNdigits
+  | numVarSign == c_NUMERIC_NEG = negate <$> mkInteger 0 numVarDigits numVarNdigits
+  | otherwise = hpqTypesError $ "unexpected sign: " ++ show numVarSign
+  where
+    mkInteger :: Integer -> Ptr CShort -> CShort -> IO Integer
+    mkInteger acc ptr = \case
+      0 -> pure acc
+      n -> do
+        v <- ntohs <$> peek ptr
+        mkInteger (acc * 10000 + fromIntegral v) (ptr `plusPtr` 2) (n - 1)
+
+withIntegerAsNumericVar :: Integer -> (NumericVar -> IO r) -> IO r
+withIntegerAsNumericVar n k = V.unsafeWith digits $ \digitsPtr -> do
+  k $
+    NumericVar
+      { numVarNdigits = digitsLen
+      , numVarWeight = max 0 (digitsLen - 1)
+      , numVarSign = if n < 0 then c_NUMERIC_NEG else c_NUMERIC_POS
+      , numVarDscale = 0
+      , numVarDigits = digitsPtr
+      }
+  where
+    digitsLen :: CShort
+    digitsLen = fromIntegral $ V.length digits
+
+    digits :: V.Vector CShort
+    digits = V.reverse . (`V.unfoldr` abs n) $ \case
+      0 -> Nothing
+      x -> case x `quotRem` 10000 of
+        (d, m) -> Just (htons $ fromIntegral m, d)
+
+foreign import ccall unsafe "htons" htons :: CShort -> CShort
+foreign import ccall unsafe "ntohs" ntohs :: CShort -> CShort
+
+----------------------------------------
 
 -- | Check return value of a function from libpqtypes
 -- and if it indicates an error, throw appropriate exception.
