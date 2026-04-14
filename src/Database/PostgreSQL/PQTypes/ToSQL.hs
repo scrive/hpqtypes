@@ -96,6 +96,10 @@ instance ToSQL Word64 where
   type PQDest Word64 = CULLong
   toSQL n _ = putAsPtr (fromIntegral n)
 
+instance ToSQL Integer where
+  type PQDest Integer = NumericVar
+  toSQL n _ k = withIntegerAsNumericVar n $ \nv -> putAsPtr nv k
+
 -- CHAR
 
 instance ToSQL Char where

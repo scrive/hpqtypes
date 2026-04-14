@@ -83,6 +83,11 @@ instance FromSQL Word64 where
   fromSQL Nothing = unexpectedNULL
   fromSQL (Just n) = pure . fromIntegral $ n
 
+instance FromSQL Integer where
+  type PQBase Integer = NumericVar
+  fromSQL Nothing = unexpectedNULL
+  fromSQL (Just nv) = numericVarToInteger nv
+
 -- CHAR
 
 instance FromSQL Char where

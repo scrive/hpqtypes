@@ -180,6 +180,19 @@ typedef float PGfloat4;
 typedef double PGfloat8;
 typedef char *PGnumeric;
 
+#define NUMERIC_POS			0x0000
+#define NUMERIC_NEG			0x4000
+#define NUMERIC_NAN			0xC000
+
+typedef struct
+{
+	short ndigits;        /* # of digits in digits[] - can be 0! */
+	short weight;         /* weight of first digit */
+	short sign;           /* NUMERIC_POS, NUMERIC_NEG, or NUMERIC_NAN */
+	short dscale;         /* display scale */
+	const short *digits;  /* base-NBASE digits in network byte order */
+} NumericVar;
+
 /* Defined by an end-user if the system is missing long long. */
 #ifdef PQT_LONG_LONG
 	typedef PQT_LONG_LONG PGint8;
