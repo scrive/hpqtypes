@@ -105,6 +105,8 @@ numericVarToInteger NumericVar {..}
       0 -> pure acc
       n -> do
         v <- ntohs <$> peek ptr
+        when (v < 0 || v > 9999) $ do
+          hpqTypesError $ "invalid digit: " ++ show v
         mkInteger (acc * 10000 + fromIntegral v) (ptr `plusPtr` 2) (n - 1)
 
 withIntegerAsNumericVar :: Integer -> (NumericVar -> IO r) -> IO r
