@@ -539,6 +539,41 @@ uuidTest td = testCase "UUID encoding / decoding test" $ do
     uuidStr2 <- fetchOne runIdentity
     assertEqual "UUID is encoded correctly" uuidStr uuidStr2 (==)
 
+integerTest :: TestData -> Test
+integerTest td = testCase "Integer decoding from numeric works"
+  . runTestEnv td defaultTransactionSettings
+  . forM_ values
+  $ \n -> do
+    -- The server strips trailing zero base-10000 digit groups from the wire
+    -- representation of numeric, so values that are multiples of 10000 arrive
+    -- with fewer digits than their weight indicates.
+    runSQL_ . mkSQL $ "SELECT " <> showt n <> " :: numeric"
+    n' <- fetchOne runIdentity
+    assertEqualEq ("Integer" <+> show n <+> "is decoded correctly") n n'
+
+    runQuery_ $ rawSQL "SELECT $1" (Identity n)
+    n'' <- fetchOne runIdentity
+    assertEqualEq ("Integer" <+> show n <+> "roundtrips correctly") n n''
+  where
+    values :: [Integer]
+    values =
+      [ 0
+      , 1
+      , -1
+      , 9999
+      , 10000
+      , -10000
+      , 10001
+      , 99990000
+      , 100000000
+      , 1000000000000
+      , -1000000000000
+      , 123400005678
+      , 10 ^ (100 :: Int)
+      , negate $ 10 ^ (100 :: Int)
+      , 10 ^ (100 :: Int) + 1
+      ]
+
 xmlTest :: TestData -> Test
 xmlTest td = testCase "Put and get XML value works"
   . runTestEnv td defaultTransactionSettings
@@ -626,6 +661,7 @@ tests td =
   , queryInterruptionTest td
   , cursorTest td
   , uuidTest td
+  , integerTest td
   , onDemandTest td
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
