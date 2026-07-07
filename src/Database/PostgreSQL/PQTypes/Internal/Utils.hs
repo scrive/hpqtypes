@@ -96,10 +96,24 @@ numericVarToInteger :: NumericVar -> IO Integer
 numericVarToInteger NumericVar {..}
   | numVarDscale /= 0 = hpqTypesError "not an integer"
   | numVarSign == c_NUMERIC_NAN = hpqTypesError "not a number"
-  | numVarSign == c_NUMERIC_POS = mkInteger 0 numVarDigits numVarNdigits
-  | numVarSign == c_NUMERIC_NEG = negate <$> mkInteger 0 numVarDigits numVarNdigits
+  | numVarNdigits > numVarWeight + 1 =
+      hpqTypesError $
+        "digits after the decimal point (ndigits: "
+          ++ show numVarNdigits
+          ++ ", weight: "
+          ++ show numVarWeight
+          ++ ")"
+  | numVarSign == c_NUMERIC_POS = scale <$> mkInteger 0 numVarDigits numVarNdigits
+  | numVarSign == c_NUMERIC_NEG = negate . scale <$> mkInteger 0 numVarDigits numVarNdigits
   | otherwise = hpqTypesError $ "unexpected sign: " ++ show numVarSign
   where
+    -- The wire value is Σ digits[i] * 10000^(weight - i) and the server strips
+    -- trailing zero digit groups, so ndigits can be smaller than weight + 1.
+    scale :: Integer -> Integer
+    scale acc = case numVarWeight + 1 - numVarNdigits of
+      0 -> acc
+      n -> acc * 10000 ^ n
+
     mkInteger :: Integer -> Ptr CShort -> CShort -> IO Integer
     mkInteger acc ptr = \case
       0 -> pure acc
