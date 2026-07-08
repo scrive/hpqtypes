@@ -621,6 +621,32 @@ onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do
     v :: Int32
     v = 1337
 
+acquisitionModeChangeFailureTest :: TestData -> Test
+acquisitionModeChangeFailureTest td = testCase
+  "Connection state is usable after a failed acquisition mode change"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    -- Violate a deferred constraint so that the COMMIT issued by
+    -- unsafeAcquireOnDemandConnection fails.
+    runSQL_ "CREATE TABLE mode_change_ (a INTEGER UNIQUE DEFERRABLE INITIALLY DEFERRED)"
+    runSQL_ "INSERT INTO mode_change_ (a) VALUES (1), (1)"
+    eres <- try unsafeAcquireOnDemandConnection
+    liftBase $ case eres of
+      Left DBException {..}
+        | Just DetailedQueryError {..} <- cast dbeError -> do
+            assertEqualEq "Unexpected error code" UniqueViolation qeErrorCode
+        | otherwise -> assertFailure $ "Unexpected exception: " ++ show dbeError
+      Right () -> assertFailure "DBException wasn't thrown"
+
+    -- The failed COMMIT returned the connection to its source, so the
+    -- connection state needs to be on demand now. In particular, it must not
+    -- refer to the connection that is already gone.
+    mode <- getConnectionAcquisitionMode
+    assertEqualEq "Unexpected connection acquisition mode" AcquireOnDemand mode
+    runSQL_ "SELECT 1"
+    n <- fetchOne $ runIdentity @Int32
+    assertEqualEq "Unexpected query result" 1 n
+
 rowTest
   :: forall row
    . (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
@@ -663,6 +689,7 @@ tests td =
   , uuidTest td
   , integerTest td
   , onDemandTest td
+  , acquisitionModeChangeFailureTest td
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
   , transactionTest td Serializable

@@ -156,39 +156,50 @@ changeAcquisitionModeTo
   => ConnectionAcquisitionMode
   -> ConnectionData m
   -> m ()
-changeAcquisitionModeTo cam ConnectionData {..} = do
-  bracketOnError (takeMVar cdConnectionState) (putMVar cdConnectionState) $ \case
-    OnDemand -> case cam of
-      AcquireOnDemand -> putMVar cdConnectionState OnDemand
-      _ -> mask_ $ do
-        -- Need to mask, if asynchronous exception arrives between
-        -- initConnectionState and putMVar, the connection leaks.
-        newConnState <- initConnectionState cdConnectionSource cam
-        putMVar cdConnectionState newConnState
-    connState@(Acquired isolationLevel permissions _ _) -> case cam of
-      AcquireOnDemand -> mask_ $ do
-        -- Need to mask, if asynchronous exception arrives between
-        -- finalizeConnectionState and putMVar, we end up with an invalid
-        -- (finalized) connection state.
-        finalizeConnectionState cdConnectionSource (ExitCaseSuccess ()) connState
-        putMVar cdConnectionState OnDemand
-      AcquireAndHold newIsolationLevel newPermissions -> do
-        when (isolationLevel /= newIsolationLevel) $ do
-          error $
-            "isolation level mismatch (current: "
-              ++ show isolationLevel
-              ++ ", new: "
-              ++ show newIsolationLevel
-              ++ ")"
-        when (permissions /= newPermissions) $ do
-          error $
-            "permissions mismatch (current: "
-              ++ show permissions
-              ++ ", new: "
-              ++ show newPermissions
-              ++ ")"
-        putMVar cdConnectionState connState
-    Finalized -> error "finalized connection"
+changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
+  -- Each branch of 'mkNewState' determines the new connection state along with
+  -- a follow-up action. The new state is installed with a single putMVar, so
+  -- that concurrent users of the MVar can never observe a stale state.
+  connState <- takeMVar cdConnectionState
+  (newConnState, after) <-
+    mkNewState connState `onException` putMVar cdConnectionState connState
+  putMVar cdConnectionState newConnState
+  after
+  where
+    mkNewState = \case
+      OnDemand -> case cam of
+        AcquireOnDemand -> pure (OnDemand, pure ())
+        AcquireAndHold {} -> do
+          -- If initConnectionState throws, no connection is held, so the
+          -- state stays OnDemand (restored by the onException handler above).
+          newConnState <- initConnectionState cdConnectionSource cam
+          pure (newConnState, pure ())
+      connState@(Acquired isolationLevel permissions _ _) -> case cam of
+        AcquireOnDemand -> do
+          -- If finalizeConnectionState throws (e.g. COMMIT fails), it has
+          -- already returned the connection to the source, so the state needs
+          -- to become OnDemand either way, otherwise it would refer to an
+          -- invalid connection.
+          eres :: Either SomeException () <- try $ do
+            finalizeConnectionState cdConnectionSource (ExitCaseSuccess ()) connState
+          pure (OnDemand, either throwM pure eres)
+        AcquireAndHold newIsolationLevel newPermissions -> do
+          when (isolationLevel /= newIsolationLevel) $ do
+            error $
+              "isolation level mismatch (current: "
+                ++ show isolationLevel
+                ++ ", new: "
+                ++ show newIsolationLevel
+                ++ ")"
+          when (permissions /= newPermissions) $ do
+            error $
+              "permissions mismatch (current: "
+                ++ show permissions
+                ++ ", new: "
+                ++ show newPermissions
+                ++ ")"
+          pure (connState, pure ())
+      Finalized -> error "finalized connection"
 
 withConnection
   :: (HasCallStack, MonadBase IO m, MonadMask m)
