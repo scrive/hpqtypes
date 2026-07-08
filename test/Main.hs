@@ -335,6 +335,28 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
           assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
         Nothing -> pure ()
 
+finalizationInterruptionTest :: TestData -> Test
+finalizationInterruptionTest td = testCase
+  "Interrupted connection finalization doesn't deadlock other threads"
+  $ do
+    queryDone <- newEmptyMVar
+    -- Exit the runDBT scope while the forked thread is still using the
+    -- connection, so that the finalization blocks on the connection state
+    -- MVar, and interrupt it with a timeout.
+    eres <- timeout 500000 . runTestEnv td defaultTransactionSettings $ do
+      _ <- fork $ do
+        runSQL_ "SELECT pg_sleep(2)"
+        putMVar queryDone ()
+      threadDelay 200000
+    case eres of
+      Just _ -> assertFailure "Connection finalization wasn't interrupted in time"
+      Nothing -> pure ()
+    -- The forked thread needs to be able to finish, i.e. to return the
+    -- connection state to the MVar once its query completes.
+    timeout 5000000 (takeMVar queryDone) >>= \case
+      Just () -> pure ()
+      Nothing -> assertFailure "Forked thread deadlocked on the connection state MVar"
+
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works"
   . runTestEnv td defaultTransactionSettings
@@ -729,6 +751,7 @@ tests td =
   , savepointTest td
   , notifyTest td
   , queryInterruptionTest td
+  , finalizationInterruptionTest td
   , cursorTest td
   , uuidTest td
   , integerTest td

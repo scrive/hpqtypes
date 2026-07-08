@@ -12,6 +12,10 @@
   failure of the issued `COMMIT` (e.g. due to a deferred constraint violation)
   left the session in the autocommit mode instead of starting a new
   transaction.
+* Fix a bug in `finalizeConnectionData` where connection finalization
+  interrupted with an asynchronous exception while another thread was using
+  the connection put a value into the connection state MVar it didn't hold,
+  permanently deadlocking the other thread.
 
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error

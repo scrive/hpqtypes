@@ -241,9 +241,13 @@ finalizeConnectionData
   -> ExitCase r
   -> m ()
 finalizeConnectionData ConnectionData {..} ec = do
-  (`finally` putMVar cdConnectionState Finalized) $ do
-    connState <- takeMVar cdConnectionState
-    finalizeConnectionState cdConnectionSource ec connState
+  -- The state is marked as finalized only once takeMVar succeeds: it can be
+  -- interrupted by an asynchronous exception while another thread is using
+  -- the connection, in which case putting a value into the MVar we don't hold
+  -- would permanently deadlock the putMVar of that thread.
+  connState <- takeMVar cdConnectionState
+  finalizeConnectionState cdConnectionSource ec connState
+    `finally` putMVar cdConnectionState Finalized
 
 ----------------------------------------
 
