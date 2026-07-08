@@ -4,6 +4,10 @@
 * Fix a bug in `changeAcquisitionModeTo` that led to holding on to an invalid
   connection object when committing a transaction during transition from the
   `AcquireAndHold` to `AcquireOnDemand` mode failed.
+* Fix a bug in `withCursor` where an exception thrown from the continuation was
+  masked by the failure of the subsequent cursor cleanup if the enclosing
+  transaction was in the aborted state (in particular, this prevented restarts
+  of transactions run with a `RestartPredicate`).
 
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error

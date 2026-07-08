@@ -21,6 +21,7 @@ import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Utils
@@ -107,10 +108,20 @@ withCursor
   -> (Cursor sql -> m r)
   -> m r
 withCursor name scroll hold sql k =
-  bracket_
-    (runQuery_ declareCursor)
-    (runQuery_ closeCursor)
-    (k $ Cursor name sql)
+  fst
+    <$> generalBracket
+      (runQuery_ declareCursor)
+      ( \() -> \case
+          ExitCaseSuccess _ -> runQuery_ closeCursor
+          -- If the continuation threw, the transaction (that cursors declared
+          -- WITHOUT HOLD require) might be in the aborted state, in which case
+          -- closing the cursor fails with in_failed_sql_transaction. Suppress
+          -- such errors, otherwise they would mask the original exception, in
+          -- particular preventing a potential transaction restart (see
+          -- 'RestartPredicate').
+          _ -> runQuery_ closeCursor `catch` \DBException {} -> pure ()
+      )
+      (\() -> k $ Cursor name sql)
   where
     declareCursor =
       smconcat

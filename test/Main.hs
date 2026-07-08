@@ -245,6 +245,7 @@ cursorTest td =
     , scrollableCursorWorks
     , withHoldCursorWorks
     , doubleCloseWorks
+    , cleanupDoesNotMaskErrors
     ]
   where
     basicCursorWorks = testCase "Basic cursor works" $ do
@@ -302,6 +303,20 @@ cursorTest td =
         withCursorSQL "ints" NoScroll NoHold "SELECT 1" $ \_cursor -> do
           -- Commiting a transaction closes the cursor
           commit
+
+    cleanupDoesNotMaskErrors = testCase "Cursor cleanup doesn't mask the original error" $ do
+      runTestEnv td defaultTransactionSettings $ do
+        -- The failing query puts the transaction in the aborted state, in
+        -- which closing the cursor fails with in_failed_sql_transaction. The
+        -- original error needs to propagate regardless.
+        eres <- try . withCursorSQL "ints" NoScroll NoHold (sqlGenInts 5) $ \_cursor -> do
+          runSQL_ "SELECT 1/0"
+        liftBase $ case eres :: Either DBException () of
+          Left DBException {..}
+            | Just DetailedQueryError {..} <- cast dbeError -> do
+                assertEqualEq "Unexpected error code" DivisionByZero qeErrorCode
+            | otherwise -> assertFailure $ "Unexpected exception: " ++ show dbeError
+          Right () -> assertFailure "DBException wasn't thrown"
 
 queryInterruptionTest :: TestData -> Test
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
