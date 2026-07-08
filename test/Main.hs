@@ -636,6 +636,35 @@ onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do
     v :: Int32
     v = 1337
 
+commitFailureTest :: TestData -> Test
+commitFailureTest td = testCase
+  "Transaction is active after a failed commit"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    runSQL_ "CREATE TABLE commit_failure_ (a INTEGER UNIQUE DEFERRABLE INITIALLY DEFERRED)"
+    commit
+    (`finally` cleanup) $ do
+      -- Deferred constraint violation makes the COMMIT fail.
+      runSQL_ "INSERT INTO commit_failure_ (a) VALUES (1), (1)"
+      eres <- try commit
+      liftBase $ case eres :: Either DBException () of
+        Left DBException {..}
+          | Just DetailedQueryError {..} <- cast dbeError -> do
+              assertEqualEq "Unexpected error code" UniqueViolation qeErrorCode
+          | otherwise -> assertFailure $ "Unexpected exception: " ++ show dbeError
+        Right () -> assertFailure "DBException wasn't thrown"
+      -- A new transaction needs to be active at this point, so a write made
+      -- after the failed commit must be reverted by a rollback.
+      runSQL_ "INSERT INTO commit_failure_ (a) VALUES (2)"
+      rollback
+      n <- runSQL "SELECT a FROM commit_failure_"
+      assertEqualEq "Unexpected number of rows" 0 n
+  where
+    cleanup = do
+      rollback
+      runSQL_ "DROP TABLE commit_failure_"
+      commit
+
 acquisitionModeChangeFailureTest :: TestData -> Test
 acquisitionModeChangeFailureTest td = testCase
   "Connection state is usable after a failed acquisition mode change"
@@ -705,6 +734,7 @@ tests td =
   , integerTest td
   , onDemandTest td
   , acquisitionModeChangeFailureTest td
+  , commitFailureTest td
   , transactionTest td ReadCommitted
   , transactionTest td RepeatableRead
   , transactionTest td Serializable

@@ -8,6 +8,10 @@
   masked by the failure of the subsequent cursor cleanup if the enclosing
   transaction was in the aborted state (in particular, this prevented restarts
   of transactions run with a `RestartPredicate`).
+* Fix a bug in `commit`, `rollback` and `unsafeWithoutTransaction` where a
+  failure of the issued `COMMIT` (e.g. due to a deferred constraint violation)
+  left the session in the autocommit mode instead of starting a new
+  transaction.
 
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error

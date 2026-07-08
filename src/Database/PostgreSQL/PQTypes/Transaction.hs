@@ -13,6 +13,7 @@ import GHC.Stack
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
@@ -77,7 +78,7 @@ commit = do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> pure ()
     AcquireAndHold {} -> uninterruptibleMask_ $ do
-      runSQL_ "COMMIT"
+      runSQL_ "COMMIT" `onException` beginNoException
       begin
 
 -- | Rollback active transaction using given transaction settings.
@@ -86,7 +87,7 @@ rollback = do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> pure ()
     AcquireAndHold {} -> uninterruptibleMask_ $ do
-      runSQL_ "ROLLBACK"
+      runSQL_ "ROLLBACK" `onException` beginNoException
       begin
 
 -- | Run a block of code without an open transaction.
@@ -102,6 +103,17 @@ unsafeWithoutTransaction action = do
     AcquireOnDemand -> action
     AcquireAndHold {} ->
       bracket_
-        (uninterruptibleMask_ $ runSQL_ "COMMIT")
+        (uninterruptibleMask_ $ runSQL_ "COMMIT" `onException` beginNoException)
         begin
         action
+
+----------------------------------------
+-- Helpers
+
+-- If COMMIT (or ROLLBACK) fails, e.g. with a serialization error, the server
+-- has already rolled the transaction back, so start a new one to uphold the
+-- invariant that a transaction is always active in the AcquireAndHold mode. If
+-- that fails as well (e.g. because the connection is gone), suppress the error
+-- so that the original exception propagates.
+beginNoException :: (HasCallStack, MonadDB m, MonadMask m) => m ()
+beginNoException = begin `catch` \DBException {} -> pure ()
