@@ -6,12 +6,12 @@ module Data.Monoid.Utils
   , (<+>)
   ) where
 
-import Data.List
+import Data.List qualified as L
 import Data.String
 
 -- | Generalization of 'intercalate' to arbitrary 'Monoid'.
 mintercalate :: Monoid m => m -> [m] -> m
-mintercalate m = mconcat . intersperse m
+mintercalate m = mconcat . L.intersperse m
 
 -- | Generalization of separator to arbitrary 'Monoid'.
 mspace :: (IsString m, Monoid m) => m

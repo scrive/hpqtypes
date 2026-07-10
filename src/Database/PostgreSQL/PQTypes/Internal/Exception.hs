@@ -21,23 +21,28 @@ data DBException = forall e sql. (E.Exception e, Show sql) => DBException
   -- ^ Specific error.
   , dbeCallStack :: CallStack
   }
+  deriving anyclass (E.Exception)
 
-deriving instance Show DBException
-
-instance E.Exception DBException
+deriving stock instance Show DBException
 
 -- | Rethrow supplied exception enriched with given SQL.
+--
+-- Asynchronous exceptions and exceptions already wrapped in 'DBException'
+-- are rethrown as they are.
 rethrowWithContext
   :: (HasCallStack, IsSQL sql)
   => sql
   -> BackendPid
   -> E.SomeException
   -> IO a
-rethrowWithContext sql pid (E.SomeException e) =
-  E.throwIO
-    DBException
-      { dbeQueryContext = sql
-      , dbeBackendPid = pid
-      , dbeError = e
-      , dbeCallStack = callStack
-      }
+rethrowWithContext sql pid e@(E.SomeException inner)
+  | Just _ <- E.fromException @E.SomeAsyncException e = E.throwIO e
+  | Just dbe <- E.fromException @DBException e = E.throwIO dbe
+  | otherwise =
+      E.throwIO
+        DBException
+          { dbeQueryContext = sql
+          , dbeBackendPid = pid
+          , dbeError = inner
+          , dbeCallStack = callStack
+          }

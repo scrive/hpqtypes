@@ -21,9 +21,9 @@ module Database.PostgreSQL.PQTypes
   , HPQTypesError (..)
   , LibPQError (..)
   , ConversionError (..)
-  , ArrayItemError (..)
   , InvalidValue (..)
   , RangeError (..)
+  , TypeMismatch (..)
   , ArrayDimensionMismatch (..)
   , RowLengthMismatch (..)
   , AffectedRowsMismatch (..)
@@ -41,16 +41,19 @@ module Database.PostgreSQL.PQTypes
   , QueryResult
   , ntuples
   , nfields
+  -- PostgreSQL.Binary.Range
+
+    -- * Ranges
+  , Range (..)
+  , Bound (..)
 
     -- * Other modules
   , module Data.Functor.Identity
-  , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Class
-  , module Database.PostgreSQL.PQTypes.Composite
   , module Database.PostgreSQL.PQTypes.Cursor
+  , module Database.PostgreSQL.PQTypes.Enum
   , module Database.PostgreSQL.PQTypes.Fold
   , module Database.PostgreSQL.PQTypes.Format
-  , module Database.PostgreSQL.PQTypes.FromRow
   , module Database.PostgreSQL.PQTypes.FromSQL
   , module Database.PostgreSQL.PQTypes.Interval
   , module Database.PostgreSQL.PQTypes.JSON
@@ -67,14 +70,13 @@ module Database.PostgreSQL.PQTypes
   ) where
 
 import Data.Functor.Identity
+import PostgreSQL.Binary.Range (Bound (..), Range (..))
 
-import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Cursor
+import Database.PostgreSQL.PQTypes.Enum
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Format
-import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
