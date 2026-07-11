@@ -23,6 +23,11 @@ numRecords = 50000
 childrenPerParent :: Int
 childrenPerParent = 10
 
+-- | Number of elements of the big scalar array used for benchmarking the
+-- array decoder in isolation.
+bigArraySize :: Int32
+bigArraySize = 100000
+
 ----------------------------------------
 
 data Child = Child Int32 T.Text Double UTCTime Integer
@@ -138,6 +143,15 @@ selectData = do
   liftBase . evaluate $ rnf parents
   pure (length parents, sum $ map (\(Parent _ _ _ _ _ cs) -> length cs) parents)
 
+selectBigArray :: DBT IO Int
+selectBigArray = do
+  runQuery_ $
+    rawSQL "SELECT ARRAY(SELECT generate_series(1, $1))::int4[]" (Identity bigArraySize)
+  xs <- fetchOne $ \(Identity (Array1 elems)) -> elems :: [Int32]
+  -- Make sure that decoders fully ran.
+  liftBase . evaluate $ rnf xs
+  pure $ length xs
+
 ----------------------------------------
 
 timed :: IO a -> IO (Double, a)
@@ -170,6 +184,8 @@ main = do
     (insertTime, ()) <- timed . runDB cs $ insertData base
     (selectParentsTime, nParentsOnly) <- timed $ runDB cs selectParents
     (selectTime, (nParents, nChildren)) <- timed $ runDB csComposite selectData
+    (bigArrayTime, nElems) <- timed $ runDB cs selectBigArray
     printf "Insertion: %.3f s (%d parents + %d children)\n" insertTime numRecords numRecords
     printf "Selection (parents only): %.3f s (%d parents decoded)\n" selectParentsTime nParentsOnly
     printf "Selection (with children): %.3f s (%d parents with %d children decoded)\n" selectTime nParents nChildren
+    printf "Selection (big array): %.3f s (%d elements decoded)\n" bigArrayTime nElems
