@@ -1,7 +1,6 @@
 -- | Definitions of exception types.
 module Database.PostgreSQL.PQTypes.Internal.Error
   ( DetailedQueryError (..)
-  , QueryError (..)
   , HPQTypesError (..)
   , LibPQError (..)
   , ConversionError (..)
@@ -34,12 +33,6 @@ data DetailedQueryError = DetailedQueryError
   , qeSourceLine :: !(Maybe Int)
   , qeSourceFunction :: !(Maybe String)
   }
-  deriving stock (Eq, Ord, Show)
-  deriving anyclass (E.Exception)
-
--- | Simple SQL query error. Thrown when there is no
--- PGresult object corresponding to query execution.
-newtype QueryError = QueryError String
   deriving stock (Eq, Ord, Show)
   deriving anyclass (E.Exception)
 

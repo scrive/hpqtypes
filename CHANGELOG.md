@@ -44,6 +44,9 @@
 * Remove `ArrayItemError`; errors of array element decoders report the
   position of the offending element as the column of their `ConversionError`
   instead.
+* Remove `QueryError`, which was thrown when query execution produced no
+  `PGresult` (e.g. because the connection died while the query was being
+  sent). Such failures now throw `LibPQError`.
 * The `Show` instances of `HPQTypesError` and `LibPQError` are now derived,
   like those of the other error types: they print e.g.
   `HPQTypesError "reason"` instead of `HPQTypesError (PostgreSQL): reason`.

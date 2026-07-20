@@ -613,27 +613,23 @@ verifyResult conn res = do
     _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
     _ | otherwise -> pure . Left $ 0
   where
-    throwSQLError =
-      E.throwIO
-        =<< if res == nullPtr
-          then
-            E.toException . QueryError <$> (safePeekCString' =<< c_PQerrorMessage conn)
-          else
-            E.toException
-              <$> ( DetailedQueryError
-                      <$> field c_PG_DIAG_SEVERITY
-                      <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
-                      <*> field c_PG_DIAG_MESSAGE_PRIMARY
-                      <*> mfield c_PG_DIAG_MESSAGE_DETAIL
-                      <*> mfield c_PG_DIAG_MESSAGE_HINT
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
-                      <*> mfield c_PG_DIAG_INTERNAL_QUERY
-                      <*> mfield c_PG_DIAG_CONTEXT
-                      <*> mfield c_PG_DIAG_SOURCE_FILE
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
-                      <*> mfield c_PG_DIAG_SOURCE_FUNCTION
-                  )
+    throwSQLError
+      | res == nullPtr = throwLibPQError conn "verifyResult"
+      | otherwise =
+          E.throwIO
+            =<< DetailedQueryError
+              <$> field c_PG_DIAG_SEVERITY
+              <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
+              <*> field c_PG_DIAG_MESSAGE_PRIMARY
+              <*> mfield c_PG_DIAG_MESSAGE_DETAIL
+              <*> mfield c_PG_DIAG_MESSAGE_HINT
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
+              <*> mfield c_PG_DIAG_INTERNAL_QUERY
+              <*> mfield c_PG_DIAG_CONTEXT
+              <*> mfield c_PG_DIAG_SOURCE_FILE
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
+              <*> mfield c_PG_DIAG_SOURCE_FUNCTION
       where
         field f = fromMaybe "" <$> mfield f
         mfield f = safePeekCString =<< c_PQresultErrorField res f
