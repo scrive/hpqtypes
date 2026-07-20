@@ -122,6 +122,8 @@ instance
 
 -- NULLables
 
+-- | 'Nothing' represents NULL. Note that the type of a NULL field is not
+-- checked, see 'decodeNullable'.
 instance FromSQL a => FromSQL (Maybe a) where
   fromSQL = decodeNullable fromSQL
 

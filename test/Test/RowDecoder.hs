@@ -50,6 +50,7 @@ decoderErrorTest td =
   testGroup
     "Decoder errors"
     [ typeMismatch
+    , nullTypeUnchecked
     , tooFewColumnsConsumed
     , tooManyColumnsWanted
     ]
@@ -63,6 +64,14 @@ decoderErrorTest td =
         check TypeMismatch {..} = do
           assertEqual "Expected OID is correct" textOid tmExpectedOid
           assertEqual "Delivered OID is correct" int4Oid tmDeliveredOid
+
+    -- Documented behavior of decodeNullable: the given decoder (and hence
+    -- its type check) doesn't run on NULL.
+    nullTypeUnchecked = testCase "Type of a NULL field is not checked" $ do
+      runTestEnv td defaultTransactionSettings $ do
+        runSQL_ "SELECT NULL::int8"
+        mn <- fetchOne $ fromSQL @(Maybe Int32)
+        assertEqual "NULL int8 decodes to Nothing as Maybe Int32" Nothing mn
 
     tooFewColumnsConsumed = testCase "Not consuming all columns is detected" $ do
       runTestEnv td defaultTransactionSettings $ do

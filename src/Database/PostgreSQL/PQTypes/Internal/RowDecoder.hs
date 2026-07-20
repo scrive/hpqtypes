@@ -158,6 +158,11 @@ runDecoderWith (RowDecoder dec) fs = do
 
 -- | Decode the next field with the given decoder, mapping NULL to 'Nothing'.
 --
+-- The given decoder doesn't run on NULL, so the type of the field is then
+-- not checked (it's the decoders themselves that check types): NULL of any
+-- type, including an untyped @NULL@ literal (which is of the text type as
+-- far as the server is concerned), decodes to 'Nothing'.
+--
 -- Note that on NULL exactly one field is consumed, hence the given decoder
 -- needs to consume exactly one field, which is the case for all decoders
 -- defined in this module.
