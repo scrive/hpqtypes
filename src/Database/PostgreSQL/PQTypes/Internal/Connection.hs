@@ -468,6 +468,11 @@ withParams params action =
   where
     n = length params
 
+    -- Maximum size of a single value: MaxAllocSize from the PostgreSQL
+    -- sources.
+    maxValueSize :: Int
+    maxValueSize = 0x3fffffff
+
     base :: ([Oid] -> [CString] -> [CInt] -> IO r) -> IO r
     base k = k [] [] []
 
@@ -491,13 +496,24 @@ withParams params action =
     step (PQParam oid mvalue) rest k = case mvalue of
       Nothing -> rest $ \oids values lengths ->
         k (oid : oids) (nullPtr : values) (0 : lengths)
-      Just value -> BS.unsafeUseAsCStringLen value $ \(ptr, len) ->
-        rest $ \oids values lengths ->
-          if ptr == nullPtr
-            -- A ByteString can be backed by a null pointer, which libpq would
-            -- interpret as SQL NULL, so pass a non-null empty string instead.
-            then k (oid : oids) (nullStringPtr : values) (0 : lengths)
-            else k (oid : oids) (ptr : values) (fromIntegral len : lengths)
+      Just value -> do
+        -- Values larger than that cannot be stored by PostgreSQL, so reject
+        -- them client side with a clear error. In particular, this ensures
+        -- that the length fits in the CInt passed to libpq: a wrapped-around
+        -- length would result in a confusing error or silent truncation of
+        -- the value.
+        when (BS.length value > maxValueSize) . hpqTypesError $
+          "withParams: value of length " ++ show (BS.length value)
+            ++ " is larger than the maximum size of a value ("
+            ++ show maxValueSize
+            ++ " bytes)"
+        BS.unsafeUseAsCStringLen value $ \(ptr, len) ->
+          rest $ \oids values lengths ->
+            if ptr == nullPtr
+              -- A ByteString can be backed by a null pointer, which libpq would
+              -- interpret as SQL NULL, so pass a non-null empty string instead.
+              then k (oid : oids) (nullStringPtr : values) (0 : lengths)
+              else k (oid : oids) (ptr : values) (fromIntegral len : lengths)
 
 -- | Flush any data queued in the output buffer to the server, waiting for the
 -- socket to become ready as necessary.
