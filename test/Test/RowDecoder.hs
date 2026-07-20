@@ -53,6 +53,7 @@ decoderErrorTest td =
     , nullTypeUnchecked
     , tooFewColumnsConsumed
     , tooManyColumnsWanted
+    , multiFieldNullableRejected
     ]
   where
     typeMismatch = testCase "Type mismatch is detected" $ do
@@ -88,6 +89,16 @@ decoderErrorTest td =
         runSQL_ "SELECT 1::int4"
         expectError @RowLengthMismatch "two of one columns wanted" check $
           fetchOne ((,) <$> fromSQL @Int32 <*> fromSQL @Int32)
+      where
+        check RowLengthMismatch {..} = do
+          assertEqual "Expected length is correct" 2 lengthExpected
+          assertEqual "Delivered length is correct" 1 lengthDelivered
+
+    multiFieldNullableRejected = testCase "Multi-field decoder under decodeNullable is detected" $ do
+      runTestEnv td defaultTransactionSettings $ do
+        runSQL_ "SELECT 1::int4, 2::int4"
+        expectError @RowLengthMismatch "two-field decoder under decodeNullable" check $
+          fetchOne (decodeNullable $ (,) <$> fromSQL @Int32 <*> fromSQL @Int32)
       where
         check RowLengthMismatch {..} = do
           assertEqual "Expected length is correct" 2 lengthExpected

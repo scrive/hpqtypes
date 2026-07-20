@@ -189,8 +189,9 @@ runDecoderWith (RowDecoder dec) fs = do
 -- far as the server is concerned), decodes to 'Nothing'.
 --
 -- Note that on NULL exactly one field is consumed, hence the given decoder
--- needs to consume exactly one field, which is the case for all decoders
--- defined in this module.
+-- needs to consume exactly one field as well, which is the case for all
+-- decoders defined in this module. This is enforced: a decoder consuming a
+-- different number of fields results in 'RowLengthMismatch'.
 decodeNullable :: RowDecoder a -> RowDecoder (Maybe a)
 decodeNullable (RowDecoder inner) = mkDecoder $ do
   DecoderState fs idx <- get
@@ -200,7 +201,18 @@ decodeNullable (RowDecoder inner) = mkDecoder $ do
     then do
       put $! DecoderState fs (idx + 1)
       pure Nothing
-    else Just <$> StateT inner
+    else do
+      (a, st@(DecoderState _ consumed)) <- lift . inner $ DecoderState fs idx
+      -- The NULL branch above consumes exactly one field, so it needs to be
+      -- checked that the given decoder did the same, otherwise decoding
+      -- would advance by a NULL-dependent number of fields.
+      when (consumed /= idx + 1) . lift . E.throwIO $
+        RowLengthMismatch
+          { lengthExpected = consumed - idx
+          , lengthDelivered = 1
+          }
+      put st
+      pure $ Just a
 
 -- | Decode the next field using a value decoder from
 -- "PostgreSQL.Binary.Decoding", after verifying that the type of the field
