@@ -40,6 +40,7 @@ import Foreign.C.String
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Foreign.Ptr
 import GHC.Clock (getMonotonicTime)
 import GHC.Conc (closeFdWith)
@@ -450,16 +451,17 @@ sendQueryAndGetResult connPtr send = do
 --
 -- Note that pointers to the values alias the buffers of their ByteStrings
 -- without copying, so they're valid only within the corresponding
--- 'BS.unsafeUseAsCStringLen' callback. This is why the processing is done in
--- the continuation passing style: the rest of the computation (including the
--- call to the continuation, which is where the pointers are read) needs to
--- run inside the callbacks of all the parameters.
+-- 'BS.unsafeUseAsCStringLen' callback. This is why the parameters are
+-- marshalled with 'withMany': the rest of the computation (including the
+-- call to the continuation, which is where the pointers are read) runs
+-- inside the callbacks of all the parameters.
 withParams
   :: [PQParam]
   -> (CInt -> Ptr Oid -> Ptr CString -> Ptr CInt -> Ptr CInt -> IO r)
   -> IO r
 withParams params action =
-  foldr step base params $ \oids values lengths ->
+  withMany withParam params $ \entries -> do
+    let (oids, values, lengths) = unzip3 entries
     withArray oids $ \oidsPtr ->
       withArray values $ \valuesPtr ->
         withArray lengths $ \lengthsPtr ->
@@ -473,29 +475,10 @@ withParams params action =
     maxValueSize :: Int
     maxValueSize = 0x3fffffff
 
-    base :: ([Oid] -> [CString] -> [CInt] -> IO r) -> IO r
-    base k = k [] [] []
-
-    -- Marshal one parameter: rest marshals the parameters after this one,
-    -- i.e. given a continuation expecting the oids/values/lengths of those
-    -- parameters, it calls it from inside their 'BS.unsafeUseAsCStringLen'
-    -- callbacks. The continuation passed to rest prepends the entries of
-    -- this parameter and is nested inside its own callback, so that the
-    -- pointer stays valid until the continuation of the whole fold runs.
-    -- For [p1, p2] the fold unrolls to
-    --
-    -- > BS.unsafeUseAsCStringLen v1 $ \(ptr1, len1) ->
-    -- >   BS.unsafeUseAsCStringLen v2 $ \(ptr2, len2) ->
-    -- >     k [oid1, oid2] [ptr1, ptr2] [len1, len2]
-    --
-    -- where k is the lambda given to the fold above.
-    step
-      :: PQParam
-      -> (([Oid] -> [CString] -> [CInt] -> IO r) -> IO r)
-      -> (([Oid] -> [CString] -> [CInt] -> IO r) -> IO r)
-    step (PQParam oid mvalue) rest k = case mvalue of
-      Nothing -> rest $ \oids values lengths ->
-        k (oid : oids) (nullPtr : values) (0 : lengths)
+    -- Marshal one parameter into its (oid, value, length) entry.
+    withParam :: PQParam -> ((Oid, CString, CInt) -> IO r) -> IO r
+    withParam (PQParam oid mvalue) k = case mvalue of
+      Nothing -> k (oid, nullPtr, 0)
       Just value -> do
         -- Values larger than that cannot be stored by PostgreSQL, so reject
         -- them client side with a clear error. In particular, this ensures
@@ -508,12 +491,11 @@ withParams params action =
             ++ show maxValueSize
             ++ " bytes)"
         BS.unsafeUseAsCStringLen value $ \(ptr, len) ->
-          rest $ \oids values lengths ->
-            if ptr == nullPtr
-              -- A ByteString can be backed by a null pointer, which libpq would
-              -- interpret as SQL NULL, so pass a non-null empty string instead.
-              then k (oid : oids) (nullStringPtr : values) (0 : lengths)
-              else k (oid : oids) (ptr : values) (fromIntegral len : lengths)
+          if ptr == nullPtr
+            -- A ByteString can be backed by a null pointer, which libpq would
+            -- interpret as SQL NULL, so pass a non-null empty string instead.
+            then k (oid, nullStringPtr, 0)
+            else k (oid, ptr, fromIntegral len)
 
 -- | Flush any data queued in the output buffer to the server, waiting for the
 -- socket to become ready as necessary.
