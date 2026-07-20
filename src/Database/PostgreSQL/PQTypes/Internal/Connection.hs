@@ -17,6 +17,10 @@ module Database.PostgreSQL.PQTypes.Internal.Connection
   , runQueryIO
   , QueryName (..)
   , runPreparedQueryIO
+
+    -- * Socket helpers
+  , consumeInput
+  , getSocket
   ) where
 
 import Control.Concurrent
@@ -306,13 +310,7 @@ runPreparedQueryIO
 runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
   runQueryImpl conn sql $ do
     when (T.null queryName) $ do
-      E.throwIO
-        DBException
-          { dbeQueryContext = sql
-          , dbeBackendPid = connBackendPid
-          , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
-          , dbeCallStack = callStack
-          }
+      hpqTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
     withSQL sql $ \query params -> do
       withParams params $ \n oids values lengths formats -> do
         BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
@@ -486,7 +484,8 @@ withParams params action =
         -- length would result in a confusing error or silent truncation of
         -- the value.
         when (BS.length value > maxValueSize) . hpqTypesError $
-          "withParams: value of length " ++ show (BS.length value)
+          "withParams: value of length "
+            ++ show (BS.length value)
             ++ " is larger than the maximum size of a value ("
             ++ show maxValueSize
             ++ " bytes)"

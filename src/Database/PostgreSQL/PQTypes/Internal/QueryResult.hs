@@ -1,6 +1,5 @@
 module Database.PostgreSQL.PQTypes.Internal.QueryResult
   ( QueryResult (..)
-  , mkQueryResult
   , ntuples
   , nfields
 
@@ -30,19 +29,6 @@ data QueryResult = QueryResult
   , qrBackendPid :: !BackendPid
   , qrResult :: !(ForeignPtr PGresult)
   }
-
-mkQueryResult
-  :: IsSQL sql
-  => sql
-  -> BackendPid
-  -> ForeignPtr PGresult
-  -> QueryResult
-mkQueryResult sql pid res =
-  QueryResult
-    { qrSQL = SomeSQL sql
-    , qrBackendPid = pid
-    , qrResult = res
-    }
 
 -- | Fold rows of a query result from the right. Each row is decoded right
 -- before it's passed to the fold function, i.e. only after the rows after it

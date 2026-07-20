@@ -320,6 +320,12 @@ updateStateWith conn st sql (r, res, updateStats) = do
             if dbRecordLastQuery st
               then (connBackendPid conn, SomeSQL sql)
               else dbLastQuery st
-        , dbQueryResult = Just $ mkQueryResult sql (connBackendPid conn) res
+        , dbQueryResult =
+            Just
+              QueryResult
+                { qrSQL = SomeSQL sql
+                , qrBackendPid = connBackendPid conn
+                , qrResult = res
+                }
         }
     )

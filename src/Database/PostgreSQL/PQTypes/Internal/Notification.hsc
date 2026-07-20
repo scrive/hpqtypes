@@ -5,7 +5,6 @@ module Database.PostgreSQL.PQTypes.Internal.Notification
   ) where
 
 import Control.Concurrent
-import Control.Monad
 import Control.Monad.Fix
 import Data.String
 import Foreign.Ptr
@@ -21,7 +20,6 @@ import Data.Text.Encoding qualified as T
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
-import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Raw
 
 #include <libpq-fe.h>
@@ -76,19 +74,11 @@ getNotificationIO conn n = timeout n $ fix $ \loop -> do
   case mmsg of
     Just msg -> pure msg
     Nothing -> do
-      fd <- c_PQsocket $ connPtr conn
-      if fd == -1
-        then throwLibPQError (connPtr conn) fname
-        else do
-          threadWaitRead fd
-          res <- c_PQconsumeInput $ connPtr conn
-          when (res /= 1) $ do
-            throwLibPQError (connPtr conn) fname
-          loop
+      fd <- getSocket $ connPtr conn
+      threadWaitRead fd
+      consumeInput $ connPtr conn
+      loop
   where
-    fname :: String
-    fname = "getNotificationIO"
-
     tryGet :: Ptr PGconn -> IO (Maybe Notification)
     tryGet connPtr = E.mask_ $ do
       ptr <- c_PQnotifies connPtr

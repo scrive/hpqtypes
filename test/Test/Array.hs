@@ -1,13 +1,17 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 -- | Tests of the array decoder and the encoding of lists and vectors.
 module Test.Array
   ( arrayTests
   ) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Int
 import Data.Text qualified as T
 import Data.Time
 import Data.Vector qualified as V
+import Test.QuickCheck (Arbitrary)
 import Test.Tasty
 
 import Data.Monoid.Utils
@@ -23,9 +27,9 @@ arrayDecoderTest :: TestData -> TestTree
 arrayDecoderTest td =
   testGroup
     "Array decoder"
-    [ intArrayRoundtrips
-    , textArrayRoundtrips
-    , nullableElementsRoundtrip
+    [ arrayRoundtrips @Int32 "::int4[]" "Array of int4 roundtrips correctly"
+    , arrayRoundtrips @T.Text "::text[]" "Array of text roundtrips correctly"
+    , arrayRoundtrips @(Maybe Int32) "::int4[]" "Array with NULL elements roundtrips correctly"
     , nullArrayWorks
     , twoDimensionalArrayWorks
     , threeDimensionalArrayWorks
@@ -47,24 +51,16 @@ arrayDecoderTest td =
     arrayOf :: [SQL] -> SQL -> SQL
     arrayOf xs castSql = "SELECT ARRAY[" <> mintercalate ", " xs <> "]" <> castSql
 
-    intArrayRoundtrips = testCase "Array of int4 roundtrips correctly" $ do
-      runTestEnv td defaultTransactionSettings . runTimes 100 $ do
-        xs <- randomValue @[Int32] 100
-        runSQL_ $ arrayOf (map sqlParam xs) "::int4[]"
-        xs' <- fetchOne fromSQL
-        assertEqual "Array doesn't change after getting through database" xs xs'
-
-    textArrayRoundtrips = testCase "Array of text roundtrips correctly" $ do
-      runTestEnv td defaultTransactionSettings . runTimes 100 $ do
-        xs <- randomValue @[T.Text] 100
-        runSQL_ $ arrayOf (map sqlParam xs) "::text[]"
-        xs' <- fetchOne fromSQL
-        assertEqual "Array doesn't change after getting through database" xs xs'
-
-    nullableElementsRoundtrip = testCase "Array with NULL elements roundtrips correctly" $ do
-      runTestEnv td defaultTransactionSettings . runTimes 100 $ do
-        xs <- randomValue @[Maybe Int32] 100
-        runSQL_ $ arrayOf (map sqlParam xs) "::int4[]"
+    arrayRoundtrips
+      :: forall a
+       . (Arbitrary a, Eq a, FromSQL a, Show a, ToSQL a)
+      => SQL
+      -> TestName
+      -> TestTree
+    arrayRoundtrips cast name = testCase name $ do
+      runTestEnv td defaultTransactionSettings . replicateM_ 100 $ do
+        xs <- randomValue @[a] 100
+        runSQL_ $ arrayOf (map sqlParam xs) cast
         xs' <- fetchOne fromSQL
         assertEqual "Array doesn't change after getting through database" xs xs'
 

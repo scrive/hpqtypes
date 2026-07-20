@@ -3,7 +3,6 @@ module Test.Env
   ( TestEnv (..)
   , TestData
   , runTestEnv
-  , runTimes
   , randomValue
   , assertEqual
   , expectError
@@ -56,11 +55,6 @@ runTestEnv :: TestData -> TransactionSettings -> TestEnv a -> IO a
 runTestEnv (env, connSettings) ts m = runDBT cs ts $ S.evalStateT (unTestEnv m) env
   where
     ConnectionSource cs = simpleSource connSettings
-
-runTimes :: Monad m => Int -> m () -> m ()
-runTimes !n m = case n of
-  0 -> pure ()
-  _ -> m >> runTimes (n - 1) m
 
 ----------------------------------------
 

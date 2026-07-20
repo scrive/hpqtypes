@@ -143,7 +143,7 @@ putGetTest td n = testCase
       <+> "through database doesn't change its value"
   )
   . runTestEnv td defaultTransactionSettings
-  . runTimes 1000
+  . replicateM_ 1000
   $ do
     v <- randomValue @a n
     -- liftBase . putStrLn . show $ v
@@ -234,7 +234,7 @@ intervalComparisonTest td = testCase
     assertEqual "1 month equals 30 days" EQ $ compare (imonths 1) (idays 30)
     assertEqual "1 day equals 24 hours" EQ $ compare (idays 1) (ihours 24)
     assertEqual "Mixed signs cancel out" mempty $ imonths 1 <> idays (-30)
-    runTimes 100 $ do
+    replicateM_ 100 $ do
       a <- randomValue @Interval 100
       b <- randomValue @Interval 100
       runQuery_ $ rawSQL "SELECT $1 < $2, $1 = $2" (a, b)
@@ -252,7 +252,7 @@ intWordEncodingTest :: TestData -> TestTree
 intWordEncodingTest td = testCase
   "Int and Word parameters are encoded correctly"
   . runTestEnv td defaultTransactionSettings
-  . runTimes 100
+  . replicateM_ 100
   $ do
     int <- randomValue @Int 1000000
     word <- randomValue @Word 1000000

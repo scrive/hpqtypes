@@ -17,8 +17,8 @@ module Database.PostgreSQL.PQTypes.FromSQL
   ) where
 
 import Data.ByteString qualified as BS
-import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Lazy qualified as BSL
+import Data.Char
 import Data.IP (IPRange)
 import Data.Int
 import Data.Scientific
@@ -32,6 +32,7 @@ import GHC.Generics
 import GHC.TypeLits
 import PostgreSQL.Binary.Decoding qualified as D
 import PostgreSQL.Binary.Range (Range)
+import TextShow
 
 import Database.PostgreSQL.PQTypes.Internal.RowDecoder
 
@@ -163,8 +164,8 @@ instance FromSQL Word64 where
 
 instance FromSQL Integer where
   fromSQL = decodeScalar . (`D.refine` D.numeric) $ \n ->
-    case floatingOrInteger n of
-      Left (_ :: Double) -> Left "value is not an integer"
+    case floatingOrInteger @Double n of
+      Left v -> Left $ "expected an integer, got " <> showt v
       Right i -> Right i
 
 instance FromSQL Scientific where
@@ -175,20 +176,20 @@ instance FromSQL Scientific where
 -- The "char" type stores a single byte, hence characters above '\255' are not
 -- representable and the decoding of the rest is the identity, not UTF-8.
 
+singleByte :: D.Value Word8
+singleByte = D.fn $ \value ->
+  case BS.length value of
+    1 -> Right $ BS.head value
+    n -> Left $ "expected 1 byte, got " <> showt n
+
 instance FromSQL Char where
-  fromSQL = decodeScalar . D.fn $ \value ->
-    if BSC.length value == 1
-      then Right $ BSC.head value
-      else Left "expected exactly one byte"
+  fromSQL = decodeScalar $ chr . fromIntegral <$> singleByte
 
   -- Decode 'String' from text instead of an array of "char".
   fromSQLList = decodeScalar $ T.unpack <$> D.text_strict
 
 instance FromSQL Word8 where
-  fromSQL = decodeScalar . D.fn $ \value ->
-    if BS.length value == 1
-      then Right $ BS.head value
-      else Left "expected exactly one byte"
+  fromSQL = decodeScalar singleByte
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 

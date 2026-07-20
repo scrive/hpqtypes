@@ -189,7 +189,7 @@ instance Arbitrary Day where
 -- values come back from the server rounded to whole microseconds, so they
 -- wouldn't roundtrip exactly and the tests would need approximate
 -- comparison.
-microseconds :: Fractional t => Int64 -> Gen t
+microseconds :: Fractional a => Int64 -> Gen a
 microseconds secs = (/ 1000000) . fromIntegral <$> choose (0, secs * 1000000 - 1)
 
 instance Arbitrary TimeOfDay where

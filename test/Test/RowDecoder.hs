@@ -5,6 +5,7 @@ module Test.RowDecoder
   , Simple (..)
   ) where
 
+import Control.Monad
 import Data.Int
 import Data.Text qualified as T
 import Data.Time
@@ -132,14 +133,14 @@ rowDecoderTest td =
         assertEqual "Result is correct" (1, (2, "hi"), True) result
 
     simpleRoundtrips = testCase "Simple composite roundtrips correctly" $ do
-      runTestEnv td defaultTransactionSettings . runTimes 100 $ do
+      runTestEnv td defaultTransactionSettings . replicateM_ 100 $ do
         s@(Simple a b) <- randomValue 100
         runQuery_ $ rawSQL "SELECT ($1, $2)" (a, b)
         s' <- fetchOne $ fromSQL @Simple
         assertEqual "Simple doesn't change after getting through database" s s'
 
     nestedRoundtrips = testCase "Nested composite roundtrips correctly" $ do
-      runTestEnv td defaultTransactionSettings . runTimes 100 $ do
+      runTestEnv td defaultTransactionSettings . replicateM_ 100 $ do
         n@(Nested d ms) <- randomValue 100
         case ms of
           Nothing ->
