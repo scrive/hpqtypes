@@ -48,6 +48,11 @@ enumTest td = testCase "Enum deriving helpers work"
     runSQL_ "SELECT 42::int2"
     expectError @(RangeError Int16) "invalid enum value" checkRange $
       fetchOne (fromSQL @Colours)
+    -- The RangeError is wrapped in a ConversionError carrying the position
+    -- of the field (courtesy of the MonadThrow instance of RowDecoder).
+    runSQL_ "SELECT 42::int2"
+    expectError @ConversionError "enum error carries position" checkRangePosition $
+      fetchOne (fromSQL @Colours)
 
     -- Values of actual PostgreSQL enum types can be inserted, compared with
     -- and fetched without any casts.
@@ -79,6 +84,9 @@ enumTest td = testCase "Enum deriving helpers work"
     checkRange RangeError {..} = do
       assertEqual "Invalid value is correct" 42 reValue
       assertEqual "Valid ranges are correct" [(1, 3), (6, 7)] reRange
+    checkRangePosition ConversionError {convColumn = col, convRow = row} = do
+      assertEqual "Column is correct" 1 col
+      assertEqual "Row is correct" 1 row
     checkInvalid InvalidValue {..} = do
       assertEqual "Invalid value is correct" "batman" ivValue
       assertEqual

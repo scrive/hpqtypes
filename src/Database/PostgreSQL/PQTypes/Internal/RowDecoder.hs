@@ -51,9 +51,34 @@ newtype RowDecoder a = RowDecoder (DecoderState -> IO (a, DecoderState))
     ( Applicative
     , Functor
     , Monad
-    , MonadThrow
     )
     via StateT DecoderState IO
+
+-- | Exceptions thrown with 'throwM' are wrapped in 'ConversionError' carrying
+-- the position of the most recently consumed field, like the errors thrown by
+-- the decoders of the fields themselves. This makes it the way to report errors
+-- detected after a field was decoded, e.g. by validation of the decoded value.
+--
+-- /Note:/ an error thrown before the field it concerns was consumed is
+-- attributed to the preceding field (or carries no position at all when thrown
+-- before any field was consumed).
+instance MonadThrow RowDecoder where
+  throwM err = mkDecoder $ do
+    DecoderState fs idx <- get
+    lift $
+      if idx == 0
+        -- No field was consumed yet, so there's no position to attach.
+        then E.throwIO err
+        else do
+          -- idx is the index of the next field to consume.
+          name <- fs.fieldName (idx - 1)
+          E.throwIO
+            ConversionError
+              { convColumn = idx
+              , convColumnName = name
+              , convRow = fs.row + 1
+              , convError = err
+              }
 
 instance MonadFail RowDecoder where
   fail = throwM . HPQTypesError
