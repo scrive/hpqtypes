@@ -375,14 +375,6 @@ boundsCheck fs idx =
       , lengthDelivered = fs.numFields
       }
 
--- | Like 'E.catch' with a handler for any exception, except asynchronous
--- exceptions are rethrown instead of being passed to the handler.
-catchSync :: IO a -> (E.SomeException -> IO a) -> IO a
-catchSync action handler =
-  action `E.catch` \e -> case E.fromException e of
-    Just (E.SomeAsyncException _) -> E.throwIO e
-    Nothing -> handler e
-
 -- | Get a result of running a parser or throw an exception.
 getParseResult :: String -> Either T.Text a -> IO a
 getParseResult fun = either (hpqTypesError . (fun ++) . (": " ++) . T.unpack) pure

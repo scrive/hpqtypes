@@ -1,5 +1,7 @@
 module Database.PostgreSQL.PQTypes.Internal.Utils
   ( MkConstraint
+  , isAsyncException
+  , catchSync
   , mread
   , safePeekCString
   , safePeekCString'
@@ -9,6 +11,7 @@ module Database.PostgreSQL.PQTypes.Internal.Utils
   ) where
 
 import Control.Exception qualified as E
+import Control.Monad.Catch
 import Data.Kind (Type)
 import Data.Maybe
 import Foreign.C
@@ -28,6 +31,21 @@ type family
   where
   MkConstraint m '[] = ()
   MkConstraint m (c ': cs) = (c m, MkConstraint m cs)
+
+-- | Check whether an exception is asynchronous.
+isAsyncException :: E.SomeException -> Bool
+isAsyncException e = case E.fromException e of
+  Just E.SomeAsyncException {} -> True
+  Nothing -> False
+
+-- | Like 'catch' with a handler for any exception, except asynchronous
+-- exceptions are rethrown instead of being passed to the handler.
+catchSync :: MonadCatch m => m a -> (E.SomeException -> m a) -> m a
+catchSync action handler =
+  action `catch` \e ->
+    if isAsyncException e
+      then throwM e
+      else handler e
 
 -- Safely read value.
 mread :: Read a => String -> Maybe a

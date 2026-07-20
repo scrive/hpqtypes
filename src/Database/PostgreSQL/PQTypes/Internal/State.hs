@@ -15,7 +15,6 @@ module Database.PostgreSQL.PQTypes.Internal.State
   ) where
 
 import Control.Concurrent.MVar.Lifted
-import Control.Exception (SomeAsyncException (..))
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -30,6 +29,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
@@ -141,9 +141,7 @@ withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
             -- during the cleanup is not lost.
             _ ->
               finalizeConnectionData cd ec
-                `catches` [ Handler $ \e@SomeAsyncException {} -> throwM e
-                          , Handler $ \(_ :: SomeException) -> pure ()
-                          ]
+                `catchSync` \_ -> pure ()
         )
       $ action
   case eres of
@@ -154,7 +152,7 @@ withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
     -- predicate matches it (which it can, if it's instantiated at
     -- SomeException).
     Left e
-      | Just SomeAsyncException {} <- fromException e -> throwM e
+      | isAsyncException e -> throwM e
       | Just () <- expred n e -> loop $ n + 1
       | otherwise -> throwM e
   where

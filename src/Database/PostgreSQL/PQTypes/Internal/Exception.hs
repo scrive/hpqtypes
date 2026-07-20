@@ -8,6 +8,7 @@ import Control.Exception qualified as E
 import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 
 -- | Main exception type. All exceptions thrown by
@@ -36,7 +37,7 @@ rethrowWithContext
   -> E.SomeException
   -> IO a
 rethrowWithContext sql pid e@(E.SomeException inner)
-  | Just _ <- E.fromException @E.SomeAsyncException e = E.throwIO e
+  | isAsyncException e = E.throwIO e
   | Just dbe <- E.fromException @DBException e = E.throwIO dbe
   | otherwise =
       E.throwIO
