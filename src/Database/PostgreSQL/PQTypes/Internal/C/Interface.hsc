@@ -28,7 +28,6 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface
 
     -- * asynchronous query processing
   , c_PQsendQueryParams
-  , c_PQsendPrepare
   , c_PQsendQueryPrepared
   , c_PQsetnonblocking
   , c_PQflush
@@ -155,18 +154,6 @@ foreign import ccall safe "PQsendQueryParams"
     -> Ptr CInt
     -> Ptr CInt
     -> ResultFormat
-    -> IO CInt
-
--- | Safe as it copies the query and its parameters into the output buffer,
--- which can take a while for large inputs (note that it never blocks on the
--- socket, since connections are always in the non-blocking mode).
-foreign import ccall safe "PQsendPrepare"
-  c_PQsendPrepare
-    :: Ptr PGconn
-    -> CString
-    -> CString
-    -> CInt
-    -> Ptr Oid
     -> IO CInt
 
 -- | Safe as it copies the query and its parameters into the output buffer,
