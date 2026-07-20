@@ -23,6 +23,10 @@
   statically. A decoder that doesn't match the shape of the result throws
   `RowLengthMismatch` when a row is decoded, which in particular means that
   fetching from a result with no rows always succeeds.
+* Row fetching functions no longer decode all rows of the result up front,
+  retaining them until the fold completes: each row is now decoded right
+  before the fold function consumes it, so e.g. `mapDB_` over a large result
+  runs in constant additional memory.
 * Reduce the maximum arity of tuples with a `ToRow` instance from 50 to 10.
   Larger sets of query parameters can be passed by combining rows with the
   `:++:` type (previously known as `:*:`, renamed to avoid conflicting with
