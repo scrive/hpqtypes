@@ -18,6 +18,11 @@
 * Remove the `FromRow` class. Row fetching functions (`foldrDB`, `foldlDB`,
   `mapDB_`, `fetchMany`, `fetchMaybe`, `fetchOne`) now take an explicit
   `RowDecoder` of a row, e.g. `fetchMany ((,) <$> fromSQL <*> fromSQL)`.
+* Row fetching functions no longer validate the width of the query result up
+  front, as the number of fields a `RowDecoder` consumes is not known
+  statically. A decoder that doesn't match the shape of the result throws
+  `RowLengthMismatch` when a row is decoded, which in particular means that
+  fetching from a result with no rows always succeeds.
 * Reduce the maximum arity of tuples with a `ToRow` instance from 50 to 10.
   Larger sets of query parameters can be passed by combining rows with the
   `:++:` type (previously known as `:*:`, renamed to avoid conflicting with
