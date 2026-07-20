@@ -11,22 +11,12 @@ import Data.Pool
 import Data.Text qualified as T
 import Database.PostgreSQL.PQTypes
 import Database.PostgreSQL.PQTypes.Internal.Utils (mread)
+import GHC.Generics
 import System.Console.Haskeline
-import System.Environment
 
 -- | Generic 'putStrLn'.
 printLn :: MonadIO m => String -> m ()
 printLn = liftIO . putStrLn
-
--- | Get connection string from command line argument.
-getConnSettings :: IO ConnectionSettings
-getConnSettings = do
-  args <- getArgs
-  case args of
-    [conninfo] -> pure defaultConnectionSettings {csConnInfo = T.pack conninfo}
-    _ -> do
-      prog <- getProgName
-      error $ "Usage:" <+> prog <+> "<connection info>"
 
 ----------------------------------------
 
@@ -36,21 +26,10 @@ data Book = Book
   , bookName :: String
   , bookYear :: Int32
   }
-  deriving (Read, Show)
+  deriving stock (Generic, Read, Show)
 
--- | Intermediate representation of 'Book'.
-type instance CompositeRow Book = (Int64, String, Int32)
-
-instance PQFormat Book where
-  pqFormat = "%book_"
-
-instance CompositeFromSQL Book where
-  toComposite (bid, name, year) =
-    Book
-      { bookID = bid
-      , bookName = name
-      , bookYear = year
-      }
+instance FromSQL Book where
+  fromSQL = decodeComposite genericDecoder
 
 withCatalog :: ConnectionSettings -> IO () -> IO ()
 withCatalog settings = bracket_ createStructure dropStructure
@@ -79,18 +58,9 @@ withCatalog settings = bracket_ createStructure dropStructure
           , ", FOREIGN KEY (author_id) REFERENCES authors_ (id)"
           , ")"
           ]
-      runSQL_ $
-        mconcat
-          [ "CREATE TYPE book_ AS ("
-          , "  id BIGINT"
-          , ", name TEXT"
-          , ", year INTEGER"
-          , ")"
-          ]
     -- Drop previously created database structures.
     dropStructure = runDBT cs defaultTransactionSettings $ do
       printLn "Dropping tables..."
-      runSQL_ "DROP TYPE book_"
       runSQL_ "DROP TABLE books_"
       runSQL_ "DROP TABLE authors_"
 
@@ -101,11 +71,12 @@ processCommand cs cmd = case parse cmd of
   -- Display authors.
   ("authors", "") -> runDBT cs defaultTransactionSettings $ do
     runSQL_ "SELECT * FROM authors_ ORDER BY name"
-    mapDB_ $ \(aid :: Int64, name) -> printLn $ show aid <> ":" <+> name
+    mapDB_ ((,) <$> fromSQL @Int64 <*> fromSQL @String) $ \(aid, name) -> do
+      printLn $ show aid <> ":" <+> name
   -- Display books.
   ("books", "") -> runDBT cs defaultTransactionSettings $ do
-    runSQL_ "SELECT a.name, ARRAY(SELECT (b.id, b.name, b.year)::book_ FROM books_ b WHERE b.author_id = a.id) FROM authors_ a ORDER BY a.name"
-    mapDB_ $ \(author, CompositeArray1 (books :: [Book])) -> do
+    runSQL_ "SELECT a.name, ARRAY(SELECT (b.id, b.name, b.year) FROM books_ b WHERE b.author_id = a.id) FROM authors_ a ORDER BY a.name"
+    mapDB_ ((,) <$> fromSQL @String <*> fromSQL @[Book]) $ \(author, books) -> do
       printLn $ author <> ":"
       forM_ books $ \book -> printLn $ "*" <+> show book
   -- Insert an author.
@@ -115,12 +86,10 @@ processCommand cs cmd = case parse cmd of
         "INSERT INTO authors_ (name) VALUES (" <?> name <+> ")"
     Nothing -> printLn "Invalid name"
   -- Insert a book.
-  ("insert_book", mbook) -> case mread mbook of
+  ("insert_book", mbook) -> case mread @(String, Int32, Int64) mbook of
     Just record ->
       runDBT cs defaultTransactionSettings . runQuery_ $
-        rawSQL
-          "INSERT INTO books_ (name, year, author_id) VALUES ($1, $2, $3)"
-          (record :: (String, Int32, Int64))
+        rawSQL "INSERT INTO books_ (name, year, author_id) VALUES ($1, $2, $3)" record
     Nothing -> printLn "Invalid book record"
   -- Handle unknown commands.
   _ -> printLn $ "Unknown command:" <+> cmd
@@ -139,11 +108,12 @@ processCommand cs cmd = case parse cmd of
 --
 -- If you want to check out exceptions in action,
 -- try inserting a book with invalid author id.
-catalog :: IO ()
-catalog = do
-  cs <- getConnSettings
+catalog :: T.Text -> IO ()
+catalog connInfo = do
+  let cs = defaultConnectionSettings {csConnInfo = connInfo}
   withCatalog cs $ do
-    ConnectionSource pool <- poolSource (cs {csComposites = ["book_"]}) (\connect disconnect -> defaultPoolConfig connect disconnect 1 10)
+    ConnectionSource pool <- poolSource cs $ \connect disconnect ->
+      defaultPoolConfig connect disconnect 1 10
     runInputT defaultSettings . fix $ \next ->
       getInputLine "> "
         >>= maybe

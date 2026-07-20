@@ -1,8 +1,6 @@
 source_paths:
+- bench
+- bench-db
+- examples
 - src
 - test
-cpp_includes:
-- libpqtypes/src
-cpp_options:
-- -DMIN_VERSION_QuickCheck(x,y,z)=1
-- -DMIN_VERSION_aeson(x,y,z)=1

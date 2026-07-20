@@ -5,6 +5,7 @@
 # Replace a $ b $ c with a . b $ c
 - group: {name: dollar, enabled: true}
 
+- ignore: {name: "Eta reduce"}
 - ignore: {name: "Functor law"}
 - ignore: {name: "Redundant do"}
 - ignore: {name: "Use <=<"}

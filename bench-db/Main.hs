@@ -9,6 +9,7 @@ import Data.Text qualified as T
 import Data.Time
 import Database.PostgreSQL.PQTypes
 import GHC.Clock
+import GHC.Generics
 import System.Environment
 import System.Exit
 import Text.Printf
@@ -31,23 +32,25 @@ bigArraySize = 100000
 ----------------------------------------
 
 data Child = Child Int32 T.Text Double UTCTime Integer
+  deriving stock (Generic)
+  deriving anyclass (NFData)
+
+instance FromSQL Child where
+  fromSQL = decodeComposite genericDecoder
+
 data Parent = Parent Int32 T.Text Double UTCTime Integer [Child]
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
-instance NFData Child where
-  rnf (Child a b c d e) =
-    rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
-
-instance NFData Parent where
-  rnf (Parent a b c d e f) =
-    rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
-
-type instance CompositeRow Child = (Int32, T.Text, Double, UTCTime, Integer)
-
-instance PQFormat Child where
-  pqFormat = "%bench_child_"
-
-instance CompositeFromSQL Child where
-  toComposite (cid, t, d, ts, n) = Child cid t d ts n
+parentDecoder :: RowDecoder [Child] -> RowDecoder Parent
+parentDecoder children =
+  Parent
+    <$> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> children
 
 -- | Deterministic record with the given id.
 recordData :: UTCTime -> Int -> (Int32, T.Text, Double, UTCTime, Integer)
@@ -88,20 +91,9 @@ createTables = do
       , ")"
       ]
   runSQL_ "CREATE INDEX bench_children_parent_id_idx_ ON bench_children_ (parent_id)"
-  runSQL_ $
-    mconcat
-      [ "CREATE TYPE bench_child_ AS ("
-      , "  id INTEGER"
-      , ", t TEXT"
-      , ", d DOUBLE PRECISION"
-      , ", ts TIMESTAMPTZ"
-      , ", n NUMERIC"
-      , ")"
-      ]
 
 dropTables :: DBT IO ()
 dropTables = do
-  runSQL_ "DROP TYPE bench_child_"
   runSQL_ "DROP TABLE bench_children_"
   runSQL_ "DROP TABLE bench_parents_"
 
@@ -123,7 +115,7 @@ insertData base = do
 selectParents :: DBT IO Int
 selectParents = do
   runSQL_ "SELECT p.id, p.t, p.d, p.ts, p.n FROM bench_parents_ p ORDER BY p.id"
-  parents <- fetchMany $ \(pid, t, d, ts, n) -> Parent pid t d ts n []
+  parents <- fetchMany . parentDecoder $ pure []
   -- Make sure that decoders fully ran.
   liftBase . evaluate $ rnf parents
   pure $ length parents
@@ -133,12 +125,11 @@ selectData = do
   runSQL_ $
     mconcat
       [ "SELECT p.id, p.t, p.d, p.ts, p.n"
-      , ", ARRAY(SELECT (c.id, c.t, c.d, c.ts, c.n)::bench_child_"
+      , ", ARRAY(SELECT (c.id, c.t, c.d, c.ts, c.n)"
       , "        FROM bench_children_ c WHERE c.parent_id = p.id ORDER BY c.id)"
       , " FROM bench_parents_ p ORDER BY p.id"
       ]
-  parents <- fetchMany $ \(pid, t, d, ts, n, CompositeArray1 children) ->
-    Parent pid t d ts n children
+  parents <- fetchMany $ parentDecoder fromSQL
   -- Make sure that decoders fully ran.
   liftBase . evaluate $ rnf parents
   pure (length parents, sum $ map (\(Parent _ _ _ _ _ cs) -> length cs) parents)
@@ -147,7 +138,7 @@ selectBigArray :: DBT IO Int
 selectBigArray = do
   runQuery_ $
     rawSQL "SELECT ARRAY(SELECT generate_series(1, $1))::int4[]" (Identity bigArraySize)
-  xs <- fetchOne $ \(Identity (Array1 elems)) -> elems :: [Int32]
+  xs <- fetchOne $ fromSQL @[Int32]
   -- Make sure that decoders fully ran.
   liftBase . evaluate $ rnf xs
   pure $ length xs
@@ -170,21 +161,16 @@ main = do
         prog <- getProgName
         putStrLn $ "Usage: " <> prog <> " <connection info string>"
         exitFailure
-  let settings = defaultConnectionSettings {csConnInfo = connString}
-      ConnectionSource cs = simpleSource settings
-      -- Registration of composites happens at connection time, so
-      -- bench_child_ needs to exist before this source is used.
-      ConnectionSource csComposite =
-        simpleSource settings {csComposites = ["bench_child_"]}
-      runDB :: ConnectionSourceM IO -> DBT IO a -> IO a
-      runDB c = runDBT c defaultTransactionSettings
+  let ConnectionSource cs = simpleSource defaultConnectionSettings {csConnInfo = connString}
+      runDB :: DBT IO a -> IO a
+      runDB = runDBT cs defaultTransactionSettings
   base <- getCurrentTime
-  runDB cs createTables
-  (`finally` runDB cs dropTables) $ do
-    (insertTime, ()) <- timed . runDB cs $ insertData base
-    (selectParentsTime, nParentsOnly) <- timed $ runDB cs selectParents
-    (selectTime, (nParents, nChildren)) <- timed $ runDB csComposite selectData
-    (bigArrayTime, nElems) <- timed $ runDB cs selectBigArray
+  runDB createTables
+  (`finally` runDB dropTables) $ do
+    (insertTime, ()) <- timed . runDB $ insertData base
+    (selectParentsTime, nParentsOnly) <- timed $ runDB selectParents
+    (selectTime, (nParents, nChildren)) <- timed $ runDB selectData
+    (bigArrayTime, nElems) <- timed $ runDB selectBigArray
     printf "Insertion: %.3f s (%d parents + %d children)\n" insertTime numRecords numRecords
     printf "Selection (parents only): %.3f s (%d parents decoded)\n" selectParentsTime nParentsOnly
     printf "Selection (with children): %.3f s (%d parents with %d children decoded)\n" selectTime nParents nChildren

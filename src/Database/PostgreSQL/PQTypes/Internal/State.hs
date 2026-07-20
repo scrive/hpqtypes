@@ -24,12 +24,12 @@ import Foreign.ForeignPtr
 import GHC.Stack
 
 import Data.Monoid.Utils
-import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
@@ -126,13 +126,35 @@ withConnectionData
   -> (ConnectionData m -> m r)
   -> m r
 withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
-  let maybeRestart = case tsRestartPredicate ts of
-        Just _ -> handleJust (expred n) $ \_ -> loop $ n + 1
-        Nothing -> id
-  maybeRestart
-    . fmap fst
-    . generalBracket (initConnectionData cs cam) finalizeConnectionData
-    $ action
+  eres <-
+    try
+      . fmap fst
+      . generalBracket
+        (initConnectionData cs cam)
+        ( \cd ec -> case ec of
+            ExitCaseSuccess {} -> finalizeConnectionData cd ec
+            -- If the action didn't succeed, propagate its original exception:
+            -- a failure of the cleanup (e.g. of the ROLLBACK query when the
+            -- connection died) would otherwise mask it, in particular hiding
+            -- it from the restart predicate below. Asynchronous exceptions
+            -- are not suppressed, so that e.g. thread cancellation delivered
+            -- during the cleanup is not lost.
+            _ ->
+              finalizeConnectionData cd ec
+                `catchSync` \_ -> pure ()
+        )
+      $ action
+  case eres of
+    Right res -> pure res
+    -- Restarting is done outside of the exception handler, so that the
+    -- retried transaction doesn't run with asynchronous exceptions masked.
+    -- Never restart on an asynchronous exception, even if the restart
+    -- predicate matches it (which it can, if it's instantiated at
+    -- SomeException).
+    Left e
+      | isAsyncException e -> throwM e
+      | Just () <- expred n e -> loop $ n + 1
+      | otherwise -> throwM e
   where
     cam = tsConnectionAcquisitionMode ts
 
@@ -264,7 +286,7 @@ data DBState m = DBState
   -- attached to the session that executed it.
   , dbRecordLastQuery :: !Bool
   -- ^ Whether running query should override 'dbLastQuery'.
-  , dbQueryResult :: !(forall row. FromRow row => Maybe (QueryResult row))
+  , dbQueryResult :: !(Maybe QueryResult)
   -- ^ Current query result.
   }
 
@@ -298,6 +320,12 @@ updateStateWith conn st sql (r, res, updateStats) = do
             if dbRecordLastQuery st
               then (connBackendPid conn, SomeSQL sql)
               else dbLastQuery st
-        , dbQueryResult = Just $ mkQueryResult sql (connBackendPid conn) res
+        , dbQueryResult =
+            Just
+              QueryResult
+                { qrSQL = SomeSQL sql
+                , qrBackendPid = connBackendPid conn
+                , qrResult = res
+                }
         }
     )

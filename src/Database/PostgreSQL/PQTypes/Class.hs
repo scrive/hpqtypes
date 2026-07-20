@@ -11,7 +11,6 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Control
 import GHC.Stack
 
-import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Notification
@@ -42,7 +41,7 @@ class (Applicative m, Monad m) => MonadDB m where
   getConnectionStats :: m ConnectionStats
 
   -- | Get current query result.
-  getQueryResult :: FromRow row => m (Maybe (QueryResult row))
+  getQueryResult :: m (Maybe QueryResult)
 
   -- | Clear current query result.
   clearQueryResult :: m ()
