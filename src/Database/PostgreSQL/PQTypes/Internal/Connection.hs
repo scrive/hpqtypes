@@ -288,7 +288,7 @@ runQueryIO conn@Connection {..} sql = do
     withSQL sql $ \query params ->
       withParams params $ \n oids values lengths formats -> do
         res <- sendQueryAndGetResult connPtr $ do
-          c_PQsendQueryParams connPtr query n oids values lengths formats c_RESULT_BINARY
+          c_PQsendQueryParams connPtr query n oids values lengths formats c_FORMAT_BINARY
         pure (fromIntegral n, res)
 
 -- | Name of a prepared query.
@@ -340,7 +340,7 @@ runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
                   else -- Let 'verifyResult' throw an appropriate error.
                     void $ verifyResult connPtr res
           res <- sendQueryAndGetResult connPtr $ do
-            c_PQsendQueryPrepared connPtr cname n values lengths formats c_RESULT_BINARY
+            c_PQsendQueryPrepared connPtr cname n values lengths formats c_FORMAT_BINARY
           pure (fromIntegral n, res)
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
@@ -457,7 +457,7 @@ sendQueryAndGetResult connPtr send = do
 -- inside the callbacks of all the parameters.
 withParams
   :: [PQParam]
-  -> (CInt -> Ptr Oid -> Ptr CString -> Ptr CInt -> Ptr CInt -> IO r)
+  -> (CInt -> Ptr Oid -> Ptr CString -> Ptr CInt -> Ptr Format -> IO r)
   -> IO r
 withParams params action =
   withMany withParam params $ \entries -> do
@@ -465,7 +465,7 @@ withParams params action =
     withArray oids $ \oidsPtr ->
       withArray values $ \valuesPtr ->
         withArray lengths $ \lengthsPtr ->
-          withArray (replicate n 1) $ \formatsPtr ->
+          withArray (replicate n c_FORMAT_BINARY) $ \formatsPtr ->
             action (fromIntegral n) oidsPtr valuesPtr lengthsPtr formatsPtr
   where
     n = length params

@@ -11,8 +11,8 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types
   , PGTransactionStatusType(..)
   , c_PQTRANS_IDLE, c_PQTRANS_ACTIVE, c_PQTRANS_INTRANS, c_PQTRANS_INERROR
   , c_PQTRANS_UNKNOWN
-  , ResultFormat(..)
-  , c_RESULT_TEXT, c_RESULT_BINARY
+  , Format(..)
+  , c_FORMAT_TEXT, c_FORMAT_BINARY
   , ExecStatusType(..)
   , c_PGRES_EMPTY_QUERY, c_PGRES_COMMAND_OK, c_PGRES_TUPLES_OK
   , c_PGRES_COPY_OUT, c_PGRES_COPY_IN, c_PGRES_BAD_RESPONSE
@@ -26,6 +26,7 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types
   ) where
 
 import Foreign.C
+import Foreign.Storable
 
 data PGcancel
 data PGcancelConn
@@ -66,13 +67,14 @@ newtype PGTransactionStatusType = PGTransactionStatusType CInt
 
 ----------------------------------------
 
-newtype ResultFormat = ResultFormat CInt
+newtype Format = Format CInt
+  deriving newtype (Storable)
 
-c_RESULT_TEXT :: ResultFormat
-c_RESULT_TEXT = ResultFormat 0
+c_FORMAT_TEXT :: Format
+c_FORMAT_TEXT = Format 0
 
-c_RESULT_BINARY :: ResultFormat
-c_RESULT_BINARY = ResultFormat 1
+c_FORMAT_BINARY :: Format
+c_FORMAT_BINARY = Format 1
 
 ----------------------------------------
 

@@ -152,8 +152,8 @@ foreign import ccall safe "PQsendQueryParams"
     -> Ptr Oid
     -> Ptr CString
     -> Ptr CInt
-    -> Ptr CInt
-    -> ResultFormat
+    -> Ptr Format
+    -> Format
     -> IO CInt
 
 -- | Safe as it copies the query and its parameters into the output buffer,
@@ -166,8 +166,8 @@ foreign import ccall safe "PQsendQueryPrepared"
     -> CInt
     -> Ptr CString
     -> Ptr CInt
-    -> Ptr CInt
-    -> ResultFormat
+    -> Ptr Format
+    -> Format
     -> IO CInt
 
 -- | Unsafe only because it's exclusively called with the second argument set
