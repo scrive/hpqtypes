@@ -3,15 +3,13 @@ module Main (main) where
 import Control.DeepSeq
 import Control.Exception
 import Control.Monad
-import Control.Monad.Base
 import Data.Int
+import Data.Pool (defaultPoolConfig)
 import Data.Text qualified as T
 import Data.Time
 import Database.PostgreSQL.PQTypes
-import GHC.Clock
 import System.Environment
-import System.Exit
-import Text.Printf
+import Test.Tasty.Bench
 
 -- | Number of records inserted into each of the two tables.
 numRecords :: Int
@@ -23,8 +21,10 @@ numRecords = 50000
 childrenPerParent :: Int
 childrenPerParent = 10
 
--- | Number of elements of the big scalar array used for benchmarking the
--- array decoder in isolation.
+-- | Number of scalars fetched by 'selectBigArray' and 'selectManyRows'.
+-- They deliver the same amount of data, as one array and as that many rows
+-- respectively, so that the array decoder and the row decoder can be
+-- compared against each other.
 bigArraySize :: Int32
 bigArraySize = 100000
 
@@ -101,9 +101,13 @@ createTables = do
 
 dropTables :: DBT IO ()
 dropTables = do
-  runSQL_ "DROP TYPE bench_child_"
-  runSQL_ "DROP TABLE bench_children_"
-  runSQL_ "DROP TABLE bench_parents_"
+  runSQL_ "DROP TYPE IF EXISTS bench_child_"
+  runSQL_ "DROP TABLE IF EXISTS bench_children_"
+  runSQL_ "DROP TABLE IF EXISTS bench_parents_"
+
+-- | Empty the tables so that 'insertData' can be run again.
+truncateTables :: DBT IO ()
+truncateTables = runSQL_ "TRUNCATE bench_children_, bench_parents_"
 
 insertData :: UTCTime -> DBT IO ()
 insertData base = do
@@ -120,15 +124,12 @@ insertData base = do
         "INSERT INTO bench_children_ (id, parent_id, t, d, ts, n) VALUES ($1, $2, $3, $4, $5, $6)"
         (cid, pid, t, d, ts, n)
 
-selectParents :: DBT IO Int
+selectParents :: DBT IO [Parent]
 selectParents = do
   runSQL_ "SELECT p.id, p.t, p.d, p.ts, p.n FROM bench_parents_ p ORDER BY p.id"
-  parents <- fetchMany $ \(pid, t, d, ts, n) -> Parent pid t d ts n []
-  -- Make sure that decoders fully ran.
-  liftBase . evaluate $ rnf parents
-  pure $ length parents
+  fetchMany $ \(pid, t, d, ts, n) -> Parent pid t d ts n []
 
-selectData :: DBT IO (Int, Int)
+selectData :: DBT IO [Parent]
 selectData = do
   runSQL_ $
     mconcat
@@ -137,55 +138,58 @@ selectData = do
       , "        FROM bench_children_ c WHERE c.parent_id = p.id ORDER BY c.id)"
       , " FROM bench_parents_ p ORDER BY p.id"
       ]
-  parents <- fetchMany $ \(pid, t, d, ts, n, CompositeArray1 children) ->
+  fetchMany $ \(pid, t, d, ts, n, CompositeArray1 children) ->
     Parent pid t d ts n children
-  -- Make sure that decoders fully ran.
-  liftBase . evaluate $ rnf parents
-  pure (length parents, sum $ map (\(Parent _ _ _ _ _ cs) -> length cs) parents)
 
-selectBigArray :: DBT IO Int
+selectBigArray :: DBT IO [Int32]
 selectBigArray = do
   runQuery_ $
     rawSQL "SELECT ARRAY(SELECT generate_series(1, $1))::int4[]" (Identity bigArraySize)
-  xs <- fetchOne $ \(Identity (Array1 elems)) -> elems :: [Int32]
-  -- Make sure that decoders fully ran.
-  liftBase . evaluate $ rnf xs
-  pure $ length xs
+  fetchOne $ \(Identity (Array1 elems)) -> elems
+
+-- | The counterpart of 'selectBigArray': the same scalars, delivered as one
+-- column of that many rows instead of as one array.
+selectManyRows :: DBT IO [Int32]
+selectManyRows = do
+  runQuery_ $ rawSQL "SELECT generate_series(1, $1)" (Identity bigArraySize)
+  fetchMany runIdentity
 
 ----------------------------------------
 
-timed :: IO a -> IO (Double, a)
-timed action = do
-  t1 <- getMonotonicTime
-  a <- action
-  t2 <- getMonotonicTime
-  pure (t2 - t1, a)
-
+-- | The connection info string is taken from the @CONNINFO@ environment
+-- variable, as the command line belongs to @tasty-bench@. If it's not set,
+-- the choice is left to @libpq@, i.e. to the @PG*@ variables.
 main :: IO ()
 main = do
-  connString <-
-    getArgs >>= \case
-      [connString] -> pure $ T.pack connString
-      _ -> do
-        prog <- getProgName
-        putStrLn $ "Usage: " <> prog <> " <connection info string>"
-        exitFailure
-  let settings = defaultConnectionSettings {csConnInfo = connString}
-      ConnectionSource cs = simpleSource settings
-      -- Registration of composites happens at connection time, so
-      -- bench_child_ needs to exist before this source is used.
-      ConnectionSource csComposite =
-        simpleSource settings {csComposites = ["bench_child_"]}
-      runDB :: ConnectionSourceM IO -> DBT IO a -> IO a
-      runDB c = runDBT c defaultTransactionSettings
+  connInfo <- maybe T.empty T.pack <$> lookupEnv "CONNINFO"
+  let settings = defaultConnectionSettings {csConnInfo = connInfo}
+  ConnectionSource cs <- pooled settings
+  let runDB :: DBT IO a -> IO a
+      runDB = runDBT cs defaultTransactionSettings
   base <- getCurrentTime
-  runDB cs createTables
-  (`finally` runDB cs dropTables) $ do
-    (insertTime, ()) <- timed . runDB cs $ insertData base
-    (selectParentsTime, nParentsOnly) <- timed $ runDB cs selectParents
-    (selectTime, (nParents, nChildren)) <- timed $ runDB csComposite selectData
-    (bigArrayTime, nElems) <- timed $ runDB cs selectBigArray
-    printf "Insertion: %.3f s (%d parents + %d children)\n" insertTime numRecords numRecords
-    printf "Selection (parents only): %.3f s (%d parents decoded)\n" selectParentsTime nParentsOnly
-    printf "Selection (with children): %.3f s (%d parents with %d children decoded)\n" selectTime nParents nChildren
-    printf "Selection (big array): %.3f s (%d elements decoded)\n" bigArrayTime nElems
+  runDB $ do
+    -- Keep the NOTICEs of the DROPs below out of the benchmark report.
+    runSQL_ "SET client_min_messages TO WARNING"
+    dropTables
+    createTables
+    insertData base
+  -- Registration of composites happens at connection time, so bench_child_
+  -- needs to exist before this source is used.
+  ConnectionSource csComposite <- pooled settings {csComposites = ["bench_child_"]}
+  let runDBComposite :: DBT IO a -> IO a
+      runDBComposite = runDBT csComposite defaultTransactionSettings
+  (`finally` runDB dropTables) . defaultMain $
+    [ -- Insertion refills the tables it empties, so the selection benchmarks
+      -- below see the same data regardless of whether this one ran.
+      bench "insert" . nfIO . runDB $ truncateTables >> insertData base
+    , bench "select parents" . nfIO $ runDB selectParents
+    , bench "select parents with children" . nfIO $ runDBComposite selectData
+    , bench "select big array" . nfIO $ runDB selectBigArray
+    , bench "select many rows" . nfIO $ runDB selectManyRows
+    ]
+  where
+    -- A pool holding a single connection is used rather than 'simpleSource'
+    -- so that establishing one isn't measured by every iteration of a
+    -- benchmark.
+    pooled settings = poolSource settings $ \connect disconnect ->
+      defaultPoolConfig connect disconnect 60 1
