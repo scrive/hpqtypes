@@ -28,7 +28,7 @@ deriving stock instance Show DBException
 
 -- | Rethrow supplied exception enriched with given SQL.
 --
--- Asynchronous exceptions and exceptions already wrapped in 'DBException'
+-- Asynchronous exceptions and exceptions already wrapped in t'DBException'
 -- are rethrown as they are.
 rethrowWithContext
   :: (HasCallStack, IsSQL sql)

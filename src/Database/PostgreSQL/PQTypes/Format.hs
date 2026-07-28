@@ -23,6 +23,18 @@ import Database.PostgreSQL.PQTypes.Range (Range)
 
 -- | Methods in this class are supposed to be used with the
 -- @TypeApplications@ extension.
+--
+-- /Warning:/ the OIDs belong to the type rather than to any of its values, so
+-- they don't survive a coercion. If an instance gives a type different OIDs
+-- than the one it wraps, 'Database.PostgreSQL.PQTypes.ToSQL.ToSQL' and
+-- 'Database.PostgreSQL.PQTypes.FromSQL.FromSQL' cannot be derived from it with
+-- @GeneralizedNewtypeDeriving@ (nor @deriving via@ the wrapped type, which
+-- amounts to the same thing for a newtype): the derived instances keep the
+-- OIDs of the wrapped type, so decoding fails with
+-- 'Database.PostgreSQL.PQTypes.Internal.Error.TypeMismatch' and arrays
+-- are rejected by the server for having the wrong element type. Write the
+-- instances out instead. Deriving them is only safe when the OIDs match,
+-- which requires deriving this class along with them.
 class PQFormat a where
   -- | OID of the PostgreSQL type corresponding to @a@.
   pqOid :: Oid

@@ -202,20 +202,31 @@ finalizationInterruptionTest td = testCase
       Nothing -> assertFailure "Forked thread deadlocked on the connection state MVar"
 
 copyNotSupportedTest :: TestData -> TestTree
-copyNotSupportedTest td = testCase "COPY statements fail with an error" $ do
-  -- The failed COPY statement leaves the connection in a copy mode, making
-  -- it unusable for further queries, so run it on a dedicated connection.
-  eres <- try . runDBT copyCs defaultTransactionSettings $ do
-    runSQL_ "COPY (SELECT 1) TO STDOUT"
-  case eres of
-    Left DBException {dbeError = err} -> case fromException $ toException err of
-      Just (HPQTypesError msg) ->
-        assertBool ("Error message mentions COPY: " ++ msg) $
-          "COPY" `T.isInfixOf` T.pack msg
-      Nothing -> assertFailure $ "Unexpected error: " ++ show err
-    Right () -> assertFailure "COPY statement didn't fail"
+copyNotSupportedTest td =
+  testGroup
+    "COPY statements fail with an error"
+    [ check "in the acquire and hold mode" defaultTransactionSettings
+    , -- In the on demand mode the query runs in an automatic transaction whose
+      -- ROLLBACK fails as well, as the connection is in a copy mode. Check that
+      -- it doesn't mask the error of the COPY statement itself.
+      check "in the on demand mode" $
+        defaultTransactionSettings {tsConnectionAcquisitionMode = AcquireOnDemand}
+    ]
   where
     ConnectionSource copyCs = simpleSource $ snd td
+
+    -- The failed COPY statement leaves the connection in a copy mode, making
+    -- it unusable for further queries, so run it on a dedicated connection.
+    check name ts = testCase name $ do
+      eres <- try . runDBT copyCs ts $ do
+        runSQL_ "COPY (SELECT 1) TO STDOUT"
+      case eres of
+        Left DBException {dbeError = err} -> case fromException $ toException err of
+          Just (HPQTypesError msg) ->
+            assertBool ("Error message mentions COPY: " ++ msg) $
+              "COPY" `T.isInfixOf` T.pack msg
+          Nothing -> assertFailure $ "Unexpected error: " ++ show err
+        Right () -> assertFailure "COPY statement didn't fail"
 
 onDemandTest :: TestData -> TestTree
 onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do

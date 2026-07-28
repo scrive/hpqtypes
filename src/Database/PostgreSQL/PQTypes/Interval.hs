@@ -1,5 +1,6 @@
 module Database.PostgreSQL.PQTypes.Interval
   ( Interval
+  , sameComponents
   , iyears
   , imonths
   , idays
@@ -62,6 +63,21 @@ instance Eq Interval where
 -- | See the 'Eq' instance.
 instance Ord Interval where
   compare a b = compare (intEstimate a) (intEstimate b)
+
+-- | Check that two intervals consist of the same components, as opposed to
+-- merely being equal.
+--
+-- 'Eq' compares intervals the way the server's comparison operators do, so
+-- it holds for values that the server nonetheless treats differently in
+-- arithmetic: @'imonths' 1 == 'idays' 30@, yet adding the former to
+-- @2024-01-31@ gives @2024-02-29@ and the latter @2024-03-01@. Use this to
+-- tell such values apart, e.g. to check that a roundtrip through the
+-- database preserved an interval exactly.
+sameComponents :: Interval -> Interval -> Bool
+sameComponents a b =
+  intMicroseconds a == intMicroseconds b
+    && intDays a == intDays b
+    && intMonths a == intMonths b
 
 -- | Shows the components of the wire format (the cached estimate is
 -- omitted).

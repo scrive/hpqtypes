@@ -22,7 +22,7 @@
 --   "Data.Time" and "Data.Fixed" types instead of coercing their
 --   representations.
 --
--- * 'Value' is a newtype rather than an alias of the underlying parser, so
+-- * t'Value' is a newtype rather than an alias of the underlying parser, so
 --   that the parser library doesn't leak into the public API of the library.
 --   Custom decoders are built with 'fn' and 'refine'.
 --
@@ -278,8 +278,8 @@ inet = do
     2 -> IPv4 . toIPv4w <$> intOfSize 4
     -- AF_INET6
     3 ->
-      fmap (IPv6 . toIPv6w) $
-        (,,,) <$> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4
+      IPv6 . toIPv6w
+        <$> ((,,,) <$> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4)
     _ -> failure $ "Unknown address family: " <> T.pack (show family)
   pure (address, maskLen)
 

@@ -162,6 +162,30 @@ instance FromSQL Word32 where
 instance FromSQL Word64 where
   fromSQL = decodeScalar D.int
 
+-- 'Int' and 'Word' can be sent (see their 'ToSQL' instances) but not
+-- fetched. The instances below exist only to say so: without them the error
+-- is the unhelpful \"no instance\" one, which reads like an oversight.
+
+instance
+  TypeError
+    ( Text "Int cannot be decoded, as its size is architecture-dependent: a value"
+        :$$: Text "that fits where it was stored need not fit where it is fetched."
+        :$$: Text "Decode the int8 as Int64 and narrow it explicitly."
+    )
+  => FromSQL Int
+  where
+  fromSQL = error "unreachable"
+
+instance
+  TypeError
+    ( Text "Word cannot be decoded, as its size is architecture-dependent: a value"
+        :$$: Text "that fits where it was stored need not fit where it is fetched."
+        :$$: Text "Decode the int8 as Word64 and narrow it explicitly."
+    )
+  => FromSQL Word
+  where
+  fromSQL = error "unreachable"
+
 instance FromSQL Integer where
   fromSQL = decodeScalar . (`D.refine` D.numeric) $ \n ->
     case floatingOrInteger @Double n of

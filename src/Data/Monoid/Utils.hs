@@ -9,7 +9,7 @@ module Data.Monoid.Utils
 import Data.List qualified as L
 import Data.String
 
--- | Generalization of 'intercalate' to arbitrary 'Monoid'.
+-- | Generalization of 'Data.List.intercalate' to arbitrary 'Monoid'.
 mintercalate :: Monoid m => m -> [m] -> m
 mintercalate m = mconcat . L.intersperse m
 

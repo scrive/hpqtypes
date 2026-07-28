@@ -82,6 +82,16 @@ instance Arbitrary Interval where
         , imicroseconds <$> choose (-172800000000, 172800000000) -- 2 days
         ]
 
+-- | 'Interval' with structural equality. 'Eq' of 'Interval' compares the way
+-- the server's operators do, so a roundtrip test using it can't see a change
+-- of components that preserves the estimate (e.g. days folded into
+-- microseconds, which the server treats differently in arithmetic).
+newtype Interval0 = Interval0 Interval
+  deriving newtype (Arbitrary, FromSQL, PQFormat, Show, ToSQL)
+
+instance Eq Interval0 where
+  Interval0 a == Interval0 b = sameComponents a b
+
 instance Arbitrary json => Arbitrary (JSON json) where
   arbitrary = JSON <$> arbitrary
 

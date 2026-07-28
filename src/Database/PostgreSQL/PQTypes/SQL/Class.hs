@@ -14,7 +14,7 @@ data SomeSQL = forall sql. IsSQL sql => SomeSQL sql
 
 -- | Class representing \"SQLness\" of a given type.
 class Show sql => IsSQL sql where
-  -- | Convert 'sql' to a C string containing the query (with parameters
+  -- | Convert @sql@ to a C string containing the query (with parameters
   -- represented by placeholders @$1@, @$2@, ...) along with the list of these
   -- parameters and pass them to the supplied continuation (usually for
   -- execution).
@@ -25,7 +25,7 @@ class Show sql => IsSQL sql where
 
 ----------------------------------------
 
--- | Convert unsafely from 'String' to 'sql' (Note: reckless usage
+-- | Convert unsafely from 'String' to @sql@ (Note: reckless usage
 -- of this function may introduce security vulnerabilities such
 -- as proneness to SQL injection attacks).
 unsafeSQL :: (IsSQL sql, IsString sql) => String -> sql

@@ -152,7 +152,7 @@ newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSour
   }
 
 -- | Default connection supplier. It establishes new database connection each
--- time 'withConnection' is called.
+-- time 'Database.PostgreSQL.PQTypes.Class.withConnection' is called.
 simpleSource
   :: ConnectionSettings
   -> ConnectionSource [MonadBase IO, MonadMask]
@@ -192,7 +192,7 @@ poolSource cs mkPoolConfig = do
 -- | Low-level function for connecting to the database. Useful if one wants to
 -- implement custom connection source.
 --
--- /Warning:/ the 'Connection' needs to be explicitly destroyed with
+-- /Warning:/ the t'Connection' needs to be explicitly destroyed with
 -- 'disconnect', otherwise there will be a resource leak.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings {..} = mask $ \unmask -> do
@@ -352,7 +352,7 @@ runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
 -- results, so that it can be used to run queries again afterwards.
 --
 -- Any synchronous exception thrown during execution is wrapped in
--- 'DBException' with the query attached as context.
+-- t'DBException' with the query attached as context.
 runQueryImpl
   :: (HasCallStack, IsSQL sql)
   => Connection

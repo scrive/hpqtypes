@@ -18,7 +18,7 @@ import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as PE
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 
--- | Wrapper for (de)serializing underlying type as 'json'.
+-- | Wrapper for (de)serializing underlying type as @json@.
 newtype JSON json = JSON {unJSON :: json}
   deriving stock (Eq, Functor, Ord, Show)
 
@@ -46,7 +46,7 @@ instance ToSQL (JSON Value) where
 
 ----------------------------------------
 
--- | Wrapper for (de)serializing underlying type as 'jsonb'.
+-- | Wrapper for (de)serializing underlying type as @jsonb@.
 newtype JSONB jsonb = JSONB {unJSONB :: jsonb}
   deriving stock (Eq, Functor, Ord, Show)
 
@@ -76,7 +76,7 @@ instance ToSQL (JSONB Value) where
 
 -- | Helper for defining a 'FromSQL' instance for a type with a 'FromJSON'
 -- instance. Inspects 'pqOid' of the type to determine whether it's
--- serialized as 'json' or 'jsonb' (the binary wire formats of the two
+-- serialized as @json@ or @jsonb@ (the binary wire formats of the two
 -- differ).
 --
 -- @since 1.9.1.0
@@ -91,7 +91,7 @@ aesonFromSQL = decodeScalar $ parser decodeValue
 
 -- | Helper for defining a 'ToSQL' instance for a type with a 'ToJSON'
 -- instance. Inspects 'pqOid' of the type to determine whether it's
--- serialized as 'json' or 'jsonb' (the binary wire formats of the two
+-- serialized as @json@ or @jsonb@ (the binary wire formats of the two
 -- differ).
 --
 -- @since 1.9.1.0

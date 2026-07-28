@@ -66,9 +66,11 @@
   against both text and enum columns without casts; arrays are sent as
   `text[]` and need a cast against enum columns (e.g.
   `... = ANY($1::my_enum_type[])`).
-* Add `FromSQL` and `ToSQL` instances for `Integer` and `Scientific` (mapped
-  to `numeric`), `Word16`, `Word32` and `Word64`, plus a `ToSQL` instance
-  for `Word` (for symmetry with `Int`).
+* Add `FromSQL` and `ToSQL` instances for `Integer` and `Scientific` (mapped to
+  `numeric`), `Word16`, `Word32` and `Word64`, plus a `ToSQL` instance for
+  `Word` (for symmetry with `Int`). `Int` and `Word` cannot be decoded reliably,
+  as their size is architecture-dependent; their `FromSQL` instances use
+  `TypeError` pointing at `Int64` and `Word64`.
 * Add `FromSQL` and `ToSQL` instances for `IP` and `IPRange` (from the
   `iproute` package), mapped to the `inet` and `cidr` types respectively.
   Note that an `inet` value carries the length of its netmask alongside the
@@ -105,6 +107,10 @@
   masked by the failure of the subsequent cursor cleanup if the enclosing
   transaction was in the aborted state (in particular, this prevented restarts
   of transactions run with a `RestartPredicate`).
+* Fix a bug in the on demand connection acquisition mode where an exception
+  thrown from a query was masked by the failure of the `ROLLBACK` ending the
+  automatic transaction the query ran in, which happens whenever the query
+  leaves the connection in a state that admits no further queries.
 * Fix a bug in `commit`, `rollback` and `unsafeWithoutTransaction` where a
   failure of the issued `COMMIT` (e.g. due to a deferred constraint violation)
   left the session in the autocommit mode instead of starting a new

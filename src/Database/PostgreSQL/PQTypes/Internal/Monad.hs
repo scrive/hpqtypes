@@ -1,6 +1,7 @@
 module Database.PostgreSQL.PQTypes.Internal.Monad
   ( DBT_ (..)
   , DBT
+  , InnerDBT
   , runDBT
   , mapDBT
   ) where

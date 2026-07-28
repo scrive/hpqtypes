@@ -9,13 +9,13 @@ module Database.PostgreSQL.PQTypes.Range
 --
 -- Note that the server normalizes ranges over discrete types, so a fetched
 -- value doesn't necessarily have the bounds it was created with, e.g.
--- @int4range(1, 5, \'(]\')@ comes back as @'Range' ('Incl' 2) ('Excl' 6)@.
+-- @int4range(1, 5, \'(]\')@ comes back as @v'Range' ('Incl' 2) ('Excl' 6)@.
 data Range a
   = Empty
   | Range !(Bound a) !(Bound a)
   deriving stock (Eq, Functor, Ord, Show)
 
--- | One end of a 'Range': inclusive, exclusive or unbounded.
+-- | One end of a t'Range': inclusive, exclusive or unbounded.
 data Bound a
   = Incl !a
   | Excl !a

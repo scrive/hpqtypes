@@ -81,9 +81,9 @@ foldlImpl dec f iacc qr = worker iacc 0
 --
 -- Note that the result needs to be forced right when the fold function is
 -- applied to it (the fold function itself is not obligated to force it,
--- consider e.g. 'fetchMany'), otherwise unforced thunks retaining the whole
--- query result would escape the fold and decoding errors would be deferred
--- to wherever they're forced.
+-- consider e.g. 'Database.PostgreSQL.PQTypes.Fold.fetchMany'), otherwise
+-- unforced thunks retaining the whole query result would escape the fold and
+-- decoding errors would be deferred to wherever they're forced.
 decodeRow :: HasCallStack => RowDecoder a -> QueryResult -> CInt -> a
 decodeRow dec QueryResult {qrSQL = SomeSQL ctx, ..} i =
   unsafeDupablePerformIO . withForeignPtr qrResult $ \res ->

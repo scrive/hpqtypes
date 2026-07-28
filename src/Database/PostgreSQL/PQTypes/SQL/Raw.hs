@@ -15,8 +15,8 @@ import Database.PostgreSQL.PQTypes.ToRow
 
 -- | Form of SQL query which is very close to the libpq representation, i.e.
 -- the query with placeholders @$1@, @$2@, ... along with a tuple of their
--- values. Note that, in particular, 'RawSQL' () is isomorphic (modulo bottom)
--- to 'Text'.
+-- values. Note that, in particular, t'RawSQL' () is isomorphic (modulo bottom)
+-- to 'T.Text'.
 data RawSQL row = RawSQL !T.Text !row
   deriving stock (Eq, Ord, Show)
 
@@ -25,7 +25,7 @@ instance (Show row, ToRow row) => IsSQL (RawSQL row) where
     BS.useAsCString (T.encodeUtf8 query) $ \cquery ->
       execute cquery (toRow row)
 
--- | Construct 'RawSQL' () from 'String'.
+-- | Construct t'RawSQL' () from 'String'.
 instance IsString (RawSQL ()) where
   fromString = flip RawSQL () . T.pack
 
@@ -38,10 +38,10 @@ instance Monoid (RawSQL ()) where
   mappend = (SG.<>)
   mconcat xs = RawSQL (mconcat $ fmap (\(RawSQL s ()) -> s) xs) ()
 
--- | Construct 'RawSQL' from 'Text' and a tuple of parameters.
+-- | Construct t'RawSQL' from 'T.Text' and a tuple of parameters.
 rawSQL :: (Show row, ToRow row) => T.Text -> row -> RawSQL row
 rawSQL = RawSQL
 
--- | Take query string out of 'RawSQL' ().
+-- | Take query string out of t'RawSQL' ().
 unRawSQL :: RawSQL () -> T.Text
 unRawSQL (RawSQL s _) = s

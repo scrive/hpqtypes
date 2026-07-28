@@ -27,8 +27,8 @@
 --   the caller to map a Haskell type onto that. Upstream takes an
 --   'IP.IPRange', which cannot carry the host bits of the address.
 --
--- * 'Encoding' is a newtype rather than an alias of the underlying builder,
---   and 'array' takes an 'Oid' rather than a bare 'Word32', so
+-- * t'Encoding' is a newtype rather than an alias of the underlying builder,
+--   and 'array' takes an t'Oid' rather than a bare 'Word32', so
 --   that neither the builder library nor a raw OID leaks into the public
 --   API of the library.
 module Database.PostgreSQL.PQTypes.Internal.Encoding
@@ -118,7 +118,7 @@ import Database.PostgreSQL.PQTypes.Range
 newtype Encoding = Encoding B.Builder
   deriving newtype (Monoid, Semigroup)
 
--- | Render an 'Encoding' as the bytes to be sent to the server.
+-- | Render an t'Encoding' as the bytes to be sent to the server.
 encodingBytes :: Encoding -> BS.ByteString
 encodingBytes (Encoding builder) = B.builderBytes builder
 
@@ -142,7 +142,7 @@ null4 = int4_int32 (-1)
 -- and whether any of its elements is NULL.
 data Array = Array !Encoding ![Int32] !Bool
 
--- | Turn an 'Array' into a value, given the OID of the type of its
+-- | Turn an t'Array' into a value, given the OID of the type of its
 -- innermost elements.
 array :: Oid -> Array -> Encoding
 array elemOid (Array payload dims nulls) =

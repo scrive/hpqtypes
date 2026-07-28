@@ -34,7 +34,7 @@ unSQL (SQL chunks) = F.toList chunks
 
 ----------------------------------------
 
--- | Construct 'SQL' from 'String'.
+-- | Construct t'SQL' from 'String'.
 instance IsString SQL where
   fromString = mkSQL . T.pack
 
@@ -64,15 +64,15 @@ instance Show SQL where
 
 ----------------------------------------
 
--- | Convert a 'Text' SQL string to the 'SQL' type.
+-- | Convert a 'T.Text' SQL string to the t'SQL' type.
 mkSQL :: T.Text -> SQL
 mkSQL = SQL . S.singleton . SqlString
 
--- | Embed parameter value inside 'SQL'.
+-- | Embed parameter value inside t'SQL'.
 sqlParam :: (Show a, ToSQL a) => a -> SQL
 sqlParam = SQL . S.singleton . SqlParam
 
--- | Embed parameter value inside existing 'SQL'. Example:
+-- | Embed parameter value inside existing t'SQL'. Example:
 --
 -- > f :: Int32 -> String -> SQL
 -- > f idx name = "SELECT foo FROM bar WHERE id =" <?> idx <+> "AND name =" <?> name
@@ -83,7 +83,7 @@ infixr 7 <?>
 
 ----------------------------------------
 
--- | Test whether an 'SQL' is empty.
+-- | Test whether an t'SQL' is empty.
 isSqlEmpty :: SQL -> Bool
 isSqlEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
   where

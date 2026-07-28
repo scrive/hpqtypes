@@ -55,8 +55,31 @@ decoderErrorTest td =
     , tooFewColumnsConsumed
     , tooManyColumnsWanted
     , multiFieldNullableRejected
+    , rowCountCheckedFirst
     ]
   where
+    -- The number of rows is checked before any of them is decoded, so a
+    -- result of the wrong size is reported as such rather than as whatever
+    -- error decoding its first rows happens to produce.
+    rowCountCheckedFirst = testCase "Row count is checked before decoding" $ do
+      runTestEnv td defaultTransactionSettings $ do
+        runSQL_ "SELECT 1::int4 UNION ALL SELECT 2::int4"
+        expectError @AffectedRowsMismatch "two rows for fetchMaybe" (check [(0, 1)] 2) $
+          fetchMaybe (fromSQL @Int32)
+        -- The rows don't match the decoder either, which used to be what got
+        -- reported.
+        expectError @AffectedRowsMismatch "two undecodable rows" (check [(0, 1)] 2) $
+          fetchMaybe (fromSQL @Int64)
+        expectError @AffectedRowsMismatch "two rows for fetchOne" (check [(1, 1)] 2) $
+          fetchOne (fromSQL @Int64)
+        -- A single row of the wrong type still reports the decoding error.
+        runSQL_ "SELECT 1::int4"
+        expectError @TypeMismatch "one row of the wrong type" (\_ -> pure ()) $
+          fetchMaybe (fromSQL @Int64)
+      where
+        check expected delivered AffectedRowsMismatch {..} = do
+          assertEqual "Expected rows are correct" expected rowsExpected
+          assertEqual "Delivered rows are correct" delivered rowsDelivered
     typeMismatch = testCase "Type mismatch is detected" $ do
       runTestEnv td defaultTransactionSettings $ do
         runSQL_ "SELECT 1::int4"

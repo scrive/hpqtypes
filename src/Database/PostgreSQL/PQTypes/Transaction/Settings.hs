@@ -20,8 +20,10 @@ instance Show RestartPredicate where
 
 data TransactionSettings = TransactionSettings
   { tsRestartPredicate :: !(Maybe RestartPredicate)
-  -- ^ Defines behavior of 'withTransaction' in case exceptions thrown within
-  -- supplied monadic action are not caught and reach its body.
+  -- ^ Defines behavior of
+  -- 'Database.PostgreSQL.PQTypes.Transaction.withTransaction' in case
+  -- exceptions thrown within supplied monadic action are not caught and reach
+  -- its body.
   --
   -- If set to 'Nothing', exceptions will be propagated as usual.
   --

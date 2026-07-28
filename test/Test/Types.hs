@@ -98,7 +98,7 @@ typesTests td =
   , putGetTest @U.UUID td 1000
   , putGetTest @(JSON Value0) td 50
   , putGetTest @(JSONB Value0) td 50
-  , putGetTest @Interval td 50
+  , putGetTest @Interval0 td 50
   , putGetTest @Day td 1000000
   , putGetTest @TimeOfDay td 10000
   , putGetTest @LocalTime td 500000
@@ -376,9 +376,9 @@ nulInTextTest td = testCase "NUL characters in text values are rejected"
         Right () ->
           assertFailure $ "NUL character wasn't rejected (" ++ what ++ ")"
 
--- | 'Int' and 'Word' have no 'FromSQL' instances (their size is
--- architecture-dependent), so their encoding is checked by fetching the
--- values back as 'Int64' and 'Word64'.
+-- | 'Int' and 'Word' cannot be decoded (their 'FromSQL' instances use
+-- TypeError), so their encoding is checked by fetching the values back as
+-- 'Int64' and 'Word64'.
 intWordEncodingTest :: TestData -> TestTree
 intWordEncodingTest td = testCase
   "Int and Word parameters are encoded correctly"

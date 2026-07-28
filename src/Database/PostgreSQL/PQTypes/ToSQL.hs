@@ -93,7 +93,7 @@ class PQFormat a => ToSQL a where
   --
   -- Only the first branch is inspected, so as in the second example the
   -- result describes the other branches only if the value is rectangular;
-  -- 'raggedDims' uses it to check exactly that.
+  -- @raggedDims@ uses it to check exactly that.
   arrayElemDims :: Maybe (a -> [Int])
   arrayElemDims = Nothing
 

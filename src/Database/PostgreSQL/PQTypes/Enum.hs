@@ -23,7 +23,7 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Encoding of an enum @a@ as a value of a base type @base@.
 --
--- Used by 'SQLEnum' and 'SQLEnumAsText' to derive SQL instances.
+-- Used by t'SQLEnum' and t'SQLEnumAsText' to derive SQL instances.
 class (Ord base, Bounded a, Enum a) => EnumEncodingAs base a | a -> base where
   -- | Encode @a@ as the base type.
   encodeEnumAs :: a -> base
@@ -103,9 +103,10 @@ instance
 
 ----------------------------------------
 
--- | A variant of 'SQLEnum' for enums encoded as text, in particular as values
--- of actual PostgreSQL enum types ('SQLEnum' can't be used, because decoding
--- requires an 'Enum' instance of the base type, which 'Text' doesn't have).
+-- | A variant of t'SQLEnum' for enums encoded as text, in particular as values
+-- of actual PostgreSQL enum types. t'SQLEnum' can't be used for them, because
+-- decoding requires an 'Enum' instance of the base type, which 'Text' doesn't
+-- have.
 --
 -- Encoded values are sent with their type unspecified, so that the server
 -- infers it from the context, which makes them usable directly against both
@@ -120,10 +121,10 @@ instance
 -- @... = ANY($1::my_enum_type[])@ (the cast is a genuine conversion, since
 -- the parameter is a @text[]@ value).
 --
--- Note that decoding is different from @'SQLEnum' a@ with an
+-- Note that decoding is different from t'SQLEnum' @a@ with an
 -- @'EnumEncodingAs' 'Text' a@ instance: values are decoded with 'decodeEnum',
 -- which accepts both text and PostgreSQL enum types, and errors are reported
--- as 'InvalidValue' with the list of valid labels, not 'RangeError'.
+-- as t'InvalidValue' with the list of valid labels, not t'RangeError'.
 --
 -- >>> :{
 -- data Person = Alfred | Bertrand | Charles

@@ -1,4 +1,4 @@
--- | The 'Oid' type along with OIDs of built-in PostgreSQL types.
+-- | The t'Oid' type along with OIDs of built-in PostgreSQL types.
 module Database.PostgreSQL.PQTypes.Internal.Oid
   ( Oid (..)
   , unOid
@@ -239,7 +239,7 @@ firstNormalOid = Oid 16384
 unspecifiedOid :: Oid
 unspecifiedOid = Oid 0
 
--- | The name of the PostgreSQL type associated with a given 'Oid' of one of
+-- | The name of the PostgreSQL type associated with a given t'Oid' of one of
 -- the built-in types defined in this module.
 pgTypeName :: Oid -> String
 pgTypeName oid

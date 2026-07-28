@@ -54,7 +54,7 @@ newtype RowDecoder a = RowDecoder (DecoderState -> IO (a, DecoderState))
     )
     via StateT DecoderState IO
 
--- | Exceptions thrown with 'throwM' are wrapped in 'ConversionError' carrying
+-- | Exceptions thrown with 'throwM' are wrapped in t'ConversionError' carrying
 -- the position of the most recently consumed field, like the errors thrown by
 -- the decoders of the fields themselves. This makes it the way to report errors
 -- detected after a field was decoded, e.g. by validation of the decoded value.
@@ -83,7 +83,7 @@ instance MonadThrow RowDecoder where
 instance MonadFail RowDecoder where
   fail = throwM . HPQTypesError
 
--- | Internal helper for defining decoders in terms of 'StateT'.
+-- | Internal helper for defining decoders in terms of t'StateT'.
 mkDecoder :: StateT DecoderState IO a -> RowDecoder a
 mkDecoder = RowDecoder . runStateT
 
@@ -106,8 +106,8 @@ data FieldSource = FieldSource
   }
 
 -- | A field source backed by a function that produces fields. Note that
--- the strictness annotations of 'FieldSource' force only the function
--- closures, so a 'Field' is only constructed when a decoder asks for it.
+-- the strictness annotations of t'FieldSource' force only the function
+-- closures, so a t'Field' is only constructed when a decoder asks for it.
 mkFieldSource :: Int -> Int -> (Int -> Field) -> FieldSource
 mkFieldSource srcRow n mkField =
   FieldSource
@@ -191,7 +191,7 @@ runDecoderWith (RowDecoder dec) fs = do
 -- Note that on NULL exactly one field is consumed, hence the given decoder
 -- needs to consume exactly one field as well, which is the case for all
 -- decoders defined in this module. This is enforced: a decoder consuming a
--- different number of fields results in 'RowLengthMismatch'.
+-- different number of fields results in t'RowLengthMismatch'.
 decodeNullable :: RowDecoder a -> RowDecoder (Maybe a)
 decodeNullable (RowDecoder inner) = mkDecoder $ do
   DecoderState fs idx <- get
@@ -296,7 +296,7 @@ decodeComposite inner = withNextField $ \srcRow -> \case
 -- array as a vector of vectors.
 --
 -- Errors from element decoders carry the position of the offending element
--- as the column of their 'ConversionError'.
+-- as the column of their t'ConversionError'.
 decodeArray :: forall a. RowDecoder a -> RowDecoder (V.Vector a)
 decodeArray (RowDecoder inner) = withNextField $ \srcRow -> \case
   Field _ Nothing -> unexpectedNULL
@@ -349,7 +349,7 @@ decodeArray (RowDecoder inner) = withNextField $ \srcRow -> \case
 -- Helpers
 
 -- | Consume the next field and process it. Any synchronous exception thrown
--- while doing so is wrapped in 'ConversionError' with the position of the
+-- while doing so is wrapped in t'ConversionError' with the position of the
 -- field attached.
 withNextField :: (Int -> Field -> IO a) -> RowDecoder a
 withNextField process = mkDecoder $ do
