@@ -20,12 +20,12 @@ import Data.Time
 import Data.UUID.Types qualified as U
 import Data.Vector qualified as V
 import Data.Word
-import PostgreSQL.Binary.Encoding qualified as E
-import PostgreSQL.Binary.Range (Range)
 
 import Database.PostgreSQL.PQTypes.Format
+import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as E
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Oid
+import Database.PostgreSQL.PQTypes.Range (Range)
 
 -- | Query parameter in the PostgreSQL binary wire format: OID of its type
 -- along with the encoded value ('Nothing' represents SQL NULL).
@@ -66,7 +66,7 @@ class PQFormat a => ToSQL a where
   -- 'Char' so that 'String' is encoded as @text@. This is why the 'ToSQL'
   -- instance for lists cannot define its methods directly.
   toSQLList :: [a] -> Maybe E.Encoding
-  toSQLList = Just . E.array (unOid $ arrayElemOid @a) . arrayElemList
+  toSQLList = Just . E.array (arrayElemOid @a) . arrayElemList
 
   -- | 'arrayElemOid' of @[a]@: passed through by default (an array is of
   -- the same type regardless of its number of dimensions), overridden by
@@ -183,7 +183,7 @@ instance ToSQL a => ToSQL [a] where
   arrayElemDims = arrayElemDimsList @a
 
 instance ToSQL a => ToSQL (V.Vector a) where
-  toSQL = Just . E.array (unOid $ arrayElemOid @a) . arrayElem
+  toSQL = Just . E.array (arrayElemOid @a) . arrayElem
   arrayElemOid = arrayElemOid @a
   arrayElem v = case raggedDims (V.toList v) of
     Nothing -> E.dimensionArray V.foldl' (arrayElem @a) v
@@ -296,6 +296,9 @@ instance ToSQL Bool where
 
 -- INET
 
+-- | /Warning:/ 'IPRange' only holds the network part of an address, so the
+-- host bits of an @inet@ value cannot be sent (the same applies to decoding,
+-- see the @FromSQL@ instance).
 instance ToSQL IPRange where
   toSQL = Just . E.inet
 

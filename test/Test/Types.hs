@@ -13,8 +13,10 @@ import Data.Aeson (Value)
 import Data.ByteString qualified as BS
 import Data.IP (IPRange)
 import Data.Int
+import Data.List qualified as L
 import Data.Scientific
 import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Time
 import Data.Typeable
 import Data.UUID.Types qualified as U
@@ -22,10 +24,12 @@ import Data.Vector qualified as V
 import Data.Word
 import Test.QuickCheck
 import Test.Tasty
+import Test.Tasty.HUnit qualified as HUnit
 import TextShow
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
 import Test.Env
 import Test.QuickCheck.Arbitrary.Instances
 
@@ -35,6 +39,9 @@ typesTests td =
   , integerTest td
   , fractionalNumericTest td
   , xmlTest td
+  , nulInTextTest td
+  , numericLimitsTest td
+  , rangeBoundLengthTest
   , intervalComparisonTest td
   , intWordEncodingTest td
   , rangeTest td
@@ -244,6 +251,90 @@ intervalComparisonTest td = testCase
             | lt = LT
             | otherwise = GT
       assertEqual "Ordering matches the server" expected $ compare a b
+
+-- | The header fields of a @numeric@ value are 16 bit wide, so a large
+-- enough exponent doesn't fit. The upstream encoder these are derived from
+-- lets such a value wrap around, which silently stores a different number
+-- (@1e131072@ used to arrive as @0@).
+numericLimitsTest :: TestData -> TestTree
+numericLimitsTest td = testCase "Numeric values that don't fit the wire format are rejected"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    -- The largest weight and scale the format can represent still work.
+    roundtrips "largest weight" $ scientific 1 131068
+    roundtrips "largest scale" $ scientific 1 (-16380)
+    rejected "weight" $ scientific 1 131072
+    rejected "weight" $ scientific 1 200000
+    rejected "scale" $ scientific 1 (-100000)
+  where
+    roundtrips what v = do
+      runQuery_ $ rawSQL "SELECT $1" (Identity v)
+      v' <- fetchOne fromSQL
+      assertEqual ("Value with the " ++ what ++ " roundtrips") v v'
+
+    rejected what v =
+      expectError @HPQTypesError ("numeric " ++ what ++ " out of range") check
+        . runQuery_
+        $ rawSQL "SELECT $1" (Identity v)
+      where
+        check (HPQTypesError msg) =
+          liftBase . assertBool ("Error message mentions the " ++ what ++ ": " ++ msg) $
+            what `L.isInfixOf` msg
+
+-- | The length prefix of a value inside a container is signed, with @-1@
+-- standing for NULL. The upstream decoder these are derived from passes any
+-- other negative length on to @unsafeTake@ / @unsafeDrop@, which yields a
+-- 'BS.ByteString' of negative length pointing before its buffer.
+rangeBoundLengthTest :: TestTree
+rangeBoundLengthTest = testCase "Negative length of a range bound is rejected" $ do
+  HUnit.assertEqual
+    "Well-formed range decodes"
+    (Right $ Range (Incl 1) (Incl 5))
+    (D.valueParser D.int4range wellFormed)
+  case D.valueParser D.int4range negativeLength of
+    Right r -> assertFailure $ "Malformed range decoded to " ++ show r
+    Left err ->
+      HUnit.assertBool ("Error mentions the length: " ++ T.unpack err) $
+        "-24" `T.isInfixOf` err
+  where
+    -- Flags (lower and upper inclusive, neither infinite), then a bound
+    -- claiming a length of 0xffffffe8, i.e. -24.
+    negativeLength = BS.pack [0x06, 0xff, 0xff, 0xff, 0xe8, 0xde, 0xad, 0xbe, 0xef]
+    wellFormed = BS.pack [0x06, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 5]
+
+-- | The server rejects NUL characters in values of the character types, so
+-- they need to be passed on verbatim for it to do so. The upstream encoders
+-- the ones in "Database.PostgreSQL.PQTypes.Internal.Encoding" are derived
+-- from silently drop such characters, which corrupts the value instead.
+nulInTextTest :: TestData -> TestTree
+nulInTextTest td = testCase "NUL characters in text values are rejected"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    rejected "Text" CharacterNotInRepertoire $ Identity ("a\NULb" :: T.Text)
+    rejected "lazy Text" CharacterNotInRepertoire $ Identity ("a\NULb" :: TL.Text)
+    rejected "String" CharacterNotInRepertoire $ Identity ("a\NULb" :: String)
+    rejected "array element" CharacterNotInRepertoire $ Identity ["a\NULb" :: T.Text]
+    rejected "String array element" CharacterNotInRepertoire $ Identity [["a\NULb" :: String]]
+    -- The XML parser rejects the character before the encoding check does.
+    rejected "XML" InvalidXmlContent . Identity . XML $ "<a>x\NULy</a>"
+  where
+    rejected :: (Show row, ToRow row) => String -> ErrorCode -> row -> TestEnv ()
+    rejected what expected row = do
+      -- The receive function of the type of a parameter runs when the query
+      -- is bound, so the value doesn't need to be used by the query itself.
+      -- The savepoint keeps the transaction usable for the checks that follow.
+      eres <- try . withSavepoint "nul" . runQuery_ $ rawSQL "SELECT $1" row
+      liftBase $ case eres of
+        Left DBException {..}
+          | Just DetailedQueryError {..} <- cast dbeError ->
+              assertEqual
+                ("Unexpected error code (" ++ what ++ ")")
+                expected
+                qeErrorCode
+          | otherwise ->
+              assertFailure $ "Unexpected exception (" ++ what ++ "): " ++ show dbeError
+        Right () ->
+          assertFailure $ "NUL character wasn't rejected (" ++ what ++ ")"
 
 -- | 'Int' and 'Word' have no 'FromSQL' instances (their size is
 -- architecture-dependent), so their encoding is checked by fetching the

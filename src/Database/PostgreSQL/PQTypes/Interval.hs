@@ -12,11 +12,11 @@ module Database.PostgreSQL.PQTypes.Interval
 import BinaryParser qualified as BP
 import Data.Int
 import Data.Semigroup qualified as SG
-import PostgreSQL.Binary.Decoding qualified as D
-import PostgreSQL.Binary.Encoding qualified as E
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
+import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as E
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 

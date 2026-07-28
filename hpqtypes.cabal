@@ -81,6 +81,8 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.C.Interface
                      , Database.PostgreSQL.PQTypes.Internal.C.Types
                      , Database.PostgreSQL.PQTypes.Internal.Connection
+                     , Database.PostgreSQL.PQTypes.Internal.Decoding
+                     , Database.PostgreSQL.PQTypes.Internal.Encoding
                      , Database.PostgreSQL.PQTypes.Internal.Error
                      , Database.PostgreSQL.PQTypes.Internal.Error.Code
                      , Database.PostgreSQL.PQTypes.Internal.Exception
@@ -94,6 +96,7 @@ library
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.JSON
                      , Database.PostgreSQL.PQTypes.Notification
+                     , Database.PostgreSQL.PQTypes.Range
                      , Database.PostgreSQL.PQTypes.SQL
                      , Database.PostgreSQL.PQTypes.SQL.Class
                      , Database.PostgreSQL.PQTypes.SQL.Raw
@@ -108,13 +111,13 @@ library
                      , aeson             >= 2.0
                      , binary-parser     >= 0.5
                      , bytestring        >= 0.9
+                     , bytestring-strict-builder >= 0.4
                      , containers        >= 0.5.0.0
                      , exceptions        >= 0.9
                      , iproute           >= 1.7
                      , lifted-base       >= 0.2
                      , monad-control     >= 1.0.3
                      , mtl               >= 2.1
-                     , postgresql-binary >= 0.15
                      , resource-pool     >= 0.4
                      , scientific        >= 0.3.8.0
                      , stm               >= 2.5.0.0

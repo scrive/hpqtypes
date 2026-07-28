@@ -30,11 +30,11 @@ import Data.Vector qualified as V
 import Data.Word
 import GHC.Generics
 import GHC.TypeLits
-import PostgreSQL.Binary.Decoding qualified as D
-import PostgreSQL.Binary.Range (Range)
 import TextShow
 
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
 import Database.PostgreSQL.PQTypes.Internal.RowDecoder
+import Database.PostgreSQL.PQTypes.Range (Range)
 
 -- | Class which represents \"from SQL type to Haskell type\" transformation.
 -- Decoding of compound values is a matter of monadically composing decoders
@@ -242,6 +242,12 @@ instance FromSQL Bool where
 
 -- | Note that there is no instance for the @cidr@ type, which shares the
 -- wire format with @inet@, but has a different OID.
+--
+-- /Warning:/ an @inet@ value is a host address with an optional netmask,
+-- but 'IPRange' only retains the network part, so the host bits of the
+-- address are lost: @\'10.0.0.5\/8\'::inet@ decodes to @10.0.0.0\/8@. The
+-- same applies to encoding, as 'IPRange' cannot represent them in the first
+-- place.
 instance FromSQL IPRange where
   fromSQL = decodeScalar D.inet
 

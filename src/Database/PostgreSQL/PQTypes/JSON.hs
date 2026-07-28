@@ -10,11 +10,11 @@ import Data.Bifunctor
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BSL
 import Data.Text qualified as T
-import PostgreSQL.Binary.Decoding qualified as PD
-import PostgreSQL.Binary.Encoding qualified as PE
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as PD
+import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as PE
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 

@@ -3,14 +3,15 @@
 * Drop support for `aeson` < 2.0.
 * Remove the bundled `libpqtypes` C library. The library now executes queries
   with the asynchronous API of plain `libpq` and handles the binary transport
-  format with the `postgresql-binary` package.
+  format itself (the encoders and decoders are derived from the
+  `postgresql-binary` package).
 * Replace per-type format strings with type Oids: the `pqFormat`, `pqFormat0`
   and `pqVariables` methods of `PQFormat` are replaced by `pqOid` and
   `pqArrayOid` (constants for built-in types are available in
   `Database.PostgreSQL.PQTypes.Internal.Oid`).
-* Change the type of `toSQL` to `t -> Maybe Encoding`, where `Encoding` comes
-  from `postgresql-binary` and `Nothing` represents NULL. The `PQDest` type
-  family and `ParamAllocator` are gone.
+* Change the type of `toSQL` to `t -> Maybe Encoding`, where `Encoding` is an
+  encoded value in the binary wire format and `Nothing` represents NULL. The
+  `PQDest` type family and `ParamAllocator` are gone.
 * Change the type of `fromSQL` to `RowDecoder t`, a monadic parser that consumes
   consecutive fields of a query result. Decoders of compound results are built
   by composing decoders of their fields; the `PQBase` type family is gone.
@@ -73,8 +74,9 @@
 * Add support for range types: `FromSQL` and `ToSQL` instances for `Range`
   of `Int32`, `Int64`, `Scientific`, `Day`, `LocalTime` and `UTCTime`, mapped
   to `int4range`, `int8range`, `numrange`, `daterange`, `tsrange` and
-  `tstzrange` respectively. The `Range` and `Bound` types from
-  `postgresql-binary` are re-exported from `Database.PostgreSQL.PQTypes`.
+  `tstzrange` respectively. The `Range` and `Bound` types are defined in
+  `Database.PostgreSQL.PQTypes.Range` and re-exported from
+  `Database.PostgreSQL.PQTypes`.
 * Change the representation of `Interval` to mirror the wire format: three
   components (microseconds, days, months) of mutually independent duration.
   The type is now opaque; values are constructed with the `iyears`,

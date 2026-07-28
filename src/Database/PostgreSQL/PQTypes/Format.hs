@@ -15,9 +15,9 @@ import Data.Time
 import Data.UUID.Types
 import Data.Vector qualified as V
 import Data.Word
-import PostgreSQL.Binary.Range (Range)
 
 import Database.PostgreSQL.PQTypes.Internal.Oid
+import Database.PostgreSQL.PQTypes.Range (Range)
 
 ----------------------------------------
 

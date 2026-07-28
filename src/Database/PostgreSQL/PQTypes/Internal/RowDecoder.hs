@@ -27,11 +27,11 @@ import Data.Text qualified as T
 import Data.Vector qualified as V
 import Foreign.C.Types
 import Foreign.Ptr
-import PostgreSQL.Binary.Decoding qualified as D
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.Internal.Utils
@@ -215,7 +215,7 @@ decodeNullable (RowDecoder inner) = mkDecoder $ do
       pure $ Just a
 
 -- | Decode the next field using a value decoder from
--- "PostgreSQL.Binary.Decoding", after verifying that the type of the field
+-- "Database.PostgreSQL.PQTypes.Internal.Decoding", after verifying that the type of the field
 -- matches the expected one.
 decodeScalar :: forall a. PQFormat a => D.Value a -> RowDecoder a
 decodeScalar valueDec = withNextField $ \_srcRow -> \case

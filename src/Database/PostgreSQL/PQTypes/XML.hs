@@ -3,11 +3,11 @@ module Database.PostgreSQL.PQTypes.XML
   ) where
 
 import Data.Text
-import PostgreSQL.Binary.Decoding qualified as D
-import PostgreSQL.Binary.Encoding qualified as E
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
+import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
+import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as E
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 
