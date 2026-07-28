@@ -7,7 +7,7 @@ module Test.Env
   , assertEqual
   , expectError
   , sqlGenInts
-  , _printTime
+  , timed
 
     -- * Re-exports
   , module Test.Tasty.HUnit
@@ -18,7 +18,7 @@ import Control.Monad.Catch
 import Control.Monad.State qualified as S
 import Control.Monad.Trans.Control
 import Data.Int
-import Data.Time
+import GHC.Clock (getMonotonicTime)
 import System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Gen
@@ -108,10 +108,11 @@ sqlGenInts n =
     , ") SELECT n FROM ints"
     ]
 
-_printTime :: MonadBase IO m => m a -> m a
-_printTime m = do
-  t <- liftBase getCurrentTime
+-- | Run an action, returning its result along with how long it took in
+-- seconds.
+timed :: MonadBase IO m => m a -> m (a, Double)
+timed m = do
+  t1 <- liftBase getMonotonicTime
   res <- m
-  t' <- liftBase getCurrentTime
-  liftBase . putStrLn $ "Time: " ++ show (diffUTCTime t' t)
-  pure res
+  t2 <- liftBase getMonotonicTime
+  pure (res, t2 - t1)

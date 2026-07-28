@@ -9,6 +9,7 @@ import Control.Exception (ErrorCall (..))
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
+import Data.ByteString qualified as BS
 import Data.Int
 import Data.Maybe
 import Data.Text qualified as T
@@ -27,6 +28,8 @@ connectionTests td =
   , preparedStatementTest td
   , notifyTest td
   , queryInterruptionTest td
+  , largeQueryInterruptionTest td
+  , preparedQueryInterruptionTest td
   , syncExceptionInterruptionTest td
   , finalizationInterruptionTest td
   , copyNotSupportedTest td
@@ -141,7 +144,10 @@ notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransaction
 queryInterruptionTest :: TestData -> TestTree
 queryInterruptionTest td = testCase "Queries are interruptible" $ do
   let sleep = "SELECT pg_sleep(2)"
-      ints = sqlGenInts 5000000
+      -- Both queries have to take substantially longer than the timeout
+      -- below, so that waiting one out is clearly distinguishable from
+      -- interrupting it.
+      ints = sqlGenInts 10000000
   runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
     testQuery id sleep
     testQuery id ints
@@ -149,11 +155,77 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
     testQuery (withSavepoint "ints") ints
     testQuery (withSavepoint "sleep") sleep
   where
-    testQuery m sql =
-      timeout 500000 (m $ runSQL_ sql) >>= \case
-        Just _ -> liftBase $ do
-          assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
-        Nothing -> pure ()
+    testQuery m sql = do
+      (interrupted, elapsed) <- timed . timeout 500000 . m $ runSQL_ sql
+      when (isJust interrupted) . liftBase $ do
+        assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
+      -- Checking that the timeout fired is not enough: if execution doesn't
+      -- run in a thread of its own, the exception can only be delivered once
+      -- the blocking call returns, so the timeout would report an
+      -- interruption after having waited the whole query out.
+      liftBase . assertBool ("Query" <+> show sql <+> "was waited out") $
+        elapsed < 1
+
+-- | A query is interruptible not only while the server executes it, but also
+-- while it is still on its way there, which is a separate matter: the server
+-- discards a cancellation request that arrives before the query it is meant to
+-- cancel, so the pending output has to be flushed before cancelling. Without
+-- that, an exception arriving during the transmission of a large parameter
+-- leaves the query running and the interrupted thread waiting it out.
+--
+-- The parameter is large enough for its transmission to take substantially
+-- longer than the round trip of a cancellation request, and the timeout is
+-- short enough to fire in the middle of it. As the two race each other, the
+-- query is run repeatedly to make hitting the window reliable.
+largeQueryInterruptionTest :: TestData -> TestTree
+largeQueryInterruptionTest td =
+  testCase "Queries are interruptible while being sent"
+    . runTestEnv td defaultTransactionSettings
+    . unsafeWithoutTransaction
+    $ do
+      let payload = BS.replicate (8 * 1024 * 1024) 65
+          sql = "SELECT pg_sleep(2), length(" <?> payload <+> ")"
+      replicateM_ 10 $ do
+        (interrupted, elapsed) <- timed . timeout 2000 $ runSQL_ sql
+        when (isJust interrupted) . liftBase $
+          assertFailure "Query wasn't interrupted in time"
+        liftBase . assertBool "Query was waited out rather than cut short" $
+          elapsed < 1
+      -- Cancellation has to leave the connection in a state in which it can run
+      -- queries again.
+      runSQL_ "SELECT 1::int4"
+      n <- fetchOne (fromSQL @Int32)
+      assertEqual "Connection is usable after the interruption" 1 n
+
+-- | Execution of a prepared statement has to be interruptible just like that
+-- of a regular query. Note that this is specifically about the execution:
+-- preparation is deliberately not interruptible, so the statement is prepared
+-- upfront to keep it out of the picture.
+preparedQueryInterruptionTest :: TestData -> TestTree
+preparedQueryInterruptionTest td = testCase "Prepared queries are interruptible"
+  . runTestEnv td defaultTransactionSettings
+  . unsafeWithoutTransaction
+  $ do
+    sleep 0
+    (interrupted, elapsed) <- timed . timeout 500000 $ sleep 2
+    when (isJust interrupted) . liftBase $
+      assertFailure "Prepared query wasn't interrupted in time"
+    -- Checking that the timeout fired is not enough: if execution doesn't run
+    -- in a thread of its own, the exception can only be delivered once the
+    -- blocking call returns, so the timeout would report an interruption
+    -- after having waited the whole query out.
+    liftBase . assertBool "Prepared query was waited out rather than cut short" $
+      elapsed < 1
+    -- Cancellation has to leave the connection in a state in which it can run
+    -- queries again.
+    runSQL_ "SELECT 1::int4"
+    n <- fetchOne (fromSQL @Int32)
+    assertEqual "Connection is usable after the interruption" 1 n
+  where
+    -- The duration is a parameter so that both calls execute the same
+    -- statement, i.e. the second one finds it already prepared.
+    sleep :: Double -> TestEnv ()
+    sleep n = runPreparedQuery_ "sleep" $ rawSQL "SELECT pg_sleep($1)" (Identity n)
 
 syncExceptionInterruptionTest :: TestData -> TestTree
 syncExceptionInterruptionTest td = testCase
