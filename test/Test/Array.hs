@@ -6,6 +6,8 @@ module Test.Array
   ) where
 
 import Control.Monad
+import Control.Monad.Base
+import Control.Monad.Catch
 import Data.ByteString qualified as BS
 import Data.Int
 import Data.Text qualified as T
@@ -38,6 +40,7 @@ arrayDecoderTest td =
     , arrayOfNullableRecordsWorks
     , listInstanceWorks
     , vectorDecodingWorks
+    , elementErrorsCarryPosition
     , elementTypeMismatchFails
     , vectorElementTypeMismatchFails
     , elementOverconsumptionFails
@@ -123,6 +126,48 @@ arrayDecoderTest td =
           , ["foo", "bar"] :: [String]
           )
           result
+
+    -- The fast path for arrays of scalars ('decodeScalarArray', which every
+    -- built-in scalar type routes through) has to report the position of a
+    -- failing element just like the general one, otherwise there is no way to
+    -- tell which element of a large array is at fault.
+    elementErrorsCarryPosition =
+      testCase "Errors of array elements carry their position" $ do
+        runTestEnv td defaultTransactionSettings $ do
+          -- A value the element decoder rejects.
+          checkBothPaths
+            "non-integral numeric"
+            "'{1,2.5,3}'::numeric[]"
+            (fromSQL @[Integer])
+            (decodeArray $ fromSQL @Integer)
+          -- A NULL element decoded as a type that doesn't admit one.
+          checkBothPaths
+            "NULL element"
+            "'{1,NULL,3}'::int4[]"
+            (fromSQL @[Int32])
+            (decodeArray $ fromSQL @Int32)
+      where
+        checkBothPaths what sql fastDec generalDec = do
+          runSQL_ $ "SELECT" <+> sql
+          expectError @ConversionError (what <+> "(fast path)") checkPosition $
+            fetchOne fastDec
+          runSQL_ $ "SELECT" <+> sql
+          expectError @ConversionError (what <+> "(general path)") checkPosition $
+            fetchOne generalDec
+
+        -- The array itself is the first column of the result and the offending
+        -- element is second in the array, so the error of the element is
+        -- wrapped in the error of the array field.
+        checkPosition ConversionError {convColumn = col, convRow = row, convError = err} = do
+          assertEqual "Column of the array is correct" 1 col
+          assertEqual "Row of the array is correct" 1 row
+          case fromException $ toException err of
+            Just ConversionError {convColumn = elemCol, convRow = elemRow} -> do
+              assertEqual "Position of the element is correct" 2 elemCol
+              assertEqual "Row of the element is correct" 1 elemRow
+            Nothing ->
+              liftBase . assertFailure $
+                "Error of the element carries no position: " ++ show err
 
     elementTypeMismatchFails = testCase "Type mismatch of array elements is detected" $ do
       runTestEnv td defaultTransactionSettings $ do

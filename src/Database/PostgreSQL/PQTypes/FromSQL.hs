@@ -10,6 +10,7 @@ module Database.PostgreSQL.PQTypes.FromSQL
   , decodeEnum
   , decodeNullable
   , decodeScalar
+  , decodeScalarArray
 
     -- ** Generic decoding
   , genericDecoder
@@ -69,15 +70,29 @@ class FromSQL a where
   -- | Decode a value from the next field of the query result.
   fromSQL :: RowDecoder a
 
-  -- | Decoder used by the @'FromSQL' [a]@ instance. The default decodes a
-  -- PostgreSQL array of @a@; the only reason for this method to exist is to
-  -- allow 'String' to keep decoding text (see the 'Char' instance). Use
-  -- 'fromSQL' at the list type instead of calling this method directly.
-  fromSQLList :: RowDecoder [a]
-  fromSQLList = V.toList <$> decodeArray fromSQL
+  -- | Decoder of a PostgreSQL array of @a@, used by the @'FromSQL'
+  -- ('V.Vector' a)@ instance and through it by the @'FromSQL' [a]@ one. The
+  -- default decodes the elements with 'fromSQL'; scalars override it with
+  -- 'decodeScalarArray', which is faster.
+  --
+  -- /Note:/ the method exists for instances to override, not for decoders to
+  -- call. Decode arrays with 'fromSQL'.
+  fromSQLArray :: RowDecoder (V.Vector a)
+  fromSQLArray = decodeArray fromSQL
   -- Inlined so that instances in other modules (in particular ones defined
   -- with 'genericDecoder') specialize the element decoder instead of
   -- calling the generically compiled default.
+  {-# INLINE fromSQLArray #-}
+
+  -- | Decoder used by the @'FromSQL' [a]@ instance. The default hands over
+  -- to 'fromSQLArray'; the only reason for this method to exist separately
+  -- is to allow 'String' to decode text instead (see the 'Char' instance).
+  --
+  -- /Note:/ as with 'fromSQLArray', the method exists for instances to
+  -- override, not for decoders to call. Decode lists with 'fromSQL'.
+  fromSQLList :: RowDecoder [a]
+  fromSQLList = V.toList <$> fromSQLArray
+  -- See 'fromSQLArray'.
   {-# INLINE fromSQLList #-}
 
 -- GENERIC DECODING
@@ -134,33 +149,41 @@ instance FromSQL a => FromSQL [a] where
   fromSQL = fromSQLList
 
 instance FromSQL a => FromSQL (V.Vector a) where
-  fromSQL = decodeArray fromSQL
+  fromSQL = fromSQLArray
 
 -- NUMERICS
 
 instance FromSQL Int16 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 instance FromSQL Int32 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 instance FromSQL Int64 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 instance FromSQL Float where
   fromSQL = decodeScalar D.float4
+  fromSQLArray = decodeScalarArray D.float4
 
 instance FromSQL Double where
   fromSQL = decodeScalar D.float8
+  fromSQLArray = decodeScalarArray D.float8
 
 instance FromSQL Word16 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 instance FromSQL Word32 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 instance FromSQL Word64 where
   fromSQL = decodeScalar D.int
+  fromSQLArray = decodeScalarArray D.int
 
 -- 'Int' and 'Word' can be sent (see their 'ToSQL' instances) but not
 -- fetched. The instances below exist only to say so: without them the error
@@ -187,13 +210,18 @@ instance
   fromSQL = error "unreachable"
 
 instance FromSQL Integer where
-  fromSQL = decodeScalar . (`D.refine` D.numeric) $ \n ->
-    case floatingOrInteger @Double n of
-      Left v -> Left $ "expected an integer, got " <> showt v
-      Right i -> Right i
+  fromSQL = decodeScalar integerValue
+  fromSQLArray = decodeScalarArray integerValue
+
+integerValue :: D.Value Integer
+integerValue = (`D.refine` D.numeric) $ \n ->
+  case floatingOrInteger @Double n of
+    Left v -> Left $ "expected an integer, got " <> showt v
+    Right i -> Right i
 
 instance FromSQL Scientific where
   fromSQL = decodeScalar D.numeric
+  fromSQLArray = decodeScalarArray D.numeric
 
 -- CHAR
 
@@ -214,40 +242,49 @@ instance FromSQL Char where
 
 instance FromSQL Word8 where
   fromSQL = decodeScalar singleByte
+  fromSQLArray = decodeScalarArray singleByte
 
 -- VARIABLE-LENGTH CHARACTER TYPES
 
 instance FromSQL T.Text where
   fromSQL = decodeScalar D.text_strict
+  fromSQLArray = decodeScalarArray D.text_strict
 
 instance FromSQL TL.Text where
   fromSQL = decodeScalar D.text_lazy
+  fromSQLArray = decodeScalarArray D.text_lazy
 
 instance FromSQL UUID where
   fromSQL = decodeScalar D.uuid
+  fromSQLArray = decodeScalarArray D.uuid
 
 -- BYTEA
 
 instance FromSQL BS.ByteString where
   fromSQL = decodeScalar D.bytea_strict
+  fromSQLArray = decodeScalarArray D.bytea_strict
 
 instance FromSQL BSL.ByteString where
   fromSQL = decodeScalar D.bytea_lazy
+  fromSQLArray = decodeScalarArray D.bytea_lazy
 
 -- DATE
 
 instance FromSQL Day where
   fromSQL = decodeScalar D.date
+  fromSQLArray = decodeScalarArray D.date
 
 -- TIME
 
 instance FromSQL TimeOfDay where
   fromSQL = decodeScalar D.time_int
+  fromSQLArray = decodeScalarArray D.time_int
 
 -- TIMESTAMP
 
 instance FromSQL LocalTime where
   fromSQL = decodeScalar D.timestamp_int
+  fromSQLArray = decodeScalarArray D.timestamp_int
 
 -- TIMESTAMPTZ
 
@@ -256,11 +293,13 @@ instance FromSQL LocalTime where
 
 instance FromSQL UTCTime where
   fromSQL = decodeScalar D.timestamptz_int
+  fromSQLArray = decodeScalarArray D.timestamptz_int
 
 -- BOOL
 
 instance FromSQL Bool where
   fromSQL = decodeScalar D.bool
+  fromSQLArray = decodeScalarArray D.bool
 
 -- INET
 
@@ -270,44 +309,58 @@ instance FromSQL Bool where
 -- fails rather than silently dropping the netmask, in the same way that
 -- 'Integer' rejects a @numeric@ that isn't integral.
 instance FromSQL IP where
-  fromSQL = decodeScalar . (`D.refine` D.inet) $ \(address, maskLen) ->
-    let width = case address of
-          IPv4 {} -> 32
-          IPv6 {} -> 128
-    in if maskLen == width
-         then Right address
-         else
-           Left $
-             "expected an address with a /"
-               <> showt width
-               <> " netmask, got /"
-               <> showt maskLen
+  fromSQL = decodeScalar ipValue
+  fromSQLArray = decodeScalarArray ipValue
+
+ipValue :: D.Value IP
+ipValue = (`D.refine` D.inet) $ \(address, maskLen) ->
+  let width = case address of
+        IPv4 {} -> 32
+        IPv6 {} -> 128
+  in if maskLen == width
+       then Right address
+       else
+         Left $
+           "expected an address with a /"
+             <> showt width
+             <> " netmask, got /"
+             <> showt maskLen
 
 -- | A @cidr@ value is a network address, i.e. one with no bits set to the
 -- right of the netmask, which is exactly what 'IPRange' represents.
 instance FromSQL IPRange where
-  fromSQL = decodeScalar $ toRange <$> D.inet
-    where
-      toRange (address, maskLen) = case address of
-        IPv4 addr -> IPv4Range $ makeAddrRange addr maskLen
-        IPv6 addr -> IPv6Range $ makeAddrRange addr maskLen
+  fromSQL = decodeScalar ipRangeValue
+  fromSQLArray = decodeScalarArray ipRangeValue
+
+ipRangeValue :: D.Value IPRange
+ipRangeValue = toRange <$> D.inet
+  where
+    toRange (address, maskLen) = case address of
+      IPv4 addr -> IPv4Range $ makeAddrRange addr maskLen
+      IPv6 addr -> IPv6Range $ makeAddrRange addr maskLen
 
 -- RANGES
 
 instance FromSQL (Range Int32) where
   fromSQL = decodeScalar D.int4range
+  fromSQLArray = decodeScalarArray D.int4range
 
 instance FromSQL (Range Int64) where
   fromSQL = decodeScalar D.int8range
+  fromSQLArray = decodeScalarArray D.int8range
 
 instance FromSQL (Range Scientific) where
   fromSQL = decodeScalar D.numrange
+  fromSQLArray = decodeScalarArray D.numrange
 
 instance FromSQL (Range Day) where
   fromSQL = decodeScalar D.daterange
+  fromSQLArray = decodeScalarArray D.daterange
 
 instance FromSQL (Range LocalTime) where
   fromSQL = decodeScalar D.tsrange_int
+  fromSQLArray = decodeScalarArray D.tsrange_int
 
 instance FromSQL (Range UTCTime) where
   fromSQL = decodeScalar D.tstzrange_int
+  fromSQLArray = decodeScalarArray D.tstzrange_int

@@ -50,7 +50,12 @@
   plain `fromSQL`. Multi-dimensional arrays are represented by nesting
   (mixed nesting of lists and `Vector`s works too). `String` keeps
   corresponding to `text` and `[String]` to an array of `text`. The
-  `Database.PostgreSQL.PQTypes.Array` module is gone.
+  `Database.PostgreSQL.PQTypes.Array` module is gone. Arrays are decoded by
+  the `fromSQLArray` method of `FromSQL` (with `fromSQLList` backing the list
+  instance on top of it), which defaults to `decodeArray fromSQL` and can be
+  overridden with a faster decoder; scalar types override it with the
+  dedicated `decodeScalarArray` combinator, which decodes the elements with a
+  value decoder directly.
 * Remove `ArrayItemError`; errors of array element decoders report the
   position of the offending element as the column of their `ConversionError`
   instead.

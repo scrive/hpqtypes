@@ -12,6 +12,7 @@ module Database.PostgreSQL.PQTypes.Internal.RowDecoder
   , decodeEnum
   , decodeNullable
   , decodeScalar
+  , decodeScalarArray
   ) where
 
 import BinaryParser qualified as BP
@@ -344,6 +345,67 @@ decodeArray (RowDecoder inner) = withNextField $ \srcRow -> \case
             , lengthDelivered = 1
             }
         pure a
+
+-- | Decode the next field as a one-dimensional array of a scalar type,
+-- using the given value decoder for its elements.
+--
+-- Equivalent to @'decodeArray' ('decodeScalar' valueDec)@, except that the
+-- elements are decoded with the value decoder directly, without the generic
+-- machinery of 'decodeArray', so it's faster. The type of the elements is
+-- checked once for the whole array rather than per element, which is equivalent
+-- as they all share it.
+--
+-- Errors of the elements report their position the same way 'decodeArray'
+-- does, i.e. as the column of a t'ConversionError'.
+decodeScalarArray :: forall a. PQFormat a => D.Value a -> RowDecoder (V.Vector a)
+decodeScalarArray valueDec = withNextField $ \srcRow -> \case
+  Field _ Nothing -> unexpectedNULL
+  Field _ (Just value) -> do
+    ad <- getParseResult "decodeScalarArray" $ parseArray value
+    decodeArrayData srcRow ad
+  SubArray ad -> decodeArrayData srcRow ad
+  where
+    decodeArrayData srcRow ad = case ad.dims of
+      [] -> pure V.empty
+      [n] -> do
+        when (ad.elemOid /= pqOid @a) . E.throwIO $
+          TypeMismatch
+            { tmExpectedOid = pqOid @a
+            , tmDeliveredOid = ad.elemOid
+            }
+        V.generateM n $ \i -> case ad.elems V.! i of
+          Nothing -> atElement srcRow i unexpectedNULL
+          Just value -> case D.valueParser valueDec value of
+            Right a -> pure a
+            Left err ->
+              atElement srcRow i . getParseResult "decodeScalarArray" $ Left err
+      -- 'decodeArray' would peel one dimension off and hand the rest to the
+      -- element decoder as a sub-array, which a scalar decoder rejects. The
+      -- error is reported the same way here, as the two are meant to be
+      -- interchangeable.
+      _ : rest ->
+        E.throwIO
+          ArrayDimensionMismatch
+            { arrDimExpected = 0
+            , arrDimDelivered = length rest
+            }
+
+    -- Attach the position of an element to the error of its decoder, which is
+    -- what the elements of 'decodeArray' get from 'withNextField'. Note that
+    -- the handler is installed on the branches that are already failing, so
+    -- decoding of the elements that succeed doesn't pay for it.
+    atElement :: Int -> Int -> IO b -> IO b
+    atElement srcRow i action =
+      action `catchSync` \(E.SomeException err) ->
+        E.throwIO
+          ConversionError
+            { convColumn = i + 1
+            , convColumnName = ""
+            , convRow = srcRow + 1
+            , convError = err
+            }
+-- See the comment at 'decodeScalar'.
+{-# INLINE decodeScalarArray #-}
 
 ----------------------------------------
 -- Helpers
