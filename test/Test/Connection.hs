@@ -174,23 +174,34 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
 -- leaves the query running and the interrupted thread waiting it out.
 --
 -- The parameter is large enough for its transmission to take substantially
--- longer than the round trip of a cancellation request, and the timeout is
--- short enough to fire in the middle of it. As the two race each other, the
--- query is run repeatedly to make hitting the window reliable.
+-- longer than the timeout below, so that the latter fires in the middle of it.
+--
+-- Note that cancellation cannot be quicker than finishing the transmission,
+-- hence the time it takes to send the parameter is measured rather than
+-- assumed: it depends on how the server is reached (a local socket is orders
+-- of magnitude faster than a connection to another host) and an interruption
+-- that is as prompt as it can be would look like a stall next to a hardcoded
+-- bound.
 largeQueryInterruptionTest :: TestData -> TestTree
 largeQueryInterruptionTest td =
   testCase "Queries are interruptible while being sent"
     . runTestEnv td defaultTransactionSettings
     . unsafeWithoutTransaction
     $ do
-      let payload = BS.replicate (8 * 1024 * 1024) 65
-          sql = "SELECT pg_sleep(2), length(" <?> payload <+> ")"
+      let payload = BS.replicate (4 * 1024 * 1024) 65
+          sleepSeconds = 2 :: Double
+          sql =
+            "SELECT pg_sleep(" <?> sleepSeconds <> "), length(" <?> payload <> ")"
+      (_, sendTime) <- timed . runSQL_ $ "SELECT length(" <?> payload <> ")"
       replicateM_ 10 $ do
         (interrupted, elapsed) <- timed . timeout 2000 $ runSQL_ sql
         when (isJust interrupted) . liftBase $
           assertFailure "Query wasn't interrupted in time"
+        -- Waiting the query out would take the sleep above on top of the
+        -- transmission, so anything close to the latter alone means the query
+        -- was cancelled.
         liftBase . assertBool "Query was waited out rather than cut short" $
-          elapsed < 1
+          elapsed < sendTime + sleepSeconds / 2
       -- Cancellation has to leave the connection in a state in which it can run
       -- queries again.
       runSQL_ "SELECT 1::int4"

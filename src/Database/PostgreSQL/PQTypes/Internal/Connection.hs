@@ -413,19 +413,52 @@ runQueryImpl Connection {..} sql execQuery = E.mask $ \restore -> attachQueryCon
         -- to use it will fail and it will be disposed of by its connection
         -- source.
         ignoreErrors $ flushOutput connPtr
-        -- Request cancellation of the query only if its results are not
-        -- already sitting in the input buffer, i.e. the server might still
-        -- be executing it. Note that the request cannot be sent before
-        -- flushing: until the query is fully transmitted, no command is
-        -- running, so the request would be ignored by the server.
-        busy <- c_PQisBusy connPtr
-        when (busy == 1) . void $ c_PQcancel connPtr
+        ignoreErrors requestCancellation
         -- Consume the results, so that the connection can be used again.
         ignoreErrors $ drainResults connPtr
       where
         -- Swallowing exceptions is fine here since we're inside
         -- uninterruptibleMask so the one we catch are necessarily synchronous.
         ignoreErrors m = m `E.catch` \(_ :: E.SomeException) -> pure ()
+
+        -- Ask the server to cancel the query and wait until it reacts.
+        --
+        -- Flushing the output above guarantees that the query was handed over
+        -- to the operating system, but not that the backend already read it,
+        -- and a request that arrives before the backend started executing the
+        -- query is discarded by the server (cancellation is only acted upon
+        -- while a command is running). Nothing reports that: the request is
+        -- acknowledged as received either way, and a discarded one leaves no
+        -- trace at all. The only sign that one took effect is the query ending
+        -- early, so the request is repeated until the results show up, which
+        -- is also why the waiting below is bounded.
+        --
+        -- A request is not sent if the results are already sitting in the
+        -- input buffer, i.e. if the query is over anyway.
+        requestCancellation = do
+          busy <- c_PQisBusy connPtr
+          when (busy == 1) $ do
+            void $ c_PQcancel connPtr
+            awaitResults initialCancelDelay
+
+        awaitResults delay = do
+          busy <- c_PQisBusy connPtr
+          when (busy == 1) $ do
+            waitReadableFor connPtr delay >>= \case
+              -- The server sent something, so the query is on its way to
+              -- being over: keep receiving without pestering it again.
+              True -> consumeInput connPtr >> awaitResults delay
+              -- Nothing arrived in time, so the request was most likely
+              -- discarded. Ask again, giving the server progressively more
+              -- time to respond, as the delay that matters here is how long
+              -- the backend needs to read the query, which depends on its
+              -- size and on how the server is reached.
+              False -> do
+                void $ c_PQcancel connPtr
+                awaitResults . min maxCancelDelay $ 2 * delay
+
+        initialCancelDelay = 50 * 1000 -- 50 ms
+        maxCancelDelay = 400 * 1000 -- 400 ms
 
 ----------------------------------------
 -- Helpers
@@ -552,6 +585,25 @@ waitForResult connPtr = do
     threadWaitRead fd
     consumeInput connPtr
     waitForResult connPtr
+
+-- | Wait until the connection socket becomes readable or the given number of
+-- microseconds elapses, telling which of the two happened.
+--
+-- Note that 'System.Timeout.timeout' is of no use for this, as the waiting
+-- happens with asynchronous exceptions masked uninterruptibly, so the one it
+-- interrupts the wait with could not be delivered. The timer is a thread of
+-- its own for a similar reason 'registerDelay' is not used: the latter
+-- requires the threaded runtime.
+waitReadableFor :: Ptr PGconn -> Int -> IO Bool
+waitReadableFor connPtr micros = do
+  fd <- getSocket connPtr
+  expiredVar <- newEmptyTMVarIO
+  void . forkIO $ do
+    threadDelay micros
+    atomically $ putTMVar expiredVar ()
+  (waitRead, dropWaitRead) <- threadWaitReadSTM fd
+  atomically ((True <$ waitRead) `orElse` (False <$ takeTMVar expiredVar))
+    `E.finally` dropWaitRead
 
 -- | Consume the results of a cancelled query so that the connection can be
 -- used to run queries again.

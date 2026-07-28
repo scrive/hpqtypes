@@ -105,6 +105,11 @@
   connection is encrypted.
 * Fix a bug in `connect` where interrupting it with an asynchronous exception
   could lead to a use-after-free of the buffer holding the connection string.
+* Fix cancellation of a query interrupted by an asynchronous exception being
+  unreliable: the server discards a cancellation request that reaches it before
+  the backend started executing the query, which it doesn't report in any way,
+  so an interrupted thread could end up waiting for the query to run to
+  completion. The request is now repeated until the query ends.
 * Fix a bug in `changeAcquisitionModeTo` that led to holding on to an invalid
   connection object when committing a transaction during transition from the
   `AcquireAndHold` to `AcquireOnDemand` mode failed.
