@@ -218,15 +218,21 @@ instance Arbitrary ZonedTime where
 
 ----------------------------------------
 
+instance Arbitrary IP where
+  arbitrary = oneof [IPv4 <$> genIPv4, IPv6 <$> genIPv6]
+
 instance Arbitrary IPRange where
   arbitrary =
     oneof
-      [ IPv4Range <$> (makeAddrRange <$> ipv4 <*> choose (0, 32))
-      , IPv6Range <$> (makeAddrRange <$> ipv6 <*> choose (0, 128))
+      [ IPv4Range <$> (makeAddrRange <$> genIPv4 <*> choose (0, 32))
+      , IPv6Range <$> (makeAddrRange <$> genIPv6 <*> choose (0, 128))
       ]
-    where
-      ipv4 = toIPv4 <$> vectorOf 4 (choose (0, 255))
-      ipv6 = toIPv6 <$> vectorOf 8 (choose (0, 65535))
+
+genIPv4 :: Gen IPv4
+genIPv4 = toIPv4 <$> vectorOf 4 (choose (0, 255))
+
+genIPv6 :: Gen IPv6
+genIPv6 = toIPv6 <$> vectorOf 8 (choose (0, 65535))
 
 ----------------------------------------
 

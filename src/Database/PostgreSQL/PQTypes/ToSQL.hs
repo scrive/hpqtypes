@@ -10,7 +10,7 @@ import Control.Exception (throw)
 import Data.ByteString qualified as B
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BSL
-import Data.IP (IPRange)
+import Data.IP
 import Data.Int
 import Data.List qualified as L
 import Data.Scientific
@@ -296,11 +296,21 @@ instance ToSQL Bool where
 
 -- INET
 
--- | /Warning:/ 'IPRange' only holds the network part of an address, so the
--- host bits of an @inet@ value cannot be sent (the same applies to decoding,
--- see the @FromSQL@ instance).
+-- | Sent as an @inet@ value whose netmask covers the whole address.
+instance ToSQL IP where
+  toSQL address = Just $ E.inet (address, width)
+    where
+      width = case address of
+        IPv4 {} -> 32
+        IPv6 {} -> 128
+
 instance ToSQL IPRange where
-  toSQL = Just . E.inet
+  toSQL = \case
+    IPv4Range range -> withRange IPv4 range
+    IPv6Range range -> withRange IPv6 range
+    where
+      withRange mkAddress range = case addrRangePair range of
+        (addr, maskLen) -> Just $ E.inet (mkAddress addr, maskLen)
 
 -- RANGES
 

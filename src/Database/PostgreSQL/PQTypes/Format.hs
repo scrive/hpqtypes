@@ -6,7 +6,7 @@ module Database.PostgreSQL.PQTypes.Format
 
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BSL
-import Data.IP (IPRange)
+import Data.IP (IP, IPRange)
 import Data.Int
 import Data.Scientific
 import Data.Text qualified as T
@@ -180,11 +180,15 @@ instance PQFormat Bool where
   pqOid = boolOid
   pqArrayOid = boolArrayOid
 
--- INET
+-- INET / CIDR
 
-instance PQFormat IPRange where
+instance PQFormat IP where
   pqOid = inetOid
   pqArrayOid = inetArrayOid
+
+instance PQFormat IPRange where
+  pqOid = cidrOid
+  pqArrayOid = cidrArrayOid
 
 -- RANGES
 

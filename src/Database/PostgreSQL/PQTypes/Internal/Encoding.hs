@@ -23,6 +23,10 @@
 --   "Data.Time" and "Data.Fixed" types instead of coercing them to their
 --   representations.
 --
+-- * 'inet' takes the address and the length of its netmask, leaving it to
+--   the caller to map a Haskell type onto that. Upstream takes an
+--   'IP.IPRange', which cannot carry the host bits of the address.
+--
 -- * 'Encoding' is a newtype rather than an alias of the underlying builder,
 --   and 'array' takes an 'Oid' rather than a bare 'Word32', so
 --   that neither the builder library nor a raw OID leaks into the public
@@ -338,26 +342,27 @@ uuid :: U.UUID -> Encoding
 uuid value = case U.toWords value of
   (w1, w2, w3, w4) -> int4_word32 w1 <> int4_word32 w2 <> int4_word32 w3 <> int4_word32 w4
 
--- | Note that an @inet@ value on the server is a host address with an
--- optional netmask, but 'IP.IPRange' only retains the network part, so the
--- host bits of the address are lost (see the decoder for the other
--- direction).
-inet :: IP.IPRange -> Encoding
-inet = \case
-  IP.IPv4Range addrRange -> case IP.addrRangePair addrRange of
-    (addr, maskLen) -> header inetAddressFamily maskLen 4 <> int4_word32 (IP.fromIPv4w addr)
-  IP.IPv6Range addrRange -> case IP.addrRangePair addrRange of
-    (addr, maskLen) -> case IP.fromIPv6w addr of
-      (w1, w2, w3, w4) ->
-        header inet6AddressFamily maskLen 16
-          <> int4_word32 w1
-          <> int4_word32 w2
-          <> int4_word32 w3
-          <> int4_word32 w4
+-- | An address along with the length of its netmask. This is the wire format
+-- of both @inet@ and @cidr@; the flag distinguishing them is set from the
+-- OID of the parameter, so it's always encoded as @inet@ here (the server
+-- accepts that for a @cidr@ parameter as long as no bits are set to the
+-- right of the netmask, which is what makes a value a @cidr@ in the first
+-- place).
+inet :: (IP.IP, Int) -> Encoding
+inet (address, maskLen) = case address of
+  IP.IPv4 addr ->
+    header inetAddressFamily 4 <> int4_word32 (IP.fromIPv4w addr)
+  IP.IPv6 addr -> case IP.fromIPv6w addr of
+    (w1, w2, w3, w4) ->
+      header inet6AddressFamily 16
+        <> int4_word32 w1
+        <> int4_word32 w2
+        <> int4_word32 w3
+        <> int4_word32 w4
   where
     -- Address family, netmask length, the is-cidr flag and the size of the
     -- address that follows.
-    header family maskLen size =
+    header family size =
       Encoding $
         B.word8 family
           <> B.word8 (fromIntegral maskLen)

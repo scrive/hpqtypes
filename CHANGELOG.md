@@ -69,8 +69,11 @@
 * Add `FromSQL` and `ToSQL` instances for `Integer` and `Scientific` (mapped
   to `numeric`), `Word16`, `Word32` and `Word64`, plus a `ToSQL` instance
   for `Word` (for symmetry with `Int`).
-* Add `FromSQL` and `ToSQL` instances for `IPRange` (from the `iproute`
-  package), mapped to the `inet` type.
+* Add `FromSQL` and `ToSQL` instances for `IP` and `IPRange` (from the
+  `iproute` package), mapped to the `inet` and `cidr` types respectively.
+  Note that an `inet` value carries the length of its netmask alongside the
+  address, so it only decodes to a bare `IP` when the netmask covers the
+  whole address; otherwise decoding fails rather than dropping it.
 * Add support for range types: `FromSQL` and `ToSQL` instances for `Range`
   of `Int32`, `Int64`, `Scientific`, `Day`, `LocalTime` and `UTCTime`, mapped
   to `int4range`, `int8range`, `numrange`, `daterange`, `tsrange` and

@@ -31,6 +31,8 @@ module Database.PostgreSQL.PQTypes.Internal.Oid
   , unknownOid
   , inetOid
   , inetArrayOid
+  , cidrOid
+  , cidrArrayOid
   , bpcharOid
   , bpcharArrayOid
   , varcharOid
@@ -150,6 +152,10 @@ inetOid, inetArrayOid :: Oid
 inetOid = Oid 869
 inetArrayOid = Oid 1041
 
+cidrOid, cidrArrayOid :: Oid
+cidrOid = Oid 650
+cidrArrayOid = Oid 651
+
 bpcharOid, bpcharArrayOid :: Oid
 bpcharOid = Oid 1042
 bpcharArrayOid = Oid 1014
@@ -260,6 +266,7 @@ builtinTypeNames =
       , (float4Oid, float4ArrayOid, "float4")
       , (float8Oid, float8ArrayOid, "float8")
       , (inetOid, inetArrayOid, "inet")
+      , (cidrOid, cidrArrayOid, "cidr")
       , (bpcharOid, bpcharArrayOid, "bpchar")
       , (varcharOid, varcharArrayOid, "varchar")
       , (dateOid, dateArrayOid, "date")

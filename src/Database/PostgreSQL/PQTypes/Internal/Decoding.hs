@@ -26,9 +26,9 @@
 --   that the parser library doesn't leak into the public API of the library.
 --   Custom decoders are built with 'fn' and 'refine'.
 --
--- Note that 'inet' keeps the upstream behavior of discarding the host bits
--- of an address, which the 'IP.IPRange' it decodes into cannot
--- represent anyway.
+-- * 'inet' decodes the address and the length of its netmask, leaving it to
+--   the caller to map that onto a Haskell type. Upstream decodes into
+--   'IP.IPRange', which silently discards the host bits of the address.
 module Database.PostgreSQL.PQTypes.Internal.Decoding
   ( -- * Decoding
     Value
@@ -84,7 +84,7 @@ import Data.Bits
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Fixed (Fixed (..), Pico)
-import Data.IP qualified as IP
+import Data.IP
 import Data.Int
 import Data.Scientific qualified as S
 import Data.Text qualified as T
@@ -262,29 +262,26 @@ bool = (== 1) <$> intOfSize @Word8 1
 uuid :: Value U.UUID
 uuid = U.fromWords <$> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4
 
--- | Note that an @inet@ value on the server is a host address with an
--- optional netmask, but 'IP.IPRange' only retains the network part, so the
--- host bits of the address are lost: @\'10.0.0.5\/8\'::inet@ decodes to
--- @10.0.0.0\/8@.
-inet :: Value IP.IPRange
+-- | An address along with the length of its netmask. This is the wire format
+-- of both @inet@ and @cidr@, which differ only in a flag that is of no use
+-- when decoding (and in their OIDs, which the caller checks): a @cidr@ value
+-- is one with no bits set to the right of the netmask.
+inet :: Value (IP, Int)
 inet = do
   family <- intOfSize @Word8 1
   maskLen <- intOfSize @Int 1
   -- Skip the is-cidr flag and the size of the address.
   _isCidr <- intOfSize @Word8 1
   _size <- intOfSize @Word8 1
-  case family of
+  address <- case family of
     -- AF_INET
-    2 -> do
-      addr <- IP.toIPv4w <$> intOfSize 4
-      pure . IP.IPv4Range $ IP.makeAddrRange addr maskLen
+    2 -> IPv4 . toIPv4w <$> intOfSize 4
     -- AF_INET6
-    3 -> do
-      addr <-
-        fmap IP.toIPv6w $
-          (,,,) <$> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4
-      pure . IP.IPv6Range $ IP.makeAddrRange addr maskLen
+    3 ->
+      fmap (IPv6 . toIPv6w) $
+        (,,,) <$> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4 <*> intOfSize 4
     _ -> failure $ "Unknown address family: " <> T.pack (show family)
+  pure (address, maskLen)
 
 ----------------------------------------
 -- JSON

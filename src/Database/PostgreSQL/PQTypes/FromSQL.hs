@@ -19,7 +19,7 @@ module Database.PostgreSQL.PQTypes.FromSQL
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Char
-import Data.IP (IPRange)
+import Data.IP
 import Data.Int
 import Data.Scientific
 import Data.Text qualified as T
@@ -240,16 +240,33 @@ instance FromSQL Bool where
 
 -- INET
 
--- | Note that there is no instance for the @cidr@ type, which shares the
--- wire format with @inet@, but has a different OID.
---
--- /Warning:/ an @inet@ value is a host address with an optional netmask,
--- but 'IPRange' only retains the network part, so the host bits of the
--- address are lost: @\'10.0.0.5\/8\'::inet@ decodes to @10.0.0.0\/8@. The
--- same applies to encoding, as 'IPRange' cannot represent them in the first
--- place.
+-- | An @inet@ value is a host address along with the length of its netmask,
+-- so it only decodes to a bare 'IP' when the netmask covers the whole
+-- address (as it does for a value entered without one). Otherwise decoding
+-- fails rather than silently dropping the netmask, in the same way that
+-- 'Integer' rejects a @numeric@ that isn't integral.
+instance FromSQL IP where
+  fromSQL = decodeScalar . (`D.refine` D.inet) $ \(address, maskLen) ->
+    let width = case address of
+          IPv4 {} -> 32
+          IPv6 {} -> 128
+    in if maskLen == width
+         then Right address
+         else
+           Left $
+             "expected an address with a /"
+               <> showt width
+               <> " netmask, got /"
+               <> showt maskLen
+
+-- | A @cidr@ value is a network address, i.e. one with no bits set to the
+-- right of the netmask, which is exactly what 'IPRange' represents.
 instance FromSQL IPRange where
-  fromSQL = decodeScalar D.inet
+  fromSQL = decodeScalar $ toRange <$> D.inet
+    where
+      toRange (address, maskLen) = case address of
+        IPv4 addr -> IPv4Range $ makeAddrRange addr maskLen
+        IPv6 addr -> IPv6Range $ makeAddrRange addr maskLen
 
 -- RANGES
 

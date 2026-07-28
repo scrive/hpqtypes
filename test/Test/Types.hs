@@ -11,7 +11,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Aeson (Value)
 import Data.ByteString qualified as BS
-import Data.IP (IPRange)
+import Data.IP (IP, IPRange)
 import Data.Int
 import Data.List qualified as L
 import Data.Scientific
@@ -30,6 +30,7 @@ import TextShow
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
 import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
+import Database.PostgreSQL.PQTypes.Internal.Oid
 import Test.Env
 import Test.QuickCheck.Arbitrary.Instances
 
@@ -42,6 +43,7 @@ typesTests td =
   , nulInTextTest td
   , numericLimitsTest td
   , rangeBoundLengthTest
+  , inetTest td
   , intervalComparisonTest td
   , intWordEncodingTest td
   , rangeTest td
@@ -74,6 +76,7 @@ typesTests td =
   , nullTest @[[Double]] td
   , nullTest @(V.Vector Int32) td
   , nullTest @(V.Vector (V.Vector Double)) td
+  , nullTest @IP td
   , nullTest @IPRange td
   , nullTest @(Range Int32) td
   , putGetTest @Int16 td 100
@@ -109,6 +112,7 @@ typesTests td =
   , putGetTest @(V.Vector Int32) td 1000
   , putGetTest @(V.Vector (Maybe Int32)) td 1000
   , putGetTest @(VMatrix Double) td 1000
+  , putGetTest @IP td 100
   , putGetTest @IPRange td 100
   , putGetTest @(Range Int32) td 100
   , putGetTest @(Range Int64) td 100
@@ -251,6 +255,42 @@ intervalComparisonTest td = testCase
             | lt = LT
             | otherwise = GT
       assertEqual "Ordering matches the server" expected $ compare a b
+
+-- | @inet@ maps to 'IP' and @cidr@ to 'IPRange'. The wire format of an
+-- @inet@ carries the host bits of the address along with the length of its
+-- netmask, so a bare 'IP' can only represent the values whose netmask covers
+-- the whole address.
+inetTest :: TestData -> TestTree
+inetTest td = testCase "inet maps to IP and cidr to IPRange"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    -- The host bits used to be discarded, turning this into 10.0.0.0/8.
+    runSQL_ "SELECT '10.0.0.5/8'::inet::text, '2001:db8::5/32'::inet::text"
+    addresses <- fetchOne ((,) <$> fromSQL @T.Text <*> fromSQL @T.Text)
+    assertEqual "Host bits survive on the server" ("10.0.0.5/8", "2001:db8::5/32") addresses
+
+    -- A netmask narrower than the address is rejected rather than dropped.
+    runSQL_ "SELECT '10.0.0.5/8'::inet"
+    expectError @HPQTypesError "netmask on an IP" checkNetmask $ fetchOne (fromSQL @IP)
+
+    -- A bare address has a netmask covering it, so it decodes.
+    runSQL_ "SELECT '10.0.0.5'::inet"
+    addr <- fetchOne $ fromSQL @IP
+    assertEqual "Bare address decodes" (read "10.0.0.5") addr
+
+    -- The OIDs keep the two types apart in both directions.
+    runSQL_ "SELECT '10.0.0.0/8'::cidr"
+    expectError @TypeMismatch "cidr as IP" (checkOids inetOid cidrOid) $ fetchOne (fromSQL @IP)
+    runSQL_ "SELECT '10.0.0.5'::inet"
+    expectError @TypeMismatch "inet as IPRange" (checkOids cidrOid inetOid) $
+      fetchOne (fromSQL @IPRange)
+  where
+    checkNetmask (HPQTypesError msg) =
+      liftBase . assertBool ("Error mentions the netmask: " ++ msg) $
+        "/8" `L.isInfixOf` msg
+    checkOids expected delivered TypeMismatch {..} = do
+      assertEqual "Expected OID is correct" expected tmExpectedOid
+      assertEqual "Delivered OID is correct" delivered tmDeliveredOid
 
 -- | The header fields of a @numeric@ value are 16 bit wide, so a large
 -- enough exponent doesn't fit. The upstream encoder these are derived from
