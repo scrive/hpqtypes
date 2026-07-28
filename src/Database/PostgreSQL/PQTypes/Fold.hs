@@ -13,73 +13,68 @@ import Data.Functor
 import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.FromRow
+import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Utils
 
 -- | Get current 'QueryResult' or throw an exception if there isn't one.
 queryResult
-  :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row)
-  => m (QueryResult row)
-queryResult =
-  withFrozenCallStack $
-    getQueryResult
-      >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") pure
+  :: (HasCallStack, MonadDB m, MonadThrow m)
+  => m QueryResult
+queryResult = withFrozenCallStack $ do
+  getQueryResult >>= maybe (throwDB . HPQTypesError $ "queryResult: no query result") pure
 
 ----------------------------------------
 
 -- | Fetcher of rows returned by a query as a monadic right fold.
 foldrDB
-  :: (HasCallStack, MonadDB m, FromRow row)
-  => (row -> acc -> m acc)
+  :: (HasCallStack, MonadDB m)
+  => RowDecoder a
+  -> (a -> acc -> m acc)
   -> acc
   -> m acc
-foldrDB f acc =
-  withFrozenCallStack $
-    getQueryResult
-      >>= maybe (pure acc) (foldrImpl False f acc)
+foldrDB dec f acc = withFrozenCallStack $ do
+  getQueryResult >>= maybe (pure acc) (foldrImpl dec f acc)
 
 -- | Fetcher of rows returned by a query as a monadic left fold.
 foldlDB
-  :: (HasCallStack, MonadDB m, FromRow row)
-  => (acc -> row -> m acc)
+  :: (HasCallStack, MonadDB m)
+  => RowDecoder a
+  -> (acc -> a -> m acc)
   -> acc
   -> m acc
-foldlDB f acc =
-  withFrozenCallStack $
-    getQueryResult
-      >>= maybe (pure acc) (foldlImpl False f acc)
+foldlDB dec f acc = withFrozenCallStack $ do
+  getQueryResult >>= maybe (pure acc) (foldlImpl dec f acc)
 
 -- | Fetcher of rows returned by a query as a monadic map.
 mapDB_
-  :: (HasCallStack, MonadDB m, FromRow row)
-  => (row -> m r)
+  :: (HasCallStack, MonadDB m)
+  => RowDecoder a
+  -> (a -> m r)
   -> m ()
-mapDB_ f =
-  withFrozenCallStack $
-    getQueryResult
-      >>= maybe (pure ()) (foldlImpl False (\() row -> void (f row)) ())
+mapDB_ dec f = withFrozenCallStack $ do
+  getQueryResult >>= maybe (pure ()) (foldlImpl dec (\() a -> void (f a)) ())
 
 ----------------------------------------
 
 -- | Specialization of 'foldrDB' that fetches a list of rows.
-fetchMany :: (HasCallStack, MonadDB m, FromRow row) => (row -> t) -> m [t]
-fetchMany f = withFrozenCallStack $ foldrDB (\row acc -> pure $ f row : acc) []
+fetchMany :: (HasCallStack, MonadDB m) => RowDecoder a -> m [a]
+fetchMany dec = withFrozenCallStack $ foldrDB dec (\a acc -> pure $ a : acc) []
 
 -- | Specialization of 'foldlDB' that fetches one or zero rows. If
 -- more rows are delivered, 'AffectedRowsMismatch' exception is thrown.
 fetchMaybe
-  :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row)
-  => (row -> t)
-  -> m (Maybe t)
-fetchMaybe f = withFrozenCallStack $ do
+  :: (HasCallStack, MonadDB m, MonadThrow m)
+  => RowDecoder a
+  -> m (Maybe a)
+fetchMaybe dec = withFrozenCallStack $ do
   getQueryResult >>= \case
     Nothing -> pure Nothing
-    Just qr -> fst <$> foldlDB go (Nothing, f <$> qr)
+    Just qr -> foldlImpl dec (go qr) Nothing qr
   where
-    go (Nothing, qr) row = pure (Just $ f row, qr)
-    go (Just _, qr) _ =
+    go _ Nothing a = pure $ Just a
+    go qr (Just _) _ =
       throwDB
         AffectedRowsMismatch
           { rowsExpected = [(0, 1)]
@@ -88,11 +83,11 @@ fetchMaybe f = withFrozenCallStack $ do
 
 -- | Specialization of 'fetchMaybe' that fetches exactly one row. If
 -- no row is delivered, 'AffectedRowsMismatch' exception is thrown.
-fetchOne :: (HasCallStack, MonadDB m, MonadThrow m, FromRow row) => (row -> t) -> m t
-fetchOne f = withFrozenCallStack $ do
-  mt <- fetchMaybe f
-  case mt of
-    Just t -> pure t
+fetchOne :: (HasCallStack, MonadDB m, MonadThrow m) => RowDecoder a -> m a
+fetchOne dec = withFrozenCallStack $ do
+  ma <- fetchMaybe dec
+  case ma of
+    Just a -> pure a
     Nothing ->
       throwDB
         AffectedRowsMismatch

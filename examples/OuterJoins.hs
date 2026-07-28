@@ -4,25 +4,14 @@ import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Int
-import Data.Monoid.Utils
 import Data.Pool
 import Data.Text qualified as T
 import Database.PostgreSQL.PQTypes
-import System.Environment
+import GHC.Generics
 
 -- | Generic 'putStrLn'.
 printLn :: MonadBase IO m => String -> m ()
 printLn = liftBase . putStrLn
-
--- | Get connection string from command line argument.
-getConnSettings :: IO ConnectionSettings
-getConnSettings = do
-  args <- getArgs
-  case args of
-    [conninfo] -> pure defaultConnectionSettings {csConnInfo = T.pack conninfo}
-    _ -> do
-      prog <- getProgName
-      error $ "Usage:" <+> prog <+> "<connection info>"
 
 ----------------------------------------
 
@@ -31,30 +20,20 @@ tmpID = 0
 
 data Attribute = Attribute
   { attrID :: !Int64
-  , attrKey :: !String
-  , attrValues :: ![String]
+  , attrKey :: !T.Text
+  , attrValues :: ![T.Text]
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 data Thing = Thing
   { thingID :: !Int64
-  , thingName :: !String
+  , thingName :: !T.Text
   , thingAttributes :: ![Attribute]
   }
-  deriving (Show)
+  deriving stock (Show)
 
-type instance CompositeRow Attribute = (Int64, String, Array1 String)
-
-instance PQFormat Attribute where
-  pqFormat = "%attribute_"
-
-instance CompositeFromSQL Attribute where
-  toComposite (aid, key, Array1 values) =
-    Attribute
-      { attrID = aid
-      , attrKey = key
-      , attrValues = values
-      }
+instance FromSQL Attribute where
+  fromSQL = decodeComposite genericDecoder
 
 withDB :: ConnectionSettings -> IO () -> IO ()
 withDB settings = bracket_ createStructure dropStructure
@@ -89,18 +68,9 @@ withDB settings = bracket_ createStructure dropStructure
           , ", FOREIGN KEY (attribute_id) REFERENCES attributes_ (id)"
           , ")"
           ]
-      runSQL_ $
-        mconcat
-          [ "CREATE TYPE attribute_ AS ("
-          , "  id BIGINT"
-          , ", key TEXT"
-          , ", value TEXT[]"
-          , ")"
-          ]
     -- Drop previously created database structures.
     dropStructure = runDBT cs defaultTransactionSettings $ do
       printLn "Dropping tables..."
-      runSQL_ "DROP TYPE attribute_"
       runSQL_ "DROP TABLE values_"
       runSQL_ "DROP TABLE attributes_"
       runSQL_ "DROP TABLE things_"
@@ -111,13 +81,13 @@ insertThings = mapM_ $ \Thing {..} -> do
     rawSQL
       "INSERT INTO things_ (name) VALUES ($1) RETURNING id"
       (Identity thingName)
-  tid :: Int64 <- fetchOne runIdentity
+  tid <- fetchOne $ fromSQL @Int64
   forM_ thingAttributes $ \Attribute {..} -> do
     runQuery_ $
       rawSQL
         "INSERT INTO attributes_ (key, thing_id) VALUES ($1, $2) RETURNING id"
         (attrKey, tid)
-    aid :: Int64 <- fetchOne runIdentity
+    aid <- fetchOne $ fromSQL @Int64
     forM_ attrValues $ \value ->
       runQuery_ $
         rawSQL
@@ -127,21 +97,21 @@ insertThings = mapM_ $ \Thing {..} -> do
 selectThings :: DBT IO [Thing]
 selectThings = do
   runSQL_ $ "SELECT t.id, t.name, ARRAY(" <> attributes <> ") FROM things_ t ORDER BY t.id"
-  fetchMany $ \(tid, name, CompositeArray1 attrs) ->
+  fetchMany $
     Thing
-      { thingID = tid
-      , thingName = name
-      , thingAttributes = attrs
-      }
+      <$> fromSQL
+      <*> fromSQL
+      <*> fromSQL
   where
-    attributes = "SELECT (a.id, a.key, ARRAY(" <> values <> "))::attribute_ FROM attributes_ a WHERE a.thing_id = t.id ORDER BY a.id"
+    attributes = "SELECT (a.id, a.key, ARRAY(" <> values <> ")) FROM attributes_ a WHERE a.thing_id = t.id ORDER BY a.id"
     values = "SELECT v.value FROM values_ v WHERE v.attribute_id = a.id ORDER BY v.value"
 
-outerJoins :: IO ()
-outerJoins = do
-  cs <- getConnSettings
+outerJoins :: T.Text -> IO ()
+outerJoins connInfo = do
+  let cs = defaultConnectionSettings {csConnInfo = connInfo}
   withDB cs $ do
-    ConnectionSource pool <- poolSource (cs {csComposites = ["attribute_"]}) (\connect disconnect -> defaultPoolConfig connect disconnect 1 10)
+    ConnectionSource pool <- poolSource cs $ \connect disconnect ->
+      defaultPoolConfig connect disconnect 1 10
     runDBT pool defaultTransactionSettings $ do
       insertThings
         [ Thing

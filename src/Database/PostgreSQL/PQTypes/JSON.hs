@@ -5,100 +5,100 @@ module Database.PostgreSQL.PQTypes.JSON
   , aesonToSQL
   ) where
 
-import Control.Exception qualified as E
 import Data.Aeson
+import Data.Bifunctor
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BSL
-import Foreign.Ptr
+import Data.Text qualified as T
+import PostgreSQL.Binary.Decoding qualified as PD
+import PostgreSQL.Binary.Encoding qualified as PE
 
 import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
-import Database.PostgreSQL.PQTypes.Internal.C.Types
+import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 
 -- | Wrapper for (de)serializing underlying type as 'json'.
 newtype JSON json = JSON {unJSON :: json}
-  deriving (Eq, Functor, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSON json) where
-  pqFormat = BS.pack "%json"
+  pqOid = jsonOid
+  pqArrayOid = jsonArrayOid
 
 instance FromSQL (JSON BS.ByteString) where
-  type PQBase (JSON BS.ByteString) = PGbytea
-  fromSQL = fmap JSON . fromSQL
+  fromSQL = decodeScalar $ JSON <$> PD.json_bytes Right
 
 instance FromSQL (JSON BSL.ByteString) where
-  type PQBase (JSON BSL.ByteString) = PGbytea
-  fromSQL = fmap JSON . fromSQL
+  fromSQL = decodeScalar $ JSON <$> PD.json_bytes (Right . BSL.fromStrict)
 
 instance ToSQL (JSON BS.ByteString) where
-  type PQDest (JSON BS.ByteString) = PGbytea
-  toSQL = toSQL . unJSON
+  toSQL = Just . PE.json_bytes . unJSON
 
 instance ToSQL (JSON BSL.ByteString) where
-  type PQDest (JSON BSL.ByteString) = PGbytea
-  toSQL = toSQL . unJSON
+  toSQL = Just . PE.json_bytes_lazy . unJSON
 
 instance FromSQL (JSON Value) where
-  type PQBase (JSON Value) = PGbytea
-  fromSQL = fmap JSON . aesonFromSQL
+  fromSQL = decodeScalar $ JSON <$> PD.json_ast
 
 instance ToSQL (JSON Value) where
-  type PQDest (JSON Value) = PGbytea
-  toSQL = aesonToSQL . unJSON
+  toSQL = Just . PE.json_ast . unJSON
 
 ----------------------------------------
 
 -- | Wrapper for (de)serializing underlying type as 'jsonb'.
 newtype JSONB jsonb = JSONB {unJSONB :: jsonb}
-  deriving (Eq, Functor, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show)
 
 instance PQFormat (JSONB jsonb) where
-  pqFormat = BS.pack "%jsonb"
+  pqOid = jsonbOid
+  pqArrayOid = jsonbArrayOid
 
 instance FromSQL (JSONB BS.ByteString) where
-  type PQBase (JSONB BS.ByteString) = PGbytea
-  fromSQL = fmap JSONB . fromSQL
+  fromSQL = decodeScalar $ JSONB <$> PD.jsonb_bytes Right
 
 instance FromSQL (JSONB BSL.ByteString) where
-  type PQBase (JSONB BSL.ByteString) = PGbytea
-  fromSQL = fmap JSONB . fromSQL
+  fromSQL = decodeScalar $ JSONB <$> PD.jsonb_bytes (Right . BSL.fromStrict)
 
 instance ToSQL (JSONB BS.ByteString) where
-  type PQDest (JSONB BS.ByteString) = PGbytea
-  toSQL = toSQL . unJSONB
+  toSQL = Just . PE.jsonb_bytes . unJSONB
 
 instance ToSQL (JSONB BSL.ByteString) where
-  type PQDest (JSONB BSL.ByteString) = PGbytea
-  toSQL = toSQL . unJSONB
+  toSQL = Just . PE.jsonb_bytes_lazy . unJSONB
 
 instance FromSQL (JSONB Value) where
-  type PQBase (JSONB Value) = PGbytea
-  fromSQL = fmap JSONB . aesonFromSQL
+  fromSQL = decodeScalar $ JSONB <$> PD.jsonb_ast
 
 instance ToSQL (JSONB Value) where
-  type PQDest (JSONB Value) = PGbytea
-  toSQL = aesonToSQL . unJSONB
+  toSQL = Just . PE.jsonb_ast . unJSONB
 
 ----------------------------------------
 
--- | Helper for defining 'FromSQL' instance for a type with 'FromJSON' instance.
+-- | Helper for defining a 'FromSQL' instance for a type with a 'FromJSON'
+-- instance. Inspects 'pqOid' of the type to determine whether it's
+-- serialized as 'json' or 'jsonb' (the binary wire formats of the two
+-- differ).
 --
 -- @since 1.9.1.0
-aesonFromSQL :: FromJSON t => Maybe PGbytea -> IO t
-aesonFromSQL mbase = do
-  evalue <- eitherDecodeStrict' <$> fromSQL mbase
-  case evalue of
-    Left err -> E.throwIO . E.ErrorCall $ "aesonFromSQL: " ++ err
-    Right value -> pure value
+aesonFromSQL :: forall a. (PQFormat a, FromJSON a) => RowDecoder a
+aesonFromSQL = decodeScalar $ parser decodeValue
+  where
+    parser =
+      if pqOid @a == jsonbOid
+        then PD.jsonb_bytes
+        else PD.json_bytes
+    decodeValue = first T.pack . eitherDecodeStrict'
 
--- | Helper for defining 'ToSQL' instance for a type with 'ToJSON' instance.
+-- | Helper for defining a 'ToSQL' instance for a type with a 'ToJSON'
+-- instance. Inspects 'pqOid' of the type to determine whether it's
+-- serialized as 'json' or 'jsonb' (the binary wire formats of the two
+-- differ).
 --
 -- @since 1.9.1.0
-aesonToSQL
-  :: ToJSON t
-  => t
-  -> ParamAllocator
-  -> (Ptr PGbytea -> IO r)
-  -> IO r
-aesonToSQL = toSQL . BSL.toStrict . encode
+aesonToSQL :: forall a. (PQFormat a, ToJSON a) => a -> Maybe PE.Encoding
+aesonToSQL = Just . encoder . toJSON
+  where
+    encoder =
+      if pqOid @a == jsonbOid
+        then PE.jsonb_ast
+        else PE.json_ast
