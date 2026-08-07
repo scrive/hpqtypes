@@ -12,10 +12,11 @@ Main features:
 
 * Queries and their parameters are specified separately, so SQL
   injection is not possible by construction.
-* Queries are executed using the asynchronous API of `libpq`, so
-  threads blocked on database access can be interrupted with
+* Threads blocked on database access can be interrupted with
   asynchronous exceptions (in such case the query is cancelled
-  server-side as well).
+  server-side as well). This requires the threaded runtime, as each
+  query is executed with a blocking `libpq` call running in a
+  separate thread.
 * Conversion between Haskell types and their SQL counterparts is
   handled by the `ToSQL` and `FromSQL` type classes on top of the
   [postgresql-binary](https://hackage.haskell.org/package/postgresql-binary)

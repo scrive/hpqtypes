@@ -2,9 +2,8 @@
 * Drop support for GHC < 9.6.
 * Drop support for `aeson` < 2.0.
 * Remove the bundled `libpqtypes` C library. The library now executes queries
-  with the asynchronous API of plain `libpq` and handles the binary transport
-  format itself (the encoders and decoders are derived from the
-  `postgresql-binary` package).
+  with plain `libpq` and handles the binary transport format itself (the
+  encoders and decoders are derived from the `postgresql-binary` package).
 * Replace per-type format strings with type Oids: the `pqFormat`, `pqFormat0`
   and `pqVariables` methods of `PQFormat` are replaced by `pqOid` and
   `pqArrayOid` (constants for built-in types are available in

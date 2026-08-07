@@ -3,7 +3,6 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface
   ( -- * libpq imports
     c_PQfreemem
   , c_PQstatus
-  , c_PQtransactionStatus
   , c_PQerrorMessage
   , c_PQsetClientEncoding
   , c_PQprepare
@@ -26,13 +25,9 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface
   , c_PQconnectdb
   , c_PQfinish
 
-    -- * asynchronous query processing
-  , c_PQsendQueryParams
-  , c_PQsendQueryPrepared
-  , c_PQsetnonblocking
-  , c_PQflush
-  , c_PQisBusy
-  , c_PQgetResult
+    -- * query execution
+  , c_PQexecParams
+  , c_PQexecPrepared
 
     -- * misc imports
   , nullStringPtr
@@ -61,9 +56,6 @@ foreign import ccall unsafe "PQfreemem"
 foreign import ccall unsafe "PQstatus"
   c_PQstatus :: Ptr PGconn -> IO ConnStatusType
 
-foreign import ccall unsafe "PQtransactionStatus"
-  c_PQtransactionStatus :: Ptr PGconn -> IO PGTransactionStatusType
-
 foreign import ccall unsafe "PQerrorMessage"
   c_PQerrorMessage :: Ptr PGconn -> IO CString
 
@@ -74,14 +66,12 @@ foreign import ccall unsafe "PQbackendPID"
   c_PQbackendPid :: Ptr PGconn -> IO CInt
 
 -- | Safe as it executes a query on the server and blocks waiting for its
--- result (synchronous libpq functions ignore the non-blocking mode of the
--- connection).
+-- result.
 foreign import ccall safe "PQsetClientEncoding"
   c_PQsetClientEncoding :: Ptr PGconn -> CString -> IO CInt
 
 -- | Safe as it executes a command on the server and blocks waiting for its
--- result (synchronous libpq functions ignore the non-blocking mode of the
--- connection).
+-- result.
 foreign import ccall safe "PQprepare"
   c_PQprepare :: Ptr PGconn -> CString -> CString -> CInt -> Ptr Oid -> IO (Ptr PGresult)
 
@@ -139,13 +129,12 @@ foreign import ccall unsafe "&PQclear"
   c_ptr_PQclear :: FunPtr (Ptr PGresult -> IO ())
 
 ----------------------------------------
--- Asynchronous query processing
+-- Query execution
 
--- | Safe as it copies the query and its parameters into the output buffer,
--- which can take a while for large inputs (note that it never blocks on the
--- socket, since connections are always in the non-blocking mode).
-foreign import ccall safe "PQsendQueryParams"
-  c_PQsendQueryParams
+-- | Safe as it executes a query on the server and blocks waiting for its
+-- result.
+foreign import ccall safe "PQexecParams"
+  c_PQexecParams
     :: Ptr PGconn
     -> CString
     -> CInt
@@ -154,13 +143,12 @@ foreign import ccall safe "PQsendQueryParams"
     -> Ptr CInt
     -> Ptr Format
     -> Format
-    -> IO CInt
+    -> IO (Ptr PGresult)
 
--- | Safe as it copies the query and its parameters into the output buffer,
--- which can take a while for large inputs (note that it never blocks on the
--- socket, since connections are always in the non-blocking mode).
-foreign import ccall safe "PQsendQueryPrepared"
-  c_PQsendQueryPrepared
+-- | Safe as it executes a prepared statement on the server and blocks
+-- waiting for its result.
+foreign import ccall safe "PQexecPrepared"
+  c_PQexecPrepared
     :: Ptr PGconn
     -> CString
     -> CInt
@@ -168,30 +156,7 @@ foreign import ccall safe "PQsendQueryPrepared"
     -> Ptr CInt
     -> Ptr Format
     -> Format
-    -> IO CInt
-
--- | Unsafe only because it's exclusively called with the second argument set
--- to 1, which merely sets a flag (setting it to 0 attempts to flush the
--- output buffer, blocking on the socket if necessary).
-foreign import ccall unsafe "PQsetnonblocking"
-  c_PQsetnonblocking :: Ptr PGconn -> CInt -> IO CInt
-
--- | Safe as it pushes data from the output buffer into the kernel buffer of
--- the socket (encrypting it first when TLS is in use), which can take a while
--- (note that it never blocks waiting for the socket to become writable
--- though, since connections are always in the non-blocking mode).
-foreign import ccall safe "PQflush"
-  c_PQflush :: Ptr PGconn -> IO CInt
-
-foreign import ccall unsafe "PQisBusy"
-  c_PQisBusy :: Ptr PGconn -> IO CInt
-
--- | Safe as it blocks waiting for data from the server if the whole result
--- is not yet available (which doesn't happen if it's called only when
--- 'c_PQisBusy' returns 0, but better safe than sorry) and constructing the
--- result involves copying the accumulated data, which can take a while.
-foreign import ccall safe "PQgetResult"
-  c_PQgetResult :: Ptr PGconn -> IO (Ptr PGresult)
+    -> IO (Ptr PGresult)
 
 ----------------------------------------
 -- Query cancellation

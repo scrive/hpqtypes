@@ -168,10 +168,10 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
 
 -- | A query is interruptible not only while the server executes it, but also
 -- while it is still on its way there, which is a separate matter: the server
--- discards a cancellation request that arrives before the query it is meant to
--- cancel, so the pending output has to be flushed before cancelling. Without
--- that, an exception arriving during the transmission of a large parameter
--- leaves the query running and the interrupted thread waiting it out.
+-- discards a cancellation request that arrives before the query it is meant
+-- to cancel, so a single request is not enough. Without repeating it, an
+-- exception arriving during the transmission of a large parameter leaves the
+-- query running and the interrupted thread waiting it out.
 --
 -- The parameter is large enough for its transmission to take substantially
 -- longer than the timeout below, so that the latter fires in the middle of it.
@@ -246,9 +246,8 @@ syncExceptionInterruptionTest td = testCase
   $ do
     -- throwTo delivers exceptions of synchronous types (e.g. ExitCode from a
     -- shutdown handler) from other threads the same way as asynchronous
-    -- ones, so they too must cancel the query and drain the connection of
-    -- its results, so that code that catches such an exception can keep
-    -- running queries.
+    -- ones, so they too must cancel the query and leave the connection idle,
+    -- so that code that catches such an exception can keep running queries.
     tid <- myThreadId
     void . fork $ do
       threadDelay 100000

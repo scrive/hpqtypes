@@ -17,10 +17,6 @@ module Database.PostgreSQL.PQTypes.Internal.Connection
   , runQueryIO
   , QueryName (..)
   , runPreparedQueryIO
-
-    -- * Socket helpers
-  , consumeInput
-  , getSocket
   ) where
 
 import Control.Concurrent
@@ -49,7 +45,6 @@ import Foreign.Ptr
 import GHC.Clock (getMonotonicTime)
 import GHC.Conc (closeFdWith)
 import GHC.Stack
-import System.Posix.Types
 
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
@@ -198,12 +193,6 @@ connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings {..} = mask $ \unmask -> do
   connPtr <- openConnection unmask $ T.encodeUtf8 csConnInfo
   (`onException` c_PQfinish connPtr) . unmask $ do
-    -- Sending queries doesn't rely on libpq blocking the whole OS thread while
-    -- flushing the output; instead the runtime system waits for the socket to
-    -- become ready, so put the connection in the non-blocking mode.
-    nonblocking <- c_PQsetnonblocking connPtr 1
-    when (nonblocking == -1) $
-      throwLibPQError connPtr fname
     F.forM_ csClientEncoding $ \enc -> do
       res <- BS.useAsCString (T.encodeUtf8 enc) (c_PQsetClientEncoding connPtr)
       when (res == -1) $
@@ -291,8 +280,8 @@ runQueryIO conn@Connection {..} sql = do
   runQueryImpl conn sql $ do
     withSQL sql $ \query params ->
       withParams params $ \n oids values lengths formats -> do
-        res <- sendQueryAndGetResult connPtr $ do
-          c_PQsendQueryParams connPtr query n oids values lengths formats c_FORMAT_BINARY
+        res <- execQueryInterruptible connPtr $ do
+          c_PQexecParams connPtr query n oids values lengths formats c_FORMAT_BINARY
         pure (fromIntegral n, res)
 
 -- | Name of a prepared query.
@@ -337,19 +326,15 @@ runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
                   then modifyIORef' connPreparedQueries $ S.insert queryName
                   else -- Let 'verifyResult' throw an appropriate error.
                     void $ verifyResult connPtr res
-          res <- sendQueryAndGetResult connPtr $ do
-            c_PQsendQueryPrepared connPtr cname n values lengths formats c_FORMAT_BINARY
+          res <- execQueryInterruptible connPtr $ do
+            c_PQexecPrepared connPtr cname n values lengths formats c_FORMAT_BINARY
           pure (fromIntegral n, res)
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
 --
--- The query is executed using the asynchronous API of libpq: potentially
--- blocking operations wait for socket readiness using GHC's IO manager, so
--- (assuming the caller doesn't have them hard masked) execution is
--- interruptible with asynchronous exceptions without spawning any additional
--- threads. If an exception arrives while the query is in progress, its
--- cancellation is requested and the connection is drained of pending
--- results, so that it can be used to run queries again afterwards.
+-- Execution is interruptible with asynchronous exceptions (assuming the
+-- caller doesn't have them hard masked); an interrupted query is cancelled
+-- server side (see 'execQueryInterruptible').
 --
 -- Any synchronous exception thrown during execution is wrapped in
 -- t'DBException' with the query attached as context.
@@ -358,17 +343,12 @@ runQueryImpl
   => Connection
   -> sql
   -> IO (Int, ForeignPtr PGresult)
-  -- ^ Execute the query (see 'sendQueryAndGetResult') and return the number
+  -- ^ Execute the query (see 'execQueryInterruptible') and return the number
   -- of its parameters along with the result.
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
-runQueryImpl Connection {..} sql execQuery = E.mask $ \restore -> attachQueryContext $ do
+runQueryImpl Connection {..} sql execQuery = attachQueryContext $ do
   t1 <- getMonotonicTime
-  -- If execution is interrupted by an exception (usually an asynchronous
-  -- one, but 'E.throwTo' can also deliver synchronous exception types from
-  -- other threads), the query might still be running server side and its
-  -- results were not consumed, so the connection cannot be used to run
-  -- queries as is; 'cancelQuery' puts it back into the idle state.
-  (paramCount, res) <- restore execQuery `E.onException` cancelQuery
+  (paramCount, res) <- execQuery
   t2 <- getMonotonicTime
   affected <- withForeignPtr res $ verifyResult connPtr
   -- Commands return no rows, so they contribute nothing to the row and
@@ -392,93 +372,133 @@ runQueryImpl Connection {..} sql execQuery = E.mask $ \restore -> attachQueryCon
     -- during execution.
     attachQueryContext m = m `E.catch` rethrowWithContext sql connBackendPid
 
-    cancelQuery = E.uninterruptibleMask_ $ do
-      -- Do nothing unless a query is in progress, i.e. it was sent to the
-      -- server and its results were not fully received (which libpq tracks
-      -- client side). This is not the case when the exception arrived before
-      -- anything was sent (e.g. during marshalling of the parameters) or
-      -- after the result was fully received (e.g. when preparation of a
-      -- prepared query failed): the cancellation request would then target
-      -- no query in particular and merely waste a round trip to the server.
-      -- Note that it wouldn't affect subsequent queries though: 'c_PQcancel'
-      -- returns only once the server acknowledged the receipt of the request
-      -- and the backend discards cancellation requests received while idle.
-      status <- c_PQtransactionStatus connPtr
-      when (status == c_PQTRANS_ACTIVE) $ do
-        -- The part of the query that potentially sits in the output buffer
-        -- needs to be flushed first, otherwise the server won't start (and
-        -- thus won't finish) the query and draining the results below would
-        -- deadlock. Errors are ignored as there's nothing to be done about
-        -- them at this point; if the connection is broken, the next attempt
-        -- to use it will fail and it will be disposed of by its connection
-        -- source.
-        ignoreErrors $ flushOutput connPtr
-        ignoreErrors requestCancellation
-        -- Consume the results, so that the connection can be used again.
-        ignoreErrors $ drainResults connPtr
-      where
-        -- Swallowing exceptions is fine here since we're inside
-        -- uninterruptibleMask so the one we catch are necessarily synchronous.
-        ignoreErrors m = m `E.catch` \(_ :: E.SomeException) -> pure ()
-
-        -- Ask the server to cancel the query and wait until it reacts.
-        --
-        -- Flushing the output above guarantees that the query was handed over
-        -- to the operating system, but not that the backend already read it,
-        -- and a request that arrives before the backend started executing the
-        -- query is discarded by the server (cancellation is only acted upon
-        -- while a command is running). Nothing reports that: the request is
-        -- acknowledged as received either way, and a discarded one leaves no
-        -- trace at all. The only sign that one took effect is the query ending
-        -- early, so the request is repeated until the results show up, which
-        -- is also why the waiting below is bounded.
-        --
-        -- A request is not sent if the results are already sitting in the
-        -- input buffer, i.e. if the query is over anyway.
-        requestCancellation = do
-          busy <- c_PQisBusy connPtr
-          when (busy == 1) $ do
-            void $ c_PQcancel connPtr
-            awaitResults initialCancelDelay
-
-        awaitResults delay = do
-          busy <- c_PQisBusy connPtr
-          when (busy == 1) $ do
-            waitReadableFor connPtr delay >>= \case
-              -- The server sent something, so the query is on its way to
-              -- being over: keep receiving without pestering it again.
-              True -> consumeInput connPtr >> awaitResults delay
-              -- Nothing arrived in time, so the request was most likely
-              -- discarded. Ask again, giving the server progressively more
-              -- time to respond, as the delay that matters here is how long
-              -- the backend needs to read the query, which depends on its
-              -- size and on how the server is reached.
-              False -> do
-                void $ c_PQcancel connPtr
-                awaitResults . min maxCancelDelay $ 2 * delay
-
-        initialCancelDelay = 50 * 1000 -- 50 ms
-        maxCancelDelay = 400 * 1000 -- 400 ms
-
 ----------------------------------------
 -- Helpers
 
--- | Run a single query: send it, flush the output buffer and receive the
--- result.
-sendQueryAndGetResult
+-- | Run a single query to completion, interruptibly when possible, and
+-- return its result.
+--
+-- The blocking libpq call cannot be interrupted with asynchronous
+-- exceptions, so it runs in a child thread and the parent waits for the
+-- result, which keeps the wait interruptible (in the threaded runtime; in
+-- the non-threaded one a blocking safe FFI call stalls the whole program).
+-- An interrupted parent requests cancellation of the query, but still
+-- waits for the child to finish: the child reads the query and its
+-- parameters from buffers that are only valid until the parent unwinds out
+-- of 'withParams', and once the exception propagates, the connection can
+-- be handed back to its source (and e.g. closed) while the child is still
+-- using it. Waiting also leaves the connection idle, ready to run queries
+-- again.
+--
+-- If asynchronous exceptions are masked uninterruptibly, the wait couldn't
+-- be interrupted anyway, so the blocking call is made directly in the
+-- current thread.
+execQueryInterruptible
   :: Ptr PGconn
-  -> IO CInt
-  -- ^ Send the query for execution.
+  -> IO (Ptr PGresult)
+  -- ^ The blocking libpq call executing the query.
   -> IO (ForeignPtr PGresult)
-sendQueryAndGetResult connPtr send = do
-  sent <- send
-  when (sent /= 1) $ throwLibPQError connPtr "sendQueryAndGetResult"
-  flushOutput connPtr
-  receiveResult connPtr
+execQueryInterruptible connPtr execQuery =
+  E.getMaskingState >>= \case
+    E.MaskedUninterruptible -> checkResult =<< execQuery
+    _ -> E.mask $ \restore -> do
+      resVar <- newEmptyTMVarIO
+      -- The child inherits the masked state, so the handover of the result
+      -- cannot be interrupted.
+      _ <- forkIO $ do
+        res <- execQuery
+        atomically $ putTMVar resVar res
+      -- The result is read, not taken: nothing guarantees an asynchronous
+      -- exception cannot arrive between the transaction commit and 'restore'
+      -- re-masking (the current RTS has no delivery point there, but that's
+      -- not part of the documented semantics), and then 'cancelQuery' has to
+      -- find the result in place.
+      rawRes <- restore (atomically $ readTMVar resVar) `E.onException` cancelQuery resVar
+      checkResult rawRes
+  where
+    fname = "execQueryInterruptible"
+
+    -- Wrap the result for GC and verify that the query could be sent and
+    -- didn't put the connection in a copy mode.
+    checkResult :: Ptr PGresult -> IO (ForeignPtr PGresult)
+    checkResult rawRes = do
+      when (rawRes == nullPtr) $ throwLibPQError connPtr fname
+      res <- newForeignPtr c_ptr_PQclear rawRes
+      st <- withForeignPtr res c_PQresultStatus
+      -- The library doesn't support the copy modes a COPY statement puts the
+      -- connection in. Erroring out is fine: libpq terminates the copy mode
+      -- internally when the next query is executed.
+      when (isCopyStatus st) $ do
+        hpqTypesError $ fname ++ ": COPY statements are not supported"
+      pure res
+
+    -- Check whether a result status indicates one of the copy modes.
+    isCopyStatus :: ExecStatusType -> Bool
+    isCopyStatus st =
+      st == c_PGRES_COPY_IN || st == c_PGRES_COPY_OUT || st == c_PGRES_COPY_BOTH
+
+    -- Request cancellation of the query and wait until the child delivers
+    -- the (discarded) result.
+    cancelQuery :: TMVar (Ptr PGresult) -> IO ()
+    cancelQuery resVar = E.uninterruptibleMask_ $ do
+      -- If the query is already over, just release the result: a
+      -- cancellation request would target no query in particular and merely
+      -- waste a round trip to the server (it wouldn't affect subsequent
+      -- queries though, as the backend discards cancellation requests
+      -- received while idle).
+      atomically (tryTakeTMVar resVar) >>= \case
+        Just res -> c_PQclear res
+        Nothing -> do
+          requestCancellation
+          awaitResult initialCancelDelay
+      where
+        -- Ask the server to cancel the query, ignoring errors (necessarily
+        -- synchronous inside uninterruptibleMask): if the connection is
+        -- broken, the blocking call fails as well and the child delivers an
+        -- error result shortly anyway.
+        requestCancellation :: IO ()
+        requestCancellation =
+          void (c_PQcancel connPtr) `E.catch` \(_ :: E.SomeException) -> pure ()
+
+        -- Wait for the child to deliver the result, repeating the
+        -- cancellation request with a progressively larger delay until it
+        -- does.
+        --
+        -- A request that arrives before the backend started executing the
+        -- query is silently discarded (cancellation is only acted upon
+        -- while a command is running) and the only sign that one took
+        -- effect is the query ending early, hence the repetition. The delay
+        -- grows, as what matters here is how long the backend needs to read
+        -- the query, which depends on its size and on how the server is
+        -- reached. A request received during execution is remembered until
+        -- the query reaches an interrupt check, so late repeats are merely
+        -- wasted round trips and the growing delay keeps them rare.
+        awaitResult :: Int -> IO ()
+        awaitResult delay =
+          waitResultFor delay >>= \case
+            Just res -> c_PQclear res
+            Nothing -> do
+              requestCancellation
+              awaitResult . min maxCancelDelay $ 2 * delay
+
+        -- Wait until the child delivers the result or the given number of
+        -- microseconds elapses ('System.Timeout.timeout' is of no use with
+        -- asynchronous exceptions masked uninterruptibly).
+        waitResultFor :: Int -> IO (Maybe (Ptr PGresult))
+        waitResultFor micros = do
+          expiredVar <- registerDelay micros
+          atomically $
+            (Just <$> takeTMVar resVar)
+              `orElse` (Nothing <$ (check =<< readTVar expiredVar))
+
+        initialCancelDelay :: Int
+        initialCancelDelay = 50 * 1000 -- 50 ms
+        maxCancelDelay :: Int
+        maxCancelDelay = 60 * 1000 * 1000 -- 60 s
 
 -- | Pass query parameters to the continuation in the format expected by
--- 'c_PQsendQueryParams' and 'c_PQsendQueryPrepared', i.e. the number of
--- parameters and arrays of their types, values, lengths and formats.
+-- 'c_PQexecParams' and 'c_PQexecPrepared', i.e. the number of parameters
+-- and arrays of their types, values, lengths and formats.
 --
 -- Note that pointers to the values alias the buffers of their ByteStrings
 -- without copying, so they're valid only within the corresponding
@@ -528,117 +548,6 @@ withParams params action =
             -- interpret as SQL NULL, so pass a non-null empty string instead.
             then k (oid, nullStringPtr, 0)
             else k (oid, ptr, fromIntegral len)
-
--- | Flush any data queued in the output buffer to the server, waiting for the
--- socket to become ready as necessary.
-flushOutput :: Ptr PGconn -> IO ()
-flushOutput connPtr =
-  c_PQflush connPtr >>= \case
-    0 -> pure ()
-    1 -> do
-      -- The output buffer is not empty. Wait until the socket becomes either
-      -- write-ready (there's room for more data) or read-ready (the server
-      -- might not read our data until we consume some of its output first),
-      -- then consume the input and retry.
-      fd <- getSocket connPtr
-      (waitRead, dropWaitRead) <- threadWaitReadSTM fd
-      (waitWrite, dropWaitWrite) <- threadWaitWriteSTM fd
-      atomically (waitRead `orElse` waitWrite)
-        `E.finally` (dropWaitRead >> dropWaitWrite)
-      consumeInput connPtr
-      flushOutput connPtr
-    _ -> throwLibPQError connPtr "flushOutput"
-
--- | Receive the result of a query. 'c_PQgetResult' is called until it returns
--- NULL as required by libpq to put the connection back into the idle state; a
--- single query always produces exactly one result, but if there somehow is
--- more than one, the last one is kept, mirroring the behavior of PQexec.
-receiveResult :: Ptr PGconn -> IO (ForeignPtr PGresult)
-receiveResult connPtr = loop Nothing
-  where
-    loop acc = do
-      waitForResult connPtr
-      mres <- E.mask_ $ do
-        res <- c_PQgetResult connPtr
-        if res == nullPtr
-          then pure Nothing
-          else Just <$> newForeignPtr c_ptr_PQclear res
-      case mres of
-        Just res -> do
-          -- In the copy modes every call to 'c_PQgetResult' produces a fresh
-          -- result with the corresponding status instead of eventually
-          -- returning NULL, so the loop would never terminate.
-          st <- withForeignPtr res c_PQresultStatus
-          when (isCopyStatus st) $
-            hpqTypesError "receiveResult: COPY statements are not supported"
-          loop $ Just res
-        Nothing -> case acc of
-          Just res -> pure res
-          Nothing -> hpqTypesError "receiveResult: query produced no results"
-
--- | Wait until a call to 'c_PQgetResult' will not block.
-waitForResult :: Ptr PGconn -> IO ()
-waitForResult connPtr = do
-  busy <- c_PQisBusy connPtr
-  when (busy == 1) $ do
-    fd <- getSocket connPtr
-    threadWaitRead fd
-    consumeInput connPtr
-    waitForResult connPtr
-
--- | Wait until the connection socket becomes readable or the given number of
--- microseconds elapses, telling which of the two happened.
---
--- Note that 'System.Timeout.timeout' is of no use for this, as the waiting
--- happens with asynchronous exceptions masked uninterruptibly, so the one it
--- interrupts the wait with could not be delivered. The timer is a thread of
--- its own for a similar reason 'registerDelay' is not used: the latter
--- requires the threaded runtime.
-waitReadableFor :: Ptr PGconn -> Int -> IO Bool
-waitReadableFor connPtr micros = do
-  fd <- getSocket connPtr
-  expiredVar <- newEmptyTMVarIO
-  void . forkIO $ do
-    threadDelay micros
-    atomically $ putTMVar expiredVar ()
-  (waitRead, dropWaitRead) <- threadWaitReadSTM fd
-  atomically ((True <$ waitRead) `orElse` (False <$ takeTMVar expiredVar))
-    `E.finally` dropWaitRead
-
--- | Consume the results of a cancelled query so that the connection can be
--- used to run queries again.
-drainResults :: Ptr PGconn -> IO ()
-drainResults connPtr = do
-  waitForResult connPtr
-  res <- c_PQgetResult connPtr
-  when (res /= nullPtr) $ do
-    st <- c_PQresultStatus res
-    c_PQclear res
-    -- In the copy modes every call to 'c_PQgetResult' produces a fresh
-    -- result with the corresponding status instead of eventually returning
-    -- NULL, so the loop would never terminate. Stop draining; the connection
-    -- is unusable and will be disposed of by its connection source.
-    unless (isCopyStatus st) $ drainResults connPtr
-
--- | Check whether a result status indicates that the connection entered one
--- of the copy modes due to execution of a COPY statement.
-isCopyStatus :: ExecStatusType -> Bool
-isCopyStatus st =
-  st == c_PGRES_COPY_IN || st == c_PGRES_COPY_OUT || st == c_PGRES_COPY_BOTH
-
--- | Read the data that arrived from the server, erroring out on failure.
-consumeInput :: Ptr PGconn -> IO ()
-consumeInput connPtr = do
-  res <- c_PQconsumeInput connPtr
-  when (res /= 1) $ throwLibPQError connPtr "consumeInput"
-
--- | Get the file descriptor of the connection socket, erroring out if the
--- connection is lost.
-getSocket :: Ptr PGconn -> IO Fd
-getSocket connPtr = do
-  fd <- c_PQsocket connPtr
-  when (fd == -1) $ throwLibPQError connPtr "getSocket"
-  pure fd
 
 verifyResult
   :: Ptr PGconn

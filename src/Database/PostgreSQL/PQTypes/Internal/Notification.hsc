@@ -5,6 +5,7 @@ module Database.PostgreSQL.PQTypes.Internal.Notification
   ) where
 
 import Control.Concurrent
+import Control.Monad
 import Control.Monad.Fix
 import Data.String
 import Foreign.Ptr
@@ -20,6 +21,7 @@ import Data.Text.Encoding qualified as T
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Raw
 
 #include <libpq-fe.h>
@@ -89,3 +91,14 @@ getNotificationIO conn n = timeout n $ fix $ \loop -> do
           msg <- peek ptr `E.finally` c_PQfreemem ptr
           pure $ Just msg
         else pure Nothing
+
+    consumeInput :: Ptr PGconn -> IO ()
+    consumeInput connPtr = do
+      res <- c_PQconsumeInput connPtr
+      when (res /= 1) $ throwLibPQError connPtr "consumeInput"
+
+    getSocket :: Ptr PGconn -> IO Fd
+    getSocket connPtr = do
+      fd <- c_PQsocket connPtr
+      when (fd == -1) $ throwLibPQError connPtr "getSocket"
+      pure fd

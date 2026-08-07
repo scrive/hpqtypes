@@ -8,9 +8,6 @@ module Database.PostgreSQL.PQTypes.Internal.C.Types
   , c_CONNECTION_OK, c_CONNECTION_BAD, c_CONNECTION_STARTED
   , c_CONNECTION_MADE, c_CONNECTION_AWAITING_RESPONSE, c_CONNECTION_AUTH_OK
   , c_CONNECTION_SETENV, c_CONNECTION_SSL_STARTUP, c_CONNECTION_NEEDED
-  , PGTransactionStatusType(..)
-  , c_PQTRANS_IDLE, c_PQTRANS_ACTIVE, c_PQTRANS_INTRANS, c_PQTRANS_INERROR
-  , c_PQTRANS_UNKNOWN
   , Format(..)
   , c_FORMAT_TEXT, c_FORMAT_BINARY
   , ExecStatusType(..)
@@ -50,19 +47,6 @@ newtype ConnStatusType = ConnStatusType CInt
 , c_CONNECTION_SETENV = CONNECTION_SETENV
 , c_CONNECTION_SSL_STARTUP = CONNECTION_SSL_STARTUP
 , c_CONNECTION_NEEDED = CONNECTION_NEEDED
-}
-
-----------------------------------------
-
-newtype PGTransactionStatusType = PGTransactionStatusType CInt
-  deriving newtype (Eq)
-
-#{enum PGTransactionStatusType, PGTransactionStatusType
-, c_PQTRANS_IDLE = PQTRANS_IDLE
-, c_PQTRANS_ACTIVE = PQTRANS_ACTIVE
-, c_PQTRANS_INTRANS = PQTRANS_INTRANS
-, c_PQTRANS_INERROR = PQTRANS_INERROR
-, c_PQTRANS_UNKNOWN = PQTRANS_UNKNOWN
 }
 
 ----------------------------------------
