@@ -10,20 +10,17 @@ transport format for queries and their results.
 
 Main features:
 
-* Queries and their parameters are specified separately, so SQL
-  injection is not possible by construction.
-* Threads blocked on database access can be interrupted with
-  asynchronous exceptions (in such case the query is cancelled
-  server-side as well). This requires the threaded runtime, as each
-  query is executed with a blocking `libpq` call running in a
-  separate thread.
-* Conversion between Haskell types and their SQL counterparts is
-  handled by the `ToSQL` and `FromSQL` type classes on top of the
-  [postgresql-binary](https://hackage.haskell.org/package/postgresql-binary)
-  library, with types of query results checked against the expected
-  ones. Rows are decoded with composable, monadic `RowDecoder`s.
-* Support for arrays (represented as plain lists or `Vector`s, with
-  nesting for multi-dimensional ones), anonymous and user-defined
-  composite types, PostgreSQL enums and NOTIFY/LISTEN.
+* Queries and their parameters are specified separately, so SQL injection is not
+  possible by construction.
+* Execution of queries can be interrupted with asynchronous exceptions (in such
+  case the query is cancelled server-side as well). Note that this requires the
+  threaded runtime to work correctly.
+* Conversion between Haskell types and their SQL counterparts is handled by the
+  `ToSQL` and `FromSQL` type classes. Rows are decoded with composable, monadic
+  `RowDecoder`s that verify compatibility between SQL and Haskell types.
+* Support for arrays (represented as plain lists or `Vector`s, with nesting for
+  multi-dimensional ones), anonymous and user-defined composite types,
+  PostgreSQL enums and NOTIFY/LISTEN.
 
-Examples can be found in the [examples](https://github.com/scrive/hpqtypes/tree/master/examples) directory.
+Examples can be found in the
+[examples](https://github.com/scrive/hpqtypes/tree/master/examples) directory.
