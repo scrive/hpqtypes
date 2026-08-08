@@ -17,13 +17,12 @@ module Database.PostgreSQL.PQTypes
     -- * Exceptions
   , ErrorCode (..)
   , DetailedQueryError (..)
-  , QueryError (..)
   , HPQTypesError (..)
   , LibPQError (..)
   , ConversionError (..)
-  , ArrayItemError (..)
   , InvalidValue (..)
   , RangeError (..)
+  , TypeMismatch (..)
   , ArrayDimensionMismatch (..)
   , RowLengthMismatch (..)
   , AffectedRowsMismatch (..)
@@ -44,16 +43,15 @@ module Database.PostgreSQL.PQTypes
 
     -- * Other modules
   , module Data.Functor.Identity
-  , module Database.PostgreSQL.PQTypes.Array
   , module Database.PostgreSQL.PQTypes.Class
-  , module Database.PostgreSQL.PQTypes.Composite
   , module Database.PostgreSQL.PQTypes.Cursor
+  , module Database.PostgreSQL.PQTypes.Enum
   , module Database.PostgreSQL.PQTypes.Fold
   , module Database.PostgreSQL.PQTypes.Format
-  , module Database.PostgreSQL.PQTypes.FromRow
   , module Database.PostgreSQL.PQTypes.FromSQL
   , module Database.PostgreSQL.PQTypes.Interval
   , module Database.PostgreSQL.PQTypes.JSON
+  , module Database.PostgreSQL.PQTypes.Range
   , module Database.PostgreSQL.PQTypes.Notification
   , module Database.PostgreSQL.PQTypes.SQL
   , module Database.PostgreSQL.PQTypes.SQL.Class
@@ -68,13 +66,11 @@ module Database.PostgreSQL.PQTypes
 
 import Data.Functor.Identity
 
-import Database.PostgreSQL.PQTypes.Array
 import Database.PostgreSQL.PQTypes.Class
-import Database.PostgreSQL.PQTypes.Composite
 import Database.PostgreSQL.PQTypes.Cursor
+import Database.PostgreSQL.PQTypes.Enum
 import Database.PostgreSQL.PQTypes.Fold
 import Database.PostgreSQL.PQTypes.Format
-import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Error
@@ -85,6 +81,7 @@ import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Interval
 import Database.PostgreSQL.PQTypes.JSON
 import Database.PostgreSQL.PQTypes.Notification
+import Database.PostgreSQL.PQTypes.Range
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw

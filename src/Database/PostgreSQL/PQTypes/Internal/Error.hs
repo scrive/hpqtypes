@@ -1,22 +1,21 @@
 -- | Definitions of exception types.
 module Database.PostgreSQL.PQTypes.Internal.Error
   ( DetailedQueryError (..)
-  , QueryError (..)
   , HPQTypesError (..)
   , LibPQError (..)
   , ConversionError (..)
-  , ArrayItemError (..)
   , InvalidValue (..)
   , RangeError (..)
+  , TypeMismatch (..)
   , ArrayDimensionMismatch (..)
   , RowLengthMismatch (..)
   , AffectedRowsMismatch (..)
   ) where
 
 import Control.Exception qualified as E
-import Data.Typeable
 
 import Database.PostgreSQL.PQTypes.Internal.Error.Code
+import Database.PostgreSQL.PQTypes.Internal.Oid
 
 -- | SQL query error. Reference: description of PQresultErrorField
 -- at <http://www.postgresql.org/docs/devel/static/libpq-exec.html>.
@@ -34,26 +33,18 @@ data DetailedQueryError = DetailedQueryError
   , qeSourceLine :: !(Maybe Int)
   , qeSourceFunction :: !(Maybe String)
   }
-  deriving (Eq, Ord, Show)
-
--- | Simple SQL query error. Thrown when there is no
--- PGresult object corresponding to query execution.
-newtype QueryError = QueryError String
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Internal error in this library.
 newtype HPQTypesError = HPQTypesError String
-  deriving (Eq, Ord)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
-instance Show HPQTypesError where
-  show (HPQTypesError s) = "HPQTypesError (PostgreSQL): " <> s
-
--- | Internal error in libpq/libpqtypes library.
+-- | Internal error in libpq library.
 newtype LibPQError = LibPQError String
-  deriving (Eq, Ord)
-
-instance Show LibPQError where
-  show (LibPQError s) = "LibPQError (PostgreSQL): " <> s
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Data conversion error. Since it's polymorphic in error type,
 -- it nicely reports arbitrarily nested conversion errors.
@@ -67,37 +58,40 @@ data ConversionError = forall e. E.Exception e => ConversionError
   , convError :: !e
   -- ^ Exact error.
   }
+  deriving anyclass (E.Exception)
 
-deriving instance Show ConversionError
-
--- | Array item error. Polymorphic in error type
--- for the same reason as 'ConversionError'.
-data ArrayItemError = forall e. E.Exception e => ArrayItemError
-  { arrItemIndex :: !Int
-  -- ^ Item index (Starts with 1).
-  , arrItemError :: !e
-  -- ^ Exact error.
-  }
-
-deriving instance Show ArrayItemError
+deriving stock instance Show ConversionError
 
 -- | \"Invalid value\" error for various data types.
-data InvalidValue t = InvalidValue
-  { ivValue :: t
+data InvalidValue a = InvalidValue
+  { ivValue :: a
   -- ^ Invalid value.
   , -- Optional list of valid values.
-    ivValidValues :: Maybe [t]
+    ivValidValues :: Maybe [a]
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Range error for various data types.
-data RangeError t = RangeError
-  { reRange :: [(t, t)]
+data RangeError a = RangeError
+  { reRange :: [(a, a)]
   -- ^ Allowed range (sum of acceptable ranges).
-  , reValue :: t
+  , reValue :: a
   -- ^ Provided value which is not in above range.
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
+
+-- | Type mismatch error: the type of a field of the query result doesn't
+-- match the type expected by the decoder.
+data TypeMismatch = TypeMismatch
+  { tmExpectedOid :: !Oid
+  -- ^ OID of the type expected by the library.
+  , tmDeliveredOid :: !Oid
+  -- ^ OID of the type delivered by the database.
+  }
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Array dimenstion mismatch error.
 data ArrayDimensionMismatch = ArrayDimensionMismatch
@@ -106,7 +100,8 @@ data ArrayDimensionMismatch = ArrayDimensionMismatch
   , arrDimDelivered :: !Int
   -- ^ Dimension provided by the database.
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Row length mismatch error.
 data RowLengthMismatch = RowLengthMismatch
@@ -115,7 +110,8 @@ data RowLengthMismatch = RowLengthMismatch
   , lengthDelivered :: !Int
   -- ^ Length delivered by the database.
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)
 
 -- | Affected/returned rows mismatch error.
 data AffectedRowsMismatch = AffectedRowsMismatch
@@ -126,16 +122,5 @@ data AffectedRowsMismatch = AffectedRowsMismatch
   , rowsDelivered :: !Int
   -- ^ Number of affected/returned rows by the database.
   }
-  deriving (Eq, Ord, Show)
-
-instance E.Exception DetailedQueryError
-instance E.Exception QueryError
-instance E.Exception HPQTypesError
-instance E.Exception LibPQError
-instance E.Exception ConversionError
-instance E.Exception ArrayItemError
-instance (Show t, Typeable t) => E.Exception (InvalidValue t)
-instance (Show t, Typeable t) => E.Exception (RangeError t)
-instance E.Exception ArrayDimensionMismatch
-instance E.Exception RowLengthMismatch
-instance E.Exception AffectedRowsMismatch
+  deriving stock (Eq, Ord, Show)
+  deriving anyclass (E.Exception)

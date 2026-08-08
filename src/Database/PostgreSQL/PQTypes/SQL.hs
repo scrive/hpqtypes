@@ -6,29 +6,24 @@ module Database.PostgreSQL.PQTypes.SQL
   , isSqlEmpty
   ) where
 
-import Control.Concurrent.MVar
 import Data.ByteString.Char8 qualified as BS
-import Data.ByteString.Unsafe qualified as BS
 import Data.Foldable qualified as F
+import Data.List qualified as L
 import Data.Monoid
 import Data.Semigroup qualified as SG
 import Data.Sequence qualified as S
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Foreign.Marshal.Alloc
 import TextShow
 
 import Data.Monoid.Utils
-import Database.PostgreSQL.PQTypes.Format
-import Database.PostgreSQL.PQTypes.Internal.C.Put
-import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.ToSQL
 
 data SqlChunk where
   SqlString :: !T.Text -> SqlChunk
-  SqlParam :: forall t. (Show t, ToSQL t) => !t -> SqlChunk
+  SqlParam :: forall a. (Show a, ToSQL a) => !a -> SqlChunk
 
 -- | Primary SQL type that supports efficient
 -- concatenation and variable number of parameters.
@@ -39,23 +34,20 @@ unSQL (SQL chunks) = F.toList chunks
 
 ----------------------------------------
 
--- | Construct 'SQL' from 'String'.
+-- | Construct t'SQL' from 'String'.
 instance IsString SQL where
   fromString = mkSQL . T.pack
 
 instance IsSQL SQL where
-  withSQL sql pa@(ParamAllocator allocParam) execute = do
-    alloca $ \err -> allocParam $ \param -> do
-      nums <- newMVar (1 :: Int)
-      query <- T.concat <$> mapM (f param err nums) (unSQL sql)
-      BS.useAsCString (T.encodeUtf8 query) (execute param)
+  withSQL sql execute =
+    BS.useAsCString (T.encodeUtf8 query) $ \cquery ->
+      execute cquery (reverse params)
     where
-      f param err nums chunk = case chunk of
-        SqlString s -> pure s
-        SqlParam (v :: t) -> toSQL v pa $ \base ->
-          BS.unsafeUseAsCString (pqFormat0 @t) $ \fmt -> do
-            verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> pure . (,"$" <> showt n) $! n + 1
+      query = T.concat chunks
+      ((_, params), chunks) = L.mapAccumL f (1 :: Int, []) $ unSQL sql
+      f acc@(n, ps) = \case
+        SqlString s -> (acc, s)
+        SqlParam v -> ((n + 1, toPQParam v : ps), "$" <> showt n)
 
 instance SG.Semigroup SQL where
   SQL a <> SQL b = SQL (a S.>< b)
@@ -72,26 +64,26 @@ instance Show SQL where
 
 ----------------------------------------
 
--- | Convert a 'Text' SQL string to the 'SQL' type.
+-- | Convert a 'T.Text' SQL string to the t'SQL' type.
 mkSQL :: T.Text -> SQL
 mkSQL = SQL . S.singleton . SqlString
 
--- | Embed parameter value inside 'SQL'.
-sqlParam :: (Show t, ToSQL t) => t -> SQL
+-- | Embed parameter value inside t'SQL'.
+sqlParam :: (Show a, ToSQL a) => a -> SQL
 sqlParam = SQL . S.singleton . SqlParam
 
--- | Embed parameter value inside existing 'SQL'. Example:
+-- | Embed parameter value inside existing t'SQL'. Example:
 --
 -- > f :: Int32 -> String -> SQL
 -- > f idx name = "SELECT foo FROM bar WHERE id =" <?> idx <+> "AND name =" <?> name
-(<?>) :: (Show t, ToSQL t) => SQL -> t -> SQL
+(<?>) :: (Show a, ToSQL a) => SQL -> a -> SQL
 s <?> v = s <+> sqlParam v
 
 infixr 7 <?>
 
 ----------------------------------------
 
--- | Test whether an 'SQL' is empty.
+-- | Test whether an t'SQL' is empty.
 isSqlEmpty :: SQL -> Bool
 isSqlEmpty (SQL chunks) = getAll $ F.foldMap (All . cmp) chunks
   where
