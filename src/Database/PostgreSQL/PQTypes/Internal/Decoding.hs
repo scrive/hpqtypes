@@ -18,6 +18,12 @@
 -- * 'jsonb_bytes' verifies the version byte of the value instead of
 --   discarding it unchecked.
 --
+-- * The date and time decoders reject the values standing for @infinity@ and
+--   @-infinity@, which the "Data.Time" types cannot represent. Upstream
+--   decodes them as if they were ordinary values, silently yielding a date
+--   far outside the range the server accepts. 'numeric' likewise says which
+--   special value it got instead of reporting an unexpected sign code.
+--
 -- * The time decoders assemble the values with the constructors of the
 --   "Data.Time" and "Data.Fixed" types instead of coercing their
 --   representations.
@@ -185,11 +191,18 @@ numeric = do
   sign <- case signCode of
     0x0000 -> pure id
     0x4000 -> pure negate
-    0xc000 -> failure "NaN is not a valid numeric value"
+    0xc000 -> unrepresentable "NaN"
+    0xd000 -> unrepresentable "Infinity"
+    0xf000 -> unrepresentable "-Infinity"
     _ -> failure $ "Unexpected numeric sign code: " <> T.pack (show signCode)
   let coefficient = V.foldl' (\acc group -> acc * 10000 + fromIntegral group) 0 groups
       exponent_ = (fromIntegral pointIndex + 1 - V.length groups) * 4
   pure $ S.scientific (sign coefficient) exponent_
+  where
+    -- The special values of numeric, none of which Scientific can hold.
+    unrepresentable :: T.Text -> Value a
+    unrepresentable value =
+      failure $ "numeric '" <> value <> "' cannot be represented by Scientific"
 
 ----------------------------------------
 -- Character types
@@ -226,20 +239,33 @@ bytea_lazy = BSL.fromStrict <$> bytea_strict
 postgresJulianToDay :: Integral a => a -> Day
 postgresJulianToDay = ModifiedJulianDay . (+ 51544) . fromIntegral
 
+-- | Reject the extremes of the wire representation, which stand for
+-- @infinity@ and @-infinity@; the "Data.Time" types have no such values, so
+-- decoding them would silently yield a date far outside the range the server
+-- accepts.
+finite :: (Bounded a, Eq a) => T.Text -> T.Text -> a -> Value a
+finite pgType haskellType n
+  | n == maxBound = unrepresentable "infinity"
+  | n == minBound = unrepresentable "-infinity"
+  | otherwise = pure n
+  where
+    unrepresentable value =
+      failure $ pgType <> " '" <> value <> "' cannot be represented by " <> haskellType
+
 date :: Value Day
-date = postgresJulianToDay <$> int @Int32
+date = postgresJulianToDay <$> (int @Int32 >>= finite "date" "Day")
 
 time_int :: Value TimeOfDay
 time_int = microsToTimeOfDay <$> int
 
 timestamp_int :: Value LocalTime
 timestamp_int = do
-  (day, micros) <- splitDay <$> int
+  (day, micros) <- splitDay <$> (int >>= finite "timestamp" "LocalTime")
   pure $ LocalTime day (microsToTimeOfDay micros)
 
 timestamptz_int :: Value UTCTime
 timestamptz_int = do
-  (day, micros) <- splitDay <$> int
+  (day, micros) <- splitDay <$> (int >>= finite "timestamptz" "UTCTime")
   pure . UTCTime day . picosecondsToDiffTime $ fromIntegral micros * 1000000
 
 splitDay :: Int64 -> (Day, Int64)

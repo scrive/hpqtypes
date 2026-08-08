@@ -95,6 +95,12 @@
   comparison operators of the server do, i.e. by the estimate with months
   converted at 30 days and days at 24 hours. The `Show` instance shows the
   components of the wire format instead of pretty-printing.
+* Values of `date`, `timestamp`, `timestamptz` and `interval` standing for
+  `infinity` and `-infinity` are now rejected instead of being decoded as a
+  date far outside the range the server accepts, and the encoders of `Day`,
+  `LocalTime` and `UTCTime` reject a value that doesn't fit the wire format
+  instead of truncating it, which silently sent an entirely different date
+  (`infinity` among them).
 * Executing a `COPY` statement now throws an error saying it's not supported.
   Previously it silently reported success while leaving the connection in a
   copy mode, breaking its subsequent uses.

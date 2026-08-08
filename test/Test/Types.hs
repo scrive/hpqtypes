@@ -42,6 +42,7 @@ typesTests td =
   , xmlTest td
   , nulInTextTest td
   , numericLimitsTest td
+  , infiniteValuesTest td
   , rangeBoundLengthTest
   , inetTest td
   , intervalComparisonTest td
@@ -320,6 +321,73 @@ numericLimitsTest td = testCase "Numeric values that don't fit the wire format a
         check (HPQTypesError msg) =
           liftBase . assertBool ("Error message mentions the " ++ what ++ ": " ++ msg) $
             what `L.isInfixOf` msg
+
+-- | The date and time types have @infinity@ and @-infinity@ and @numeric@
+-- has those plus @NaN@, none of which the Haskell types they map to can
+-- represent. They are rejected in both directions rather than silently turned
+-- into a value that means something else: on the wire the infinities are the
+-- extremes of the representation, so decoding them yields a date far outside
+-- the range the server accepts, and encoding a value that lands on one sends
+-- an infinity.
+infiniteValuesTest :: TestData -> TestTree
+infiniteValuesTest td = testCase "Values with no Haskell representation are rejected"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    notDecoded @Day "date" "infinity"
+    notDecoded @Day "date" "-infinity"
+    notDecoded @LocalTime "timestamp" "infinity"
+    notDecoded @LocalTime "timestamp" "-infinity"
+    notDecoded @UTCTime "timestamptz" "infinity"
+    notDecoded @UTCTime "timestamptz" "-infinity"
+    notDecoded @Scientific "numeric" "Infinity"
+    notDecoded @Scientific "numeric" "-Infinity"
+    notDecoded @Scientific "numeric" "NaN"
+    -- Intervals got their infinities in PostgreSQL 17.
+    runSQL_ "SELECT current_setting('server_version_num') :: int"
+    serverVersion <- fetchOne $ fromSQL @Int32
+    when (serverVersion >= 170000) $ do
+      notDecoded @Interval "interval" "infinity"
+      notDecoded @Interval "interval" "-infinity"
+
+    notEncoded "date" $ Identity infinityDay
+    notEncoded "date" . Identity $ addDays 1 infinityDay
+    notEncoded "timestamp" $ Identity infinityLocalTime
+    notEncoded "timestamptz" $ Identity infinityUTCTime
+    notEncoded "interval" . Identity $
+      imicroseconds maxBound <> idays maxBound <> imonths maxBound
+  where
+    notDecoded :: forall a. FromSQL a => T.Text -> T.Text -> TestEnv ()
+    notDecoded pgType value = do
+      runSQL_ . mkSQL $ "SELECT '" <> value <> "' :: " <> pgType
+      expectError @HPQTypesError (T.unpack $ pgType <> " " <> value) check
+        . fetchOne
+        $ fromSQL @a
+      where
+        check (HPQTypesError msg) =
+          liftBase . assertBool ("Error message mentions the value: " ++ msg) $
+            T.unpack ("'" <> value <> "' cannot be represented") `L.isInfixOf` msg
+
+    notEncoded :: (Show row, ToRow row) => String -> row -> TestEnv ()
+    notEncoded pgType row =
+      expectError @HPQTypesError (pgType ++ " out of range") check
+        . runQuery_
+        $ rawSQL "SELECT $1" row
+      where
+        check (HPQTypesError msg) =
+          liftBase . assertBool ("Error message mentions the type: " ++ msg) $
+            (pgType ++ ":") `L.isInfixOf` msg
+
+    -- The values whose wire representation is the one standing for infinity.
+    infinityDay = addDays (fromIntegral $ maxBound @Int32) epoch
+    infinityLocalTime =
+      LocalTime (addDays infinityDays epoch) . timeToTimeOfDay $ infinityTime
+    infinityUTCTime = UTCTime (addDays infinityDays epoch) infinityTime
+
+    infinityTime = picosecondsToDiffTime $ infinityMicros * 1000000
+    (infinityDays, infinityMicros) =
+      toInteger (maxBound @Int64) `divMod` (1000000 * 60 * 60 * 24)
+
+    epoch = fromGregorian 2000 1 1
 
 -- | The length prefix of a value inside a container is signed, with @-1@
 -- standing for NULL. The upstream decoder these are derived from passes any

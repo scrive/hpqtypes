@@ -19,6 +19,11 @@
 --   around, which silently encodes an entirely different number (@1e131072@
 --   used to arrive as @0@).
 --
+-- * The date and time encoders reject a value that doesn't fit the wire
+--   format or whose representation is the one standing for an infinity of the
+--   type. Upstream truncates it, which silently sends an entirely different
+--   date (and @infinity@ for two of them).
+--
 -- * The time encoders take the values apart with the accessors of the
 --   "Data.Time" and "Data.Fixed" types instead of coercing them to their
 --   representations.
@@ -134,6 +139,17 @@ sized (Encoding payload) =
 -- | The length prefix representing a NULL element.
 null4 :: Encoding
 null4 = int4_int32 (-1)
+
+-- | Reject a value that the wire format cannot hold, either because it
+-- doesn't fit at all or because its representation is the one standing for an
+-- infinity of the type.
+outOfRange :: Show a => String -> a -> b
+outOfRange what value =
+  throw . HPQTypesError $
+    what
+      ++ ": "
+      ++ show value
+      ++ " is outside the range representable by the wire format"
 
 ----------------------------------------
 -- Arrays
@@ -307,7 +323,13 @@ dayToPostgresJulian :: Day -> Integer
 dayToPostgresJulian = subtract 51544 . toModifiedJulianDay
 
 date :: Day -> Encoding
-date = int4_int32 . fromIntegral . dayToPostgresJulian
+date value
+  | days <= minInt32 || days >= maxInt32 = outOfRange "date" value
+  | otherwise = int4_int32 $ fromIntegral days
+  where
+    days = dayToPostgresJulian value
+    minInt32 = fromIntegral $ minBound @Int32
+    maxInt32 = fromIntegral $ maxBound @Int32
 
 time_int :: TimeOfDay -> Encoding
 time_int (TimeOfDay hours minutes seconds) =
@@ -318,18 +340,28 @@ time_int (TimeOfDay hours minutes seconds) =
     picosecondsToMicros (MkFixed picos) = fromIntegral $ picos `div` 1000000
 
 timestamp_int :: LocalTime -> Encoding
-timestamp_int (LocalTime day time) =
-  int8_int64 $
-    microsPerDay * fromIntegral (dayToPostgresJulian day)
-      + fromIntegral (diffTimeToPicoseconds (timeOfDayToTime time) `div` 1000000)
+timestamp_int value@(LocalTime day time) =
+  timestampMicros "timestamp" value day $
+    diffTimeToPicoseconds (timeOfDayToTime time) `div` 1000000
 
 timestamptz_int :: UTCTime -> Encoding
-timestamptz_int (UTCTime day time) =
-  int8_int64 $
-    microsPerDay * fromIntegral (dayToPostgresJulian day)
-      + fromIntegral (diffTimeToPicoseconds time `div` 1000000)
+timestamptz_int value@(UTCTime day time) =
+  timestampMicros "timestamptz" value day $
+    diffTimeToPicoseconds time `div` 1000000
 
-microsPerDay :: Int64
+-- | Microseconds since the PostgreSQL epoch, given the day and the
+-- microseconds within it. The arithmetic is done on t'Integer' as it
+-- overflows t'Int64' well before the day does t'Int32'.
+timestampMicros :: Show a => String -> a -> Day -> Integer -> Encoding
+timestampMicros what value day timeMicros
+  | micros <= minInt64 || micros >= maxInt64 = outOfRange what value
+  | otherwise = int8_int64 $ fromIntegral micros
+  where
+    micros = microsPerDay * dayToPostgresJulian day + timeMicros
+    minInt64 = fromIntegral $ minBound @Int64
+    maxInt64 = fromIntegral $ maxBound @Int64
+
+microsPerDay :: Integer
 microsPerDay = 1000000 * 60 * 60 * 24
 
 ----------------------------------------

@@ -11,6 +11,7 @@ module Database.PostgreSQL.PQTypes.Interval
   ) where
 
 import BinaryParser qualified as BP
+import Control.Exception (throw)
 import Data.Int
 import Data.Semigroup qualified as SG
 
@@ -18,6 +19,7 @@ import Database.PostgreSQL.PQTypes.Format
 import Database.PostgreSQL.PQTypes.FromSQL
 import Database.PostgreSQL.PQTypes.Internal.Decoding qualified as D
 import Database.PostgreSQL.PQTypes.Internal.Encoding qualified as E
+import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.ToSQL
 
@@ -118,16 +120,42 @@ instance FromSQL Interval where
     days :: Int32 <- fromIntegral <$> BP.beWord32
     months :: Int32 <- fromIntegral <$> BP.beWord32
     BP.endOfInput
-    pure $ mkInterval usecs days months
+    interval usecs days months
+    where
+      -- The infinities are all three components at the extreme of their
+      -- range, which 'Interval' has no values standing for.
+      interval :: Int64 -> Int32 -> Int32 -> BP.BinaryParser Interval
+      interval usecs days months
+        | components == (maxBound, maxBound, maxBound) = unrepresentable "infinity"
+        | components == (minBound, minBound, minBound) = unrepresentable "-infinity"
+        | otherwise = pure $ mkInterval usecs days months
+        where
+          components = (usecs, days, months)
+          unrepresentable value =
+            BP.failure $ "interval '" <> value <> "' cannot be represented by Interval"
 
 instance ToSQL Interval where
-  toSQL Interval {..} =
-    Just $
-      mconcat
-        [ E.int8_int64 intMicroseconds
-        , E.int4_int32 intDays
-        , E.int4_int32 intMonths
-        ]
+  toSQL value@Interval {..}
+    -- Such a value would arrive as an infinity, so it's rejected the way the
+    -- date and time encoders reject the representations of theirs.
+    | components == (maxBound, maxBound, maxBound) = outOfRange
+    | components == (minBound, minBound, minBound) = outOfRange
+    | otherwise =
+        Just $
+          mconcat
+            [ E.int8_int64 intMicroseconds
+            , E.int4_int32 intDays
+            , E.int4_int32 intMonths
+            ]
+    where
+      components = (intMicroseconds, intDays, intMonths)
+
+      outOfRange :: a
+      outOfRange =
+        throw . HPQTypesError $
+          "interval: "
+            ++ show value
+            ++ " is outside the range representable by the wire format"
 
 ----------------------------------------
 
