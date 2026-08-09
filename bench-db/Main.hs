@@ -7,9 +7,11 @@ import Data.Int
 import Data.Pool (defaultPoolConfig)
 import Data.Text qualified as T
 import Data.Time
-import Database.PostgreSQL.PQTypes
+import GHC.Generics
 import System.Environment
 import Test.Tasty.Bench
+
+import Database.PostgreSQL.PQTypes
 
 -- | Number of records inserted into each of the two tables.
 numRecords :: Int
@@ -31,23 +33,25 @@ bigArraySize = 100000
 ----------------------------------------
 
 data Child = Child Int32 T.Text Double UTCTime Integer
+  deriving stock (Generic)
+  deriving anyclass (NFData)
+
+instance FromSQL Child where
+  fromSQL = decodeComposite genericDecoder
+
 data Parent = Parent Int32 T.Text Double UTCTime Integer [Child]
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
-instance NFData Child where
-  rnf (Child a b c d e) =
-    rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
-
-instance NFData Parent where
-  rnf (Parent a b c d e f) =
-    rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
-
-type instance CompositeRow Child = (Int32, T.Text, Double, UTCTime, Integer)
-
-instance PQFormat Child where
-  pqFormat = "%bench_child_"
-
-instance CompositeFromSQL Child where
-  toComposite (cid, t, d, ts, n) = Child cid t d ts n
+parentDecoder :: RowDecoder [Child] -> RowDecoder Parent
+parentDecoder children =
+  Parent
+    <$> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> fromSQL
+    <*> children
 
 -- | Deterministic record with the given id.
 recordData :: UTCTime -> Int -> (Int32, T.Text, Double, UTCTime, Integer)
@@ -88,20 +92,9 @@ createTables = do
       , ")"
       ]
   runSQL_ "CREATE INDEX bench_children_parent_id_idx_ ON bench_children_ (parent_id)"
-  runSQL_ $
-    mconcat
-      [ "CREATE TYPE bench_child_ AS ("
-      , "  id INTEGER"
-      , ", t TEXT"
-      , ", d DOUBLE PRECISION"
-      , ", ts TIMESTAMPTZ"
-      , ", n NUMERIC"
-      , ")"
-      ]
 
 dropTables :: DBT IO ()
 dropTables = do
-  runSQL_ "DROP TYPE IF EXISTS bench_child_"
   runSQL_ "DROP TABLE IF EXISTS bench_children_"
   runSQL_ "DROP TABLE IF EXISTS bench_parents_"
 
@@ -127,32 +120,31 @@ insertData base = do
 selectParents :: DBT IO [Parent]
 selectParents = do
   runSQL_ "SELECT p.id, p.t, p.d, p.ts, p.n FROM bench_parents_ p ORDER BY p.id"
-  fetchMany $ \(pid, t, d, ts, n) -> Parent pid t d ts n []
+  fetchMany . parentDecoder $ pure []
 
 selectData :: DBT IO [Parent]
 selectData = do
   runSQL_ $
     mconcat
       [ "SELECT p.id, p.t, p.d, p.ts, p.n"
-      , ", ARRAY(SELECT (c.id, c.t, c.d, c.ts, c.n)::bench_child_"
+      , ", ARRAY(SELECT (c.id, c.t, c.d, c.ts, c.n)"
       , "        FROM bench_children_ c WHERE c.parent_id = p.id ORDER BY c.id)"
       , " FROM bench_parents_ p ORDER BY p.id"
       ]
-  fetchMany $ \(pid, t, d, ts, n, CompositeArray1 children) ->
-    Parent pid t d ts n children
+  fetchMany $ parentDecoder fromSQL
 
 selectBigArray :: DBT IO [Int32]
 selectBigArray = do
   runQuery_ $
     rawSQL "SELECT ARRAY(SELECT generate_series(1, $1))::int4[]" (Identity bigArraySize)
-  fetchOne $ \(Identity (Array1 elems)) -> elems
+  fetchOne $ fromSQL @[Int32]
 
 -- | The counterpart of 'selectBigArray': the same scalars, delivered as one
 -- column of that many rows instead of as one array.
 selectManyRows :: DBT IO [Int32]
 selectManyRows = do
   runQuery_ $ rawSQL "SELECT generate_series(1, $1)" (Identity bigArraySize)
-  fetchMany runIdentity
+  fetchMany $ fromSQL @Int32
 
 ----------------------------------------
 
@@ -162,10 +154,13 @@ selectManyRows = do
 main :: IO ()
 main = do
   connInfo <- maybe T.empty T.pack <$> lookupEnv "CONNINFO"
-  let settings = defaultConnectionSettings {csConnInfo = connInfo}
-  ConnectionSource cs <- pooled settings
+  let cs = defaultConnectionSettings {csConnInfo = connInfo}
+  -- A pool holding a single connection is used rather than 'simpleSource' so
+  -- that establishing one isn't measured by every iteration of a benchmark.
+  ConnectionSource pool <- poolSource cs $ \connect disconnect ->
+    defaultPoolConfig connect disconnect 60 1
   let runDB :: DBT IO a -> IO a
-      runDB = runDBT cs defaultTransactionSettings
+      runDB = runDBT pool defaultTransactionSettings
   base <- getCurrentTime
   runDB $ do
     -- Keep the NOTICEs of the DROPs below out of the benchmark report.
@@ -173,23 +168,12 @@ main = do
     dropTables
     createTables
     insertData base
-  -- Registration of composites happens at connection time, so bench_child_
-  -- needs to exist before this source is used.
-  ConnectionSource csComposite <- pooled settings {csComposites = ["bench_child_"]}
-  let runDBComposite :: DBT IO a -> IO a
-      runDBComposite = runDBT csComposite defaultTransactionSettings
   (`finally` runDB dropTables) . defaultMain $
     [ -- Insertion refills the tables it empties, so the selection benchmarks
       -- below see the same data regardless of whether this one ran.
       bench "insert" . nfIO . runDB $ truncateTables >> insertData base
     , bench "select parents" . nfIO $ runDB selectParents
-    , bench "select parents with children" . nfIO $ runDBComposite selectData
+    , bench "select parents with children" . nfIO $ runDB selectData
     , bench "select big array" . nfIO $ runDB selectBigArray
     , bench "select many rows" . nfIO $ runDB selectManyRows
     ]
-  where
-    -- A pool holding a single connection is used rather than 'simpleSource'
-    -- so that establishing one isn't measured by every iteration of a
-    -- benchmark.
-    pooled settings = poolSource settings $ \connect disconnect ->
-      defaultPoolConfig connect disconnect 60 1

@@ -31,8 +31,8 @@ import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
 
--- | When given 'DBException', throw it immediately. Otherwise
--- wrap it in 'DBException' with the current query context first.
+-- | When given t'DBException', throw it immediately. Otherwise
+-- wrap it in t'DBException' with the current query context first.
 throwDB :: (HasCallStack, Exception e, MonadDB m, MonadThrow m) => e -> m a
 throwDB e = case fromException $ toException e of
   Just (dbe :: DBException) -> throwM dbe
@@ -60,7 +60,7 @@ runQuery_ = withFrozenCallStack $ void . runQuery
 
 -- | Specialization of 'runQuery' that checks whether affected/returned
 -- number of rows is in range [0, 1] and returns appropriate 'Bool' value.
--- Otherwise, 'AffectedRowsMismatch' exception is thrown.
+-- Otherwise, t'AffectedRowsMismatch' exception is thrown.
 runQuery01 :: (HasCallStack, IsSQL sql, MonadDB m, MonadThrow m) => sql -> m Bool
 runQuery01 sql = withFrozenCallStack $ do
   n <- runQuery sql
@@ -102,7 +102,7 @@ runPreparedQuery_ name = withFrozenCallStack $ void . runPreparedQuery name
 
 -- | Specialization of 'runPreparedQuery' that checks whether affected/returned
 -- number of rows is in range [0, 1] and returns appropriate 'Bool' value.
--- Otherwise, 'AffectedRowsMismatch' exception is thrown.
+-- Otherwise, t'AffectedRowsMismatch' exception is thrown.
 runPreparedQuery01
   :: (HasCallStack, IsSQL sql, MonadDB m, MonadThrow m)
   => QueryName

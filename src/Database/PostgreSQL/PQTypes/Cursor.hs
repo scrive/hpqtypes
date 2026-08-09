@@ -27,8 +27,13 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Utils
 
 -- | Name of a cursor.
+--
+-- /Warning:/ the name is interpolated verbatim into @DECLARE@, @FETCH@ and
+-- @CLOSE@ statements, without any quoting or escaping. It needs to be a valid
+-- SQL identifier and must not be constructed from untrusted input, otherwise
+-- SQL injection is possible.
 newtype CursorName sql = CursorName {unCursorName :: sql}
-  deriving (Eq, Ord)
+  deriving newtype (Eq, Ord)
 
 instance IsString sql => IsString (CursorName sql) where
   fromString = CursorName . fromString
@@ -42,7 +47,7 @@ instance Show sql => Show (CursorName sql) where
 -- SCROLL@. Scrollable cursors can be scrolled in all directions, otherwise only
 -- forward.
 data Scroll = Scroll | NoScroll
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Defines whether a cursor will be declared as @WITH HOLD@ or @WITHOUT HOLD@.
 --
@@ -51,11 +56,11 @@ data Scroll = Scroll | NoScroll
 -- WITHOUT HOLD specifies that the cursor cannot be used outside of the
 -- transaction that created it.
 data Hold = Hold | NoHold
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Data representing a created cursor.
 data Cursor sql = Cursor !(CursorName sql) !sql
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 ----------------------------------------
 
@@ -73,7 +78,7 @@ data CursorDirection
   | CD_Relative Int
   | CD_Forward Int
   | CD_Backward Int
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 cursorDirectionToSQL :: (IsString sql, IsSQL sql, Monoid sql) => CursorDirection -> sql
 cursorDirectionToSQL = \case

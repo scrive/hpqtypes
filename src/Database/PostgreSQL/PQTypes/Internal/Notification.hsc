@@ -33,7 +33,7 @@ foreign import ccall unsafe "PQnotifies"
 
 -- | Representation of notification channel.
 newtype Channel = Channel (RawSQL ())
-  deriving (Eq, Ord)
+  deriving newtype (Eq, Ord)
 
 instance IsString Channel where
   fromString = Channel . fromString
@@ -51,7 +51,7 @@ data Notification = Notification
   , ntChannel :: !Channel
     -- | Notification payload string.
   , ntPayload :: !T.Text
-  } deriving (Eq, Ord, Show)
+  } deriving stock (Eq, Ord, Show)
 
 instance Storable Notification where
   sizeOf _ = #{size PGnotify}
@@ -76,25 +76,29 @@ getNotificationIO conn n = timeout n $ fix $ \loop -> do
   case mmsg of
     Just msg -> pure msg
     Nothing -> do
-      fd <- c_PQsocket $ connPtr conn
-      if fd == -1
-        then hpqTypesError $ fname ++ ": invalid file descriptor"
-        else do
-          threadWaitRead fd
-          res <- c_PQconsumeInput $ connPtr conn
-          when (res /= 1) $ do
-            throwLibPQError (connPtr conn) fname
-          loop
+      fd <- getSocket $ connPtr conn
+      threadWaitRead fd
+      consumeInput $ connPtr conn
+      loop
   where
-    fname :: String
-    fname = "getNotificationIO"
-
     tryGet :: Ptr PGconn -> IO (Maybe Notification)
     tryGet connPtr = E.mask_ $ do
       ptr <- c_PQnotifies connPtr
       if ptr /= nullPtr
         then do
-          msg <- peek ptr
-          c_PQfreemem ptr
+          -- Free the struct even if peek throws, e.g. when the channel name
+          -- or payload is not valid UTF-8.
+          msg <- peek ptr `E.finally` c_PQfreemem ptr
           pure $ Just msg
         else pure Nothing
+
+    consumeInput :: Ptr PGconn -> IO ()
+    consumeInput connPtr = do
+      res <- c_PQconsumeInput connPtr
+      when (res /= 1) $ throwLibPQError connPtr "consumeInput"
+
+    getSocket :: Ptr PGconn -> IO Fd
+    getSocket connPtr = do
+      fd <- c_PQsocket connPtr
+      when (fd == -1) $ throwLibPQError connPtr "getSocket"
+      pure fd
