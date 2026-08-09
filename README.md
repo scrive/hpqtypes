@@ -24,3 +24,6 @@ Main features:
 
 Examples can be found in the
 [examples](https://github.com/scrive/hpqtypes/tree/master/examples) directory.
+
+If you are upgrading from 1.x, see the
+[migration guide](https://github.com/scrive/hpqtypes/blob/master/migration-2.0.md).
