@@ -1,4 +1,7 @@
 # hpqtypes-1.15.0.0 (????-??-??)
+* Bind DB sessions to the thread that started them. Using a session from
+  another thread throws `ThreadMismatchError`. To run queries from another
+  thread, start a separate session there with `withNewConnection`.
 * Introduce From/ToSQL instances for Word16, Word32 and Word64.
 * Add support for (de)serialization of `Integer` to/from `numeric`.
 * `JSON` and `JSONB` now serialize and deserialize the wrapped type with its
@@ -23,10 +26,6 @@
   failure of the issued `COMMIT` (e.g. due to a deferred constraint violation)
   left the session in the autocommit mode instead of starting a new
   transaction.
-* Fix a bug in `finalizeConnectionData` where connection finalization
-  interrupted with an asynchronous exception while another thread was using
-  the connection put a value into the connection state MVar it didn't hold,
-  permanently deadlocking the other thread.
 * Fix a bug in `withCursor` where an asynchronous exception cancelled the
   `CLOSE` query and left the cursor open.
 * Fix a bug in `withSavepoint` where an asynchronous exception cancelled the

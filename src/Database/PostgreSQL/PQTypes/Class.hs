@@ -20,10 +20,8 @@ import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 class (Applicative m, Monad m) => MonadDB m where
-  -- | Run SQL query and return number of affected/returned rows. Note that
-  -- for a given connection, only one thread may be executing 'runQuery' at
-  -- a given time. If simultaneous call is made from another thread, it
-  -- will block until currently running 'runQuery' finishes.
+  -- | Run an SQL query and return the number of affected or returned rows.
+  -- Only the thread that started a session can use it, see 'withNewConnection'.
   runQuery :: (HasCallStack, IsSQL sql) => sql -> m Int
 
   -- | Similar to 'runQuery', but it prepares and executes a statement under a
@@ -84,9 +82,9 @@ class (Applicative m, Monad m) => MonadDB m where
   -- | Execute supplied monadic action with new connection
   -- using current connection source and transaction settings.
   --
-  -- Particularly useful when you want to spawn a new thread, but
-  -- do not want the connection in child thread to be shared with
-  -- the parent one.
+  -- Use this function to run queries from a child thread. Only the thread that
+  -- started a session can use it, so a child thread needs a session of its
+  -- own. 'withNewConnection' starts a new session bound to the calling thread.
   withNewConnection :: HasCallStack => m a -> m a
 
 -- | Generic, overlappable instance.
