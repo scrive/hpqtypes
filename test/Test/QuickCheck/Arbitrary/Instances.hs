@@ -5,6 +5,7 @@ module Test.QuickCheck.Arbitrary.Instances where
 
 import Data.Aeson
 import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BSL
 import Data.Char
 import Data.Scientific
 import Data.Text qualified as T
@@ -88,6 +89,12 @@ instance Arbitrary C.Value0 where
 
           subValue = value (i - 1) n
           shortListOf = fmap (take depth) . listOf
+
+-- | The @json@ type stores its input text verbatim. A raw value therefore
+-- roundtrips if the generator produces the encoding of a JSON value. The
+-- server rejects anything else.
+instance Arbitrary RawJSON where
+  arbitrary = RawJSON . BSL.toStrict . encode <$> arbitrary @C.Value0
 
 ----------------------------------------
 

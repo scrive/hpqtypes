@@ -13,6 +13,7 @@ import Data.ByteString qualified as BS
 import Data.Char
 import Data.Function
 import Data.Int
+import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Time
@@ -611,6 +612,35 @@ integerTest td = testCase "Integer decoding from numeric works"
       , 10 ^ (100 :: Int) + 1
       ]
 
+jsonTest :: TestData -> Test
+jsonTest td = testCase "JSON conversion failures and raw values"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    -- If the FromJSON instance of the target type rejects a value, decoding
+    -- fails with the error of the instance.
+    runSQL_ "SELECT '\"str\"'::json"
+    expectAesonError "json as Int64" . void $
+      fetchOne (runIdentity @(JSON Int64))
+    runSQL_ "SELECT '\"str\"'::jsonb"
+    expectAesonError "jsonb as Int64" . void $
+      fetchOne (runIdentity @(JSONB Int64))
+
+    -- A raw value arrives as the text of the value. The server stores it
+    -- verbatim for json and normalizes it for jsonb.
+    runSQL_ "SELECT '{\"b\": 1,  \"a\": 2}'::json, '{\"b\": 1,  \"a\": 2}'::jsonb"
+    (rawJson, rawJsonb) <- fetchOne id
+    assertEqualEq "json text is verbatim" (RawJSON "{\"b\": 1,  \"a\": 2}") rawJson
+    assertEqualEq "jsonb text is normalized" (RawJSONB "{\"a\": 2, \"b\": 1}") rawJsonb
+  where
+    -- The error of the FromJSON instance arrives inside a ConversionError.
+    expectAesonError :: String -> TestEnv () -> TestEnv ()
+    expectAesonError preface action =
+      try action >>= \case
+        Left (err :: DBException) ->
+          liftBase . assertBool (preface <> ": " <> show err) $
+            "expected Number, but encountered String" `L.isInfixOf` show err
+        Right () -> liftBase . assertFailure $ preface <> ": no error was thrown"
+
 xmlTest :: TestData -> Test
 xmlTest td = testCase "Put and get XML value works"
   . runTestEnv td defaultTransactionSettings
@@ -755,6 +785,7 @@ tests td =
   , cursorTest td
   , uuidTest td
   , integerTest td
+  , jsonTest td
   , onDemandTest td
   , acquisitionModeChangeFailureTest td
   , commitFailureTest td
@@ -779,6 +810,8 @@ tests td =
   , nullTest td (u :: U.UUID)
   , nullTest td (u :: JSON Value)
   , nullTest td (u :: JSONB Value)
+  , nullTest td (u :: RawJSON)
+  , nullTest td (u :: RawJSONB)
   , nullTest td (u :: XML)
   , nullTest td (u :: Interval)
   , nullTest td (u :: Day)
@@ -808,6 +841,7 @@ tests td =
   , putGetTest td 1000 (u :: U.UUID) (==)
   , putGetTest td 50 (u :: JSON Value0) (==)
   , putGetTest td 50 (u :: JSONB Value0) (==)
+  , putGetTest td 50 (u :: RawJSON) (==)
   , putGetTest td 20 (u :: Array1 (JSON Value0)) (==)
   , putGetTest td 20 (u :: Array1 (JSONB Value0)) (==)
   , putGetTest td 50 (u :: Interval) (==)

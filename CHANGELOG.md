@@ -1,6 +1,13 @@
-# hpqtypes-1.14.1.0 (????-??-??)
+# hpqtypes-1.15.0.0 (????-??-??)
 * Introduce From/ToSQL instances for Word16, Word32 and Word64.
 * Add support for (de)serialization of `Integer` to/from `numeric`.
+* `JSON` and `JSONB` now serialize and deserialize the wrapped type with its
+  `ToJSON` and `FromJSON` instances. They work for any such type and support
+  `deriving via`, e.g. `deriving (PQFormat, ToSQL, FromSQL) via JSONB Config`.
+  The `aesonFromSQL` and `aesonToSQL` helpers are gone. The instances for
+  unparsed JSON text moved to the dedicated `RawJSON` and `RawJSONB` types,
+  which wrap a strict `ByteString`. The instances for lazy `ByteString` are
+  gone.
 * Fix a bug in `changeAcquisitionModeTo` that led to holding on to an invalid
   connection object when committing a transaction during transition from the
   `AcquireAndHold` to `AcquireOnDemand` mode failed.
