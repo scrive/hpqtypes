@@ -5,7 +5,13 @@ module Database.PostgreSQL.PQTypes.JSON
 
     -- * Unparsed JSON values
   , RawJSON (..)
+  , encodeRawJSON
+  , decodeRawJSON
+  , eitherDecodeRawJSON
   , RawJSONB (..)
+  , encodeRawJSONB
+  , decodeRawJSONB
+  , eitherDecodeRawJSONB
   ) where
 
 import Data.Aeson
@@ -89,6 +95,25 @@ instance ToSQL RawJSON where
   type PQDest RawJSON = PGbytea
   toSQL = toSQL . unRawJSON
 
+-- | Encode a value with its 'ToJSON' instance.
+--
+-- @since 1.15.0.0
+encodeRawJSON :: ToJSON a => a -> RawJSON
+encodeRawJSON = RawJSON . BSL.toStrict . encode
+
+-- | Decode a value with its 'FromJSON' instance.
+--
+-- @since 1.15.0.0
+decodeRawJSON :: FromJSON a => RawJSON -> Maybe a
+decodeRawJSON = decodeStrict' . unRawJSON
+
+-- | Decode a value with its 'FromJSON' instance and report the reason for a
+-- failure.
+--
+-- @since 1.15.0.0
+eitherDecodeRawJSON :: FromJSON a => RawJSON -> Either String a
+eitherDecodeRawJSON = eitherDecodeStrict' . unRawJSON
+
 ----------------------------------------
 
 -- | A @jsonb@ value as its unparsed UTF-8 text.
@@ -105,6 +130,30 @@ instance FromSQL RawJSONB where
 instance ToSQL RawJSONB where
   type PQDest RawJSONB = PGbytea
   toSQL = toSQL . unRawJSONB
+
+-- | Encode a value with its 'ToJSON' instance.
+--
+-- /Note:/ The server normalizes a @jsonb@ value on input, e.g. it reorders the
+-- keys of an object and drops insignificant whitespace. The result of
+-- 'encodeRawJSONB' therefore differs in general from the text that the server
+-- returns for the same value.
+--
+-- @since 1.15.0.0
+encodeRawJSONB :: ToJSON a => a -> RawJSONB
+encodeRawJSONB = RawJSONB . BSL.toStrict . encode
+
+-- | Decode a value with its 'FromJSON' instance.
+--
+-- @since 1.15.0.0
+decodeRawJSONB :: FromJSON a => RawJSONB -> Maybe a
+decodeRawJSONB = decodeStrict' . unRawJSONB
+
+-- | Decode a value with its 'FromJSON' instance and report the reason for a
+-- failure.
+--
+-- @since 1.15.0.0
+eitherDecodeRawJSONB :: FromJSON a => RawJSONB -> Either String a
+eitherDecodeRawJSONB = eitherDecodeStrict' . unRawJSONB
 
 ----------------------------------------
 

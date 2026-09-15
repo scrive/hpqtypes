@@ -7,7 +7,11 @@
   The `aesonFromSQL` and `aesonToSQL` helpers are gone. The instances for
   unparsed JSON text moved to the dedicated `RawJSON` and `RawJSONB` types,
   which wrap a strict `ByteString`. The instances for lazy `ByteString` are
-  gone.
+  gone. The `encodeRawJSON` and `encodeRawJSONB` functions build these types
+  from any type with a `ToJSON` instance. The `decodeRawJSON` and
+  `decodeRawJSONB` functions convert back and return `Nothing` on a failure.
+  The `eitherDecodeRawJSON` and `eitherDecodeRawJSONB` functions return the
+  reason for the failure instead.
 * Fix a bug in `changeAcquisitionModeTo` that led to holding on to an invalid
   connection object when committing a transaction during transition from the
   `AcquireAndHold` to `AcquireOnDemand` mode failed.
