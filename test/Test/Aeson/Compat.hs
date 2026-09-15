@@ -16,30 +16,11 @@ import Data.Bifunctor (first)
 import Data.Aeson.Key qualified as K
 import Data.Aeson.KeyMap qualified as KM
 
-import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes
-
 fromList :: [(Text, v)] -> KM.KeyMap v
 fromList = KM.fromList . map (first K.fromText)
 
-newtype Value0 = Value0 { unValue0 :: Value }
-  deriving newtype (Eq, Show)
-
-instance ToSQL (JSON Value0) where
-  type PQDest (JSON Value0) = PGbytea
-  toSQL = aesonToSQL . unValue0 . unJSON
-
-instance FromSQL (JSON Value0) where
-  type PQBase (JSON Value0) = PGbytea
-  fromSQL = fmap (JSON . Value0) . aesonFromSQL
-
-instance ToSQL (JSONB Value0) where
-  type PQDest (JSONB Value0) = PGbytea
-  toSQL = aesonToSQL . unValue0 . unJSONB
-
-instance FromSQL (JSONB Value0) where
-  type PQBase (JSONB Value0) = PGbytea
-  fromSQL = fmap (JSONB . Value0) . aesonFromSQL
+newtype Value0 = Value0 Value
+  deriving newtype (Eq, FromJSON, Show, ToJSON)
 
 mkValue0 :: Value -> Value0
 mkValue0 = Value0
