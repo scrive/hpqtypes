@@ -68,7 +68,7 @@ instance Show ThreadMismatchError where
       , show tmeBoundThread
       , " started. Only the thread that started a session can use it. "
       , "To run queries from another thread, start a separate session there "
-      , "with withNewConnection."
+      , "with withNewSession."
       ]
 
 -- | Internal error in libpq/libpqtypes library.

@@ -1,7 +1,9 @@
 # hpqtypes-1.15.0.0 (????-??-??)
+* Rename `withNewConnection` to `withNewSession`. The function starts a new
+  session, it does not always acquire a connection.
 * Bind DB sessions to the thread that started them. Using a session from
   another thread throws `ThreadMismatchError`. To run queries from another
-  thread, start a separate session there with `withNewConnection`.
+  thread, start a separate session there with `withNewSession`.
 * Introduce From/ToSQL instances for Word16, Word32 and Word64.
 * Add support for (de)serialization of `Integer` to/from `numeric`.
 * `JSON` and `JSONB` now serialize and deserialize the wrapped type with its

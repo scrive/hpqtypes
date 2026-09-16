@@ -40,7 +40,7 @@ type DBT m = DBT_ m m
 -- 'MonadDB' operation that uses the connection, the operation throws
 -- 'Database.PostgreSQL.PQTypes.Internal.Error.ThreadMismatchError' wrapped in
 -- 'Database.PostgreSQL.PQTypes.Internal.Exception.DBException'. To run queries
--- from another thread, start a separate session there with 'withNewConnection'.
+-- from another thread, start a separate session there with 'withNewSession'.
 runDBT
   :: (HasCallStack, MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
@@ -93,7 +93,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     withConnection st $ \conn -> do
       (,st) <$> liftBase (getNotificationIO conn time)
 
-  withNewConnection m = DBT . StateT $ \st -> do
+  withNewSession m = DBT . StateT $ \st -> do
     cam <- liftBase . getConnectionAcquisitionModeIO $ dbConnectionData st
     let cs = getConnectionSource $ dbConnectionData st
         ts =
