@@ -27,6 +27,8 @@
   interrupted with an asynchronous exception while another thread was using
   the connection put a value into the connection state MVar it didn't hold,
   permanently deadlocking the other thread.
+* Fix a bug in `withCursor` where an asynchronous exception cancelled the
+  `CLOSE` query and left the cursor open.
 * Fix a bug in `withSavepoint` where an asynchronous exception cancelled the
   `ROLLBACK TO SAVEPOINT` or `RELEASE SAVEPOINT` query. The savepoint stayed in
   place, or the transaction stayed in the aborted state.

@@ -111,15 +111,18 @@ withCursor name scroll hold sql k =
   fst
     <$> generalBracket
       (runQuery_ declareCursor)
-      ( \() -> \case
-          ExitCaseSuccess _ -> runQuery_ closeCursor
-          -- If the continuation threw, the transaction (that cursors declared
-          -- WITHOUT HOLD require) might be in the aborted state, in which case
-          -- closing the cursor fails with in_failed_sql_transaction. Suppress
-          -- such errors, otherwise they would mask the original exception, in
-          -- particular preventing a potential transaction restart (see
-          -- 'RestartPredicate').
-          _ -> runQuery_ closeCursor `catch` \DBException {} -> pure ()
+      ( \() ec ->
+          -- Hard mask asynchronous exceptions, otherwise the query below can be
+          -- interrupted and leave the cursor open.
+          uninterruptibleMask_ $ case ec of
+            ExitCaseSuccess _ -> runQuery_ closeCursor
+            -- If the continuation threw, the transaction (that cursors declared
+            -- WITHOUT HOLD require) might be in the aborted state, in which case
+            -- closing the cursor fails with in_failed_sql_transaction. Suppress
+            -- such errors, otherwise they would mask the original exception, in
+            -- particular preventing a potential transaction restart (see
+            -- 'RestartPredicate').
+            _ -> runQuery_ closeCursor `catch` \DBException {} -> pure ()
       )
       (\() -> k $ Cursor name sql)
   where
