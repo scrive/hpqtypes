@@ -34,9 +34,12 @@ withSavepoint (Savepoint savepoint) m =
   fst
     <$> generalBracket
       (runQuery_ $ "SAVEPOINT" <+> savepoint)
-      ( \() -> \case
-          ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
-          _ -> rollbackAndReleaseSavepoint
+      ( \() ec ->
+          -- Hard mask asynchronous exceptions, otherwise the queries below can
+          -- be interrupted and leave the savepoint in an unexpected state.
+          uninterruptibleMask_ $ case ec of
+            ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
+            _ -> rollbackAndReleaseSavepoint
       )
       (\() -> m)
   where

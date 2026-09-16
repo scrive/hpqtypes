@@ -27,6 +27,9 @@
   interrupted with an asynchronous exception while another thread was using
   the connection put a value into the connection state MVar it didn't hold,
   permanently deadlocking the other thread.
+* Fix a bug in `withSavepoint` where an asynchronous exception cancelled the
+  `ROLLBACK TO SAVEPOINT` or `RELEASE SAVEPOINT` query. The savepoint stayed in
+  place, or the transaction stayed in the aborted state.
 
 # hpqtypes-1.14.0.0 (2025-12-10)
 * Make `begin`, `commit` and `rollback` do nothing instead of throwing an error
