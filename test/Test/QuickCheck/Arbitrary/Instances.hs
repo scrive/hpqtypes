@@ -7,6 +7,7 @@ import Data.Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Char
+import Data.Int
 import Data.Scientific
 import Data.Text qualified as T
 import Data.Time
@@ -101,12 +102,21 @@ instance Arbitrary RawJSON where
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> arbitrary
 
+-- | Generate a duration of a whole number of microseconds, less than the
+-- given number of seconds. Time related values have microsecond precision,
+-- because that's the precision of their binary wire format. Haskell's time
+-- types can hold sub-microsecond digits, but the server returns such values
+-- rounded to whole microseconds. If the generator produced them, they would
+-- not roundtrip exactly and the tests would need approximate comparison.
+microseconds :: Fractional a => Int64 -> Gen a
+microseconds secs = (/ 1000000) . fromIntegral <$> choose (0, secs * 1000000 - 1)
+
 instance Arbitrary TimeOfDay where
   arbitrary = do
     hours <- choose (0, 23)
     mins <- choose (0, 59)
-    secs :: Double <- choose (0, 60)
-    pure $ TimeOfDay hours mins (realToFrac secs)
+    secs <- microseconds 60
+    pure $ TimeOfDay hours mins secs
 
 instance Arbitrary LocalTime where
   arbitrary = LocalTime <$> arbitrary <*> arbitrary
@@ -114,14 +124,10 @@ instance Arbitrary LocalTime where
 instance Arbitrary UTCTime where
   arbitrary = do
     day <- arbitrary
-    secs :: Double <- choose (0, 86401)
-    pure $ UTCTime day (realToFrac secs)
-
-instance Arbitrary TimeZone where
-  arbitrary = elements $ map hoursToTimeZone [-12 .. 14]
-
-instance Arbitrary ZonedTime where
-  arbitrary = ZonedTime <$> arbitrary <*> arbitrary
+    -- The day time stays below 86400 seconds, because the server normalizes
+    -- a larger value into the next day.
+    secs <- microseconds 86400
+    pure $ UTCTime day secs
 
 ----------------------------------------
 
