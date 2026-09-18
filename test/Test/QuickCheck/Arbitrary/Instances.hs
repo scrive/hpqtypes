@@ -101,20 +101,26 @@ instance Arbitrary RawJSON where
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> arbitrary
 
+-- | The number of seconds stays below 60, because PostgreSQL has no leap
+-- seconds. A time of 60 seconds or more is a leap second, e.g. 23:59:60. The
+-- server moves this time to 00:00:00 on the next day. The value that the
+-- database returns then differs from the value that the test sent.
 instance Arbitrary TimeOfDay where
   arbitrary = do
     hours <- choose (0, 23)
     mins <- choose (0, 59)
-    secs :: Double <- choose (0, 60)
+    secs :: Double <- choose (0, 59.999999)
     pure $ TimeOfDay hours mins (realToFrac secs)
 
 instance Arbitrary LocalTime where
   arbitrary = LocalTime <$> arbitrary <*> arbitrary
 
+-- | The day time stays below 86400 seconds, the length of one day. A larger
+-- value is a leap second. Read the comment on the 'TimeOfDay' instance above.
 instance Arbitrary UTCTime where
   arbitrary = do
     day <- arbitrary
-    secs :: Double <- choose (0, 86401)
+    secs :: Double <- choose (0, 86399.999999)
     pure $ UTCTime day (realToFrac secs)
 
 instance Arbitrary TimeZone where
