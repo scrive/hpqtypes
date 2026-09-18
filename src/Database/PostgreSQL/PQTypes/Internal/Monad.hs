@@ -35,6 +35,12 @@ type DBT m = DBT_ m m
 
 -- | Evaluate monadic action with supplied
 -- connection source and transaction settings.
+--
+-- The session is bound to the calling thread. If another thread invokes a
+-- 'MonadDB' operation that uses the connection, the operation throws
+-- 'Database.PostgreSQL.PQTypes.Internal.Error.ThreadMismatchError' wrapped in
+-- 'Database.PostgreSQL.PQTypes.Internal.Exception.DBException'. To run queries
+-- from another thread, start a separate session there with 'withNewSession'.
 runDBT
   :: (HasCallStack, MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
@@ -56,10 +62,10 @@ mapDBT f g m = DBT . StateT $ g . runStateT (unDBT m) . f
 
 instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   runQuery sql = withFrozenCallStack $ do
-    DBT . StateT $ \st -> withConnection (dbConnectionData st) $ \conn -> do
+    DBT . StateT $ \st -> withConnection st $ \conn -> do
       liftBase $ updateStateWith conn st sql =<< runQueryIO conn sql
   runPreparedQuery name sql = withFrozenCallStack $ do
-    DBT . StateT $ \st -> withConnection (dbConnectionData st) $ \conn -> do
+    DBT . StateT $ \st -> withConnection st $ \conn -> do
       liftBase $ updateStateWith conn st sql =<< runPreparedQueryIO conn name sql
 
   getLastQuery = DBT . gets $ dbLastQuery
@@ -78,16 +84,16 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
     (,st) <$> liftBase (getConnectionAcquisitionModeIO $ dbConnectionData st)
 
   acquireAndHoldConnection isolationLevel permissions = DBT . StateT $ \st -> do
-    (,st) <$> changeAcquisitionModeTo (AcquireAndHold isolationLevel permissions) (dbConnectionData st)
+    (,st) <$> changeAcquisitionModeTo (AcquireAndHold isolationLevel permissions) st
 
   unsafeAcquireOnDemandConnection = DBT . StateT $ \st -> do
-    (,st) <$> changeAcquisitionModeTo AcquireOnDemand (dbConnectionData st)
+    (,st) <$> changeAcquisitionModeTo AcquireOnDemand st
 
   getNotification time = DBT . StateT $ \st -> do
-    withConnection (dbConnectionData st) $ \conn -> do
+    withConnection st $ \conn -> do
       (,st) <$> liftBase (getNotificationIO conn time)
 
-  withNewConnection m = DBT . StateT $ \st -> do
+  withNewSession m = DBT . StateT $ \st -> do
     cam <- liftBase . getConnectionAcquisitionModeIO $ dbConnectionData st
     let cs = getConnectionSource $ dbConnectionData st
         ts =

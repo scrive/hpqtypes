@@ -3,6 +3,7 @@ module Database.PostgreSQL.PQTypes.Internal.Error
   ( DetailedQueryError (..)
   , QueryError (..)
   , HPQTypesError (..)
+  , ThreadMismatchError (..)
   , LibPQError (..)
   , ConversionError (..)
   , ArrayItemError (..)
@@ -13,6 +14,7 @@ module Database.PostgreSQL.PQTypes.Internal.Error
   , AffectedRowsMismatch (..)
   ) where
 
+import Control.Concurrent (ThreadId)
 import Control.Exception qualified as E
 import Data.Typeable
 
@@ -47,6 +49,27 @@ newtype HPQTypesError = HPQTypesError String
 
 instance Show HPQTypesError where
   show (HPQTypesError s) = "HPQTypesError (PostgreSQL): " <> s
+
+-- | Thrown when a thread other than the one that started a DB session uses it.
+data ThreadMismatchError = ThreadMismatchError
+  { tmeBoundThread :: !ThreadId
+  -- ^ Thread that started the session.
+  , tmeCurrentThread :: !ThreadId
+  -- ^ Thread that used the session.
+  }
+  deriving (Eq)
+
+instance Show ThreadMismatchError where
+  show ThreadMismatchError {..} =
+    concat
+      [ "ThreadMismatchError (PostgreSQL): "
+      , show tmeCurrentThread
+      , " used a DB session that "
+      , show tmeBoundThread
+      , " started. Only the thread that started a session can use it. "
+      , "To run queries from another thread, start a separate session there "
+      , "with withNewSession."
+      ]
 
 -- | Internal error in libpq/libpqtypes library.
 newtype LibPQError = LibPQError String
@@ -131,6 +154,7 @@ data AffectedRowsMismatch = AffectedRowsMismatch
 instance E.Exception DetailedQueryError
 instance E.Exception QueryError
 instance E.Exception HPQTypesError
+instance E.Exception ThreadMismatchError
 instance E.Exception LibPQError
 instance E.Exception ConversionError
 instance E.Exception ArrayItemError

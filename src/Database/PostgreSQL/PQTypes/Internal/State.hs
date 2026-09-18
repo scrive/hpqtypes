@@ -14,6 +14,7 @@ module Database.PostgreSQL.PQTypes.Internal.State
   , updateStateWith
   ) where
 
+import Control.Concurrent qualified as C
 import Control.Concurrent.MVar.Lifted
 import Control.Monad
 import Control.Monad.Base
@@ -28,6 +29,7 @@ import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.SQL
@@ -103,6 +105,8 @@ finalizeConnectionState ics ec = \case
 data ConnectionData m = forall cdata. ConnectionData
   { cdConnectionSource :: !(InternalConnectionSource m cdata)
   , cdConnectionState :: !(MVar (ConnectionState cdata))
+  , cdBoundThread :: !C.ThreadId
+  -- ^ Thread that started the session. Only this thread can use it.
   }
 
 getConnectionSource :: ConnectionData m -> ConnectionSourceM m
@@ -154,9 +158,10 @@ withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
 changeAcquisitionModeTo
   :: (HasCallStack, MonadBase IO m, MonadMask m)
   => ConnectionAcquisitionMode
-  -> ConnectionData m
+  -> DBState m
   -> m ()
-changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
+changeAcquisitionModeTo cam st@DBState {dbConnectionData = ConnectionData {..}} = mask_ $ do
+  checkBoundThread st
   -- Each branch of 'mkNewState' determines the new connection state along with
   -- a follow-up action. The new state is installed with a single putMVar, so
   -- that concurrent users of the MVar can never observe a stale state.
@@ -203,10 +208,11 @@ changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
 
 withConnection
   :: (HasCallStack, MonadBase IO m, MonadMask m)
-  => ConnectionData m
+  => DBState m
   -> (Connection -> m r)
   -> m r
-withConnection ConnectionData {..} action = do
+withConnection st@DBState {dbConnectionData = ConnectionData {..}} action = do
+  checkBoundThread st
   bracket (takeMVar cdConnectionState) (putMVar cdConnectionState) $ \case
     OnDemand ->
       fst
@@ -222,17 +228,40 @@ withConnection ConnectionData {..} action = do
     Acquired _ _ conn _ -> action conn
     Finalized -> error "finalized connection"
 
+checkBoundThread
+  :: (HasCallStack, MonadBase IO m, MonadThrow m)
+  => DBState m
+  -> m ()
+checkBoundThread DBState {dbConnectionData = ConnectionData {..}, ..} = do
+  currentThread <- liftBase C.myThreadId
+  when (currentThread /= cdBoundThread) $ do
+    case dbLastQuery of
+      (pid, SomeSQL sql) ->
+        throwM
+          DBException
+            { dbeQueryContext = sql
+            , dbeBackendPid = pid
+            , dbeError =
+                ThreadMismatchError
+                  { tmeBoundThread = cdBoundThread
+                  , tmeCurrentThread = currentThread
+                  }
+            , dbeCallStack = callStack
+            }
+
 initConnectionData
   :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
   -> ConnectionAcquisitionMode
   -> m (ConnectionData m)
 initConnectionData (ConnectionSourceM ics) cam = do
+  boundThread <- liftBase C.myThreadId
   connState <- newMVar =<< initConnectionState ics cam
   pure $
     ConnectionData
       { cdConnectionSource = ics
       , cdConnectionState = connState
+      , cdBoundThread = boundThread
       }
 
 finalizeConnectionData
@@ -241,10 +270,6 @@ finalizeConnectionData
   -> ExitCase r
   -> m ()
 finalizeConnectionData ConnectionData {..} ec = do
-  -- The state is marked as finalized only once takeMVar succeeds: it can be
-  -- interrupted by an asynchronous exception while another thread is using
-  -- the connection, in which case putting a value into the MVar we don't hold
-  -- would permanently deadlock the putMVar of that thread.
   connState <- takeMVar cdConnectionState
   finalizeConnectionState cdConnectionSource ec connState
     `finally` putMVar cdConnectionState Finalized
