@@ -1,6 +1,6 @@
 # hpqtypes-1.15.0.0 (????-??-??)
-* Introduce From/ToSQL instances for Word16, Word32 and Word64.
-* Add support for (de)serialization of `Integer` to/from `numeric`.
+* Add `FromSQL` and `ToSQL` instances for `Word16`, `Word32` and `Word64`.
+* Add `FromSQL` and `ToSQL` instances for `Integer`, mapped to `numeric`.
 * `JSON` and `JSONB` now serialize and deserialize the wrapped type with its
   `ToJSON` and `FromJSON` instances. They work for any such type and support
   `deriving via`, e.g. `deriving (PQFormat, ToSQL, FromSQL) via JSONB Config`.
@@ -12,21 +12,21 @@
   `decodeRawJSONB` functions convert back and return `Nothing` on a failure.
   The `eitherDecodeRawJSON` and `eitherDecodeRawJSONB` functions return the
   reason for the failure instead.
-* Fix a bug in `changeAcquisitionModeTo` that led to holding on to an invalid
-  connection object when committing a transaction during transition from the
-  `AcquireAndHold` to `AcquireOnDemand` mode failed.
-* Fix a bug in `withCursor` where an exception thrown from the continuation was
-  masked by the failure of the subsequent cursor cleanup if the enclosing
-  transaction was in the aborted state (in particular, this prevented restarts
-  of transactions run with a `RestartPredicate`).
-* Fix a bug in `commit`, `rollback` and `unsafeWithoutTransaction` where a
-  failure of the issued `COMMIT` (e.g. due to a deferred constraint violation)
-  left the session in the autocommit mode instead of starting a new
+* Fix a bug in `changeAcquisitionModeTo`. If the commit of a transaction
+  failed during the transition from the `AcquireAndHold` to the
+  `AcquireOnDemand` mode, the library held on to an invalid connection
+  object.
+* Fix a bug in `withCursor`. If the enclosing transaction was in the aborted
+  state, the failure of the cursor cleanup masked an exception thrown from
+  the continuation. In particular, this prevented restarts of transactions
+  run with a `RestartPredicate`.
+* Fix a bug in `commit`, `rollback` and `unsafeWithoutTransaction`. If the
+  issued `COMMIT` failed, e.g. because of a deferred constraint violation,
+  the session stayed in the autocommit mode instead of starting a new
   transaction.
-* Fix a bug in `finalizeConnectionData` where connection finalization
-  interrupted with an asynchronous exception while another thread was using
-  the connection put a value into the connection state MVar it didn't hold,
-  permanently deadlocking the other thread.
+* Fix a bug in connection finalization. If an asynchronous exception
+  interrupted the finalization while another thread used the connection,
+  the other thread deadlocked permanently.
 * Fix a bug in `withCursor` where an asynchronous exception cancelled the
   `CLOSE` query and left the cursor open.
 * Fix a bug in `withSavepoint` where an asynchronous exception cancelled the
