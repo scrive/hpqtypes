@@ -282,7 +282,7 @@ data ErrorCode
   | IndexCorrupted
   | -- Unknown error code
     UnknownErrorCode String
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Convert 'String' to corresponding 'ErrorCode'.
 stringToErrorCode :: String -> ErrorCode

@@ -1,3 +1,114 @@
+# hpqtypes-2.0.0.0 (????-??-??)
+* Drop support for GHC < 9.6.
+* Drop support for `aeson` < 2.0.
+* Remove the bundled `libpqtypes` C library. The library now executes queries
+  with plain `libpq` and handles the binary transport format itself. The
+  encoders and decoders are derived from the `postgresql-binary` package.
+* Replace per-type format strings with type Oids. The `pqOid` and
+  `pqArrayOid` methods of `PQFormat` replace `pqFormat`, `pqFormat0` and
+  `pqVariables`. The `Database.PostgreSQL.PQTypes.Internal.Oid` module
+  provides constants for built-in types.
+* Change the type of `toSQL` to `t -> Maybe Encoding`. An `Encoding` is an
+  encoded value in the binary wire format. `Nothing` represents NULL. The
+  `PQDest` type family and `ParamAllocator` are gone.
+* Change the type of `fromSQL` to `RowDecoder t`, a monadic parser that
+  consumes consecutive fields of a query result. You build a decoder of a
+  compound result from the decoders of its fields. The `PQBase` type family
+  is gone.
+* Remove the `PQFormat` superclass of `FromSQL`.
+* Remove the `FromRow` class. The row fetching functions (`foldrDB`,
+  `foldlDB`, `mapDB_`, `fetchMany`, `fetchMaybe`, `fetchOne`) now take an
+  explicit `RowDecoder` of a row, e.g. `fetchMany ((,) <$> fromSQL <*> fromSQL)`.
+* Row fetching functions no longer compare the width of the query result
+  with the decoder up front. The number of fields that a `RowDecoder`
+  consumes is not known statically. When it decodes a row, a decoder that
+  doesn't match the shape of the result throws `RowLengthMismatch`. In
+  particular, a fetch from a result with no rows always succeeds.
+* Reduce the maximum arity of tuples with a `ToRow` instance from 50 to 10.
+  To pass a larger set of query parameters, combine rows with the `:++:`
+  type. It was previously known as `:*:`. The new name avoids a conflict
+  with `GHC.Generics`.
+* Remove the parameter of `QueryResult` along with its `Functor` and
+  `Foldable` instances. The row fetching functions that take a `RowDecoder`
+  supersede them.
+* Remove support for encoding of composite types along with the `Composite`,
+  `CompositeRow`, `CompositeFromSQL`, `CompositeToSQL`, `CompositeArray1` and
+  `CompositeArray2` machinery. The `decodeComposite` combinator decodes
+  composite types. They no longer need registration, and the `csComposites`
+  field of `ConnectionSettings` is gone. Decoding of anonymous composite
+  types is now supported.
+* Add `genericDecoder`, which decodes consecutive fields of a row into a
+  product type with a `Generic` instance, e.g. a whole row into a tuple.
+  Combined with `decodeComposite`, it gives generic `FromSQL` instances for
+  product types that correspond to composite types.
+* Add `PQFormat`, `ToSQL` and `FromSQL` instances for lists and `Vector`s
+  that encode and decode PostgreSQL arrays. An array of any type with the
+  relevant instances can be a query parameter, and plain `fromSQL` fetches
+  it. A multi-dimensional array is a nested list or `Vector`, and mixed
+  nesting of lists and `Vector`s works too. `String` still corresponds to
+  `text` and `[String]` to an array of `text`. The
+  `Database.PostgreSQL.PQTypes.Array` module is gone. The `fromSQLArray`
+  method of `FromSQL` decodes arrays, and `fromSQLList` backs the list
+  instance on top of it. `fromSQLArray` defaults to `decodeArray fromSQL`.
+  An instance can override it with a faster decoder. Scalar types override
+  it with the dedicated `decodeScalarArray` combinator, which decodes the
+  elements with a value decoder directly.
+* Remove `ArrayItemError`. An error of an array element decoder now reports
+  the position of the offending element as the column of its
+  `ConversionError`.
+* Remove `QueryError`. When query execution produced no `PGresult`, the
+  library threw it. This happened e.g. because the connection died while
+  the query was sent. Such a failure now throws `LibPQError`.
+* Derive the `Show` instances of `HPQTypesError` and `LibPQError`, like
+  those of the other error types. They now print e.g.
+  `HPQTypesError "reason"` instead of `HPQTypesError (PostgreSQL): reason`.
+* Add the `Database.PostgreSQL.PQTypes.Enum` module with the `SQLEnum` and
+  `SQLEnumAsText` deriving-via helpers. They map Haskell enumeration types
+  to values of PostgreSQL enum types, or of other types. A scalar parameter
+  works against both text and enum columns without a cast. An array is sent
+  as `text[]` and needs a cast against an enum column, e.g.
+  `... = ANY($1::my_enum_type[])`.
+* Add `FromSQL` and `ToSQL` instances for `Scientific`, mapped to `numeric`.
+  Add a `ToSQL` instance for `Word`, for symmetry with `Int`. `Int` and
+  `Word` can't be decoded reliably, because their size depends on the
+  architecture. Their `FromSQL` instances use `TypeError` and point at
+  `Int64` and `Word64`.
+* Add `FromSQL` and `ToSQL` instances for `IP` and `IPRange` from the
+  `iproute` package, mapped to the `inet` and `cidr` types respectively. An
+  `inet` value carries the length of its netmask alongside the address. If
+  the netmask covers the whole address, the value decodes to a bare `IP`.
+  Otherwise decoding fails instead of dropping the netmask.
+* Add support for range types with `FromSQL` and `ToSQL` instances for
+  `Range` of `Int32`, `Int64`, `Scientific`, `Day`, `LocalTime` and `UTCTime`.
+  The SQL types are `int4range`, `int8range`, `numrange`, `daterange`,
+  `tsrange` and `tstzrange` respectively. The
+  `Database.PostgreSQL.PQTypes.Range` module defines the `Range` and `Bound`
+  types, and `Database.PostgreSQL.PQTypes` re-exports them.
+* Change the representation of `Interval` to mirror the wire format: three
+  components (microseconds, days, months) of mutually independent duration.
+  The type is now opaque. The `iyears`, `imonths`, `idays`, `ihours`,
+  `iminutes`, `iseconds` and `imicroseconds` functions construct values, and
+  the `Monoid` instance combines them. The sub-day functions now take
+  `Int64`. The `Eq` and `Ord` instances compare the same way as the
+  comparison operators of the server, i.e. by an estimate with a month
+  converted at 30 days and a day at 24 hours. The `Show` instance shows the
+  components of the wire format instead of a pretty-printed value.
+* Reject the `infinity` and `-infinity` values of `date`, `timestamp`,
+  `timestamptz` and `interval` at decode time. Previously they decoded as a
+  date far outside the range that the server accepts. The encoders of `Day`,
+  `LocalTime` and `UTCTime` now reject a value that doesn't fit the wire
+  format instead of truncating it. Truncation silently sent a different
+  date, `infinity` among them.
+* When built against `libpq` >= 17, cancellation of a query that an
+  exception interrupted uses the new cancellation API. If the main
+  connection is encrypted, the cancellation request travels over an
+  encrypted connection too.
+* Fix unreliable cancellation of a query that an asynchronous exception
+  interrupted. The server discards a cancellation request that reaches it
+  before the backend started to execute the query. It doesn't report the
+  discard in any way. An interrupted thread then waited for the query to run
+  to completion. The library now repeats the request until the query ends.
+
 # hpqtypes-1.15.0.0 (????-??-??)
 * Fix a use-after-free of the buffer that holds the connection string in
   `connect`. If an asynchronous exception interrupted `connect`, the

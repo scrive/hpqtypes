@@ -5,10 +5,26 @@
 [![Stackage LTS](https://www.stackage.org/package/hpqtypes/badge/lts)](https://www.stackage.org/lts/package/hpqtypes)
 [![Stackage Nightly](https://www.stackage.org/package/hpqtypes/badge/nightly)](https://www.stackage.org/nightly/package/hpqtypes)
 
-Efficient and easy-to-use bindings to (slightly modified) libpqtypes,
-libpq extension that adds support for binary transport format and
-composite types.
+hpqtypes provides efficient bindings to `libpq`. Queries and their results
+travel in the binary transport format.
 
-Source code of libpqtypes is bundled along with the bindings.
+Main features:
 
-Examples can be found in the [examples](https://github.com/scrive/hpqtypes/tree/master/examples) directory.
+* You write a query and its parameters separately. SQL injection is not
+  possible by construction.
+* An asynchronous exception interrupts a running query. The library then
+  cancels the query on the server too. This feature requires the threaded
+  runtime.
+* The `ToSQL` and `FromSQL` type classes convert between Haskell types and
+  their SQL counterparts. Composable, monadic `RowDecoder`s decode rows. A
+  `RowDecoder` compares the SQL type of each column with the expected Haskell
+  type.
+* The library supports arrays, anonymous and user-defined composite types,
+  PostgreSQL enums and NOTIFY/LISTEN. An array is a plain list or a `Vector`.
+  A multi-dimensional array is a nested list or `Vector`.
+
+The [examples](https://github.com/scrive/hpqtypes/tree/master/examples)
+directory contains examples.
+
+If you upgrade from 1.x, read the
+[migration guide](https://github.com/scrive/hpqtypes/blob/master/migration-2.0.md).

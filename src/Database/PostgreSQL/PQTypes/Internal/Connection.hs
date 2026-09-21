@@ -20,17 +20,15 @@ module Database.PostgreSQL.PQTypes.Internal.Connection
   ) where
 
 import Control.Concurrent
-import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Exception qualified as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.ByteString.Char8 qualified as BS
+import Data.ByteString.Unsafe qualified as BS
 import Data.Foldable qualified as F
-import Data.Functor.Identity
 import Data.IORef
-import Data.Int
 import Data.Kind
 import Data.Maybe
 import Data.Pool
@@ -38,7 +36,11 @@ import Data.Set qualified as S
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Foreign.C.String
+import Foreign.C.Types
 import Foreign.ForeignPtr
+import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Foreign.Ptr
 import GHC.Clock (getMonotonicTime)
 import GHC.Conc (closeFdWith)
@@ -47,11 +49,10 @@ import GHC.Stack
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Interface
 import Database.PostgreSQL.PQTypes.Internal.C.Types
-import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
-import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Internal.Oid
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.SQL.Raw
@@ -59,16 +60,21 @@ import Database.PostgreSQL.PQTypes.ToSQL
 
 data ConnectionSettings = ConnectionSettings
   { csConnInfo :: !T.Text
-  -- ^ Connection info string.
+  -- ^ Connection info string, see
+  -- <https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING>
+  -- for details. Set the @connect_timeout@, @keepalives_idle@ and (on Linux)
+  -- @tcp_user_timeout@ parameters. They bound the time the library can stall
+  -- on network problems. This includes cleanup code that runs with
+  -- asynchronous exceptions masked and thus can't be interrupted, e.g.
+  -- cancellation of a query that an exception interrupted. When built
+  -- against @libpq@ < 17, @connect_timeout@ doesn't cover the delivery of
+  -- the cancellation request.
   , csClientEncoding :: !(Maybe T.Text)
   -- ^ Client-side encoding. If set to 'Nothing', database encoding is used.
   , csRole :: !(Maybe (RawSQL ()))
   -- ^ A custom role to set with "SET ROLE".
-  , csComposites :: ![T.Text]
-  -- ^ A list of composite types to register. In order to be able to
-  -- (de)serialize specific composite types, you need to register them.
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Default connection settings. Note that all strings sent to PostgreSQL by
 -- the library are encoded as UTF-8, so don't alter client encoding unless you
@@ -79,7 +85,6 @@ defaultConnectionSettings =
     { csConnInfo = T.empty
     , csClientEncoding = Just "UTF-8"
     , csRole = Nothing
-    , csComposites = []
     }
 
 ----------------------------------------
@@ -97,7 +102,7 @@ data ConnectionStats = ConnectionStats
   , statsTime :: !Double
   -- ^ Time spent executing queries (in seconds).
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Initial connection statistics.
 initialConnectionStats :: ConnectionStats
@@ -142,7 +147,7 @@ newtype ConnectionSource (cs :: [(Type -> Type) -> Constraint]) = ConnectionSour
   }
 
 -- | Default connection supplier. It establishes new database connection each
--- time 'withConnection' is called.
+-- time 'Database.PostgreSQL.PQTypes.Class.withConnection' is called.
 simpleSource
   :: ConnectionSettings
   -> ConnectionSource [MonadBase IO, MonadMask]
@@ -182,38 +187,27 @@ poolSource cs mkPoolConfig = do
 -- | Low-level function for connecting to the database. Useful if one wants to
 -- implement custom connection source.
 --
--- /Warning:/ the 'Connection' needs to be explicitly destroyed with
+-- /Warning:/ the t'Connection' needs to be explicitly destroyed with
 -- 'disconnect', otherwise there will be a resource leak.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings {..} = mask $ \unmask -> do
   connPtr <- openConnection unmask $ T.encodeUtf8 csConnInfo
   (`onException` c_PQfinish connPtr) . unmask $ do
-    status <- c_PQstatus connPtr
-    when (status /= c_CONNECTION_OK) $
-      throwLibPQError connPtr fname
     F.forM_ csClientEncoding $ \enc -> do
       res <- BS.useAsCString (T.encodeUtf8 enc) (c_PQsetClientEncoding connPtr)
       when (res == -1) $
         throwLibPQError connPtr fname
-    c_PQinitTypes connPtr
-    registerComposites connPtr csComposites
     conn <- do
       preparedQueries <- newIORef S.empty
+      pid <- c_PQbackendPid connPtr
       pure
         Connection
           { connPtr = connPtr
-          , connBackendPid = noBackendPid
+          , connBackendPid = BackendPid $ fromIntegral pid
           , connPreparedQueries = preparedQueries
           }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
-
-    let selectPid = "SELECT pg_backend_pid()" :: RawSQL ()
-    (_, res, _) <- runQueryIO conn selectPid
-    case F.toList $ mkQueryResult @(Identity Int32) selectPid noBackendPid res of
-      [pid] -> pure $ conn {connBackendPid = BackendPid $ fromIntegral pid}
-      pids -> do
-        let err = HPQTypesError $ "unexpected backend pid: " ++ show pids
-        rethrowWithContext selectPid noBackendPid $ toException err
+    pure conn
   where
     fname = "connect"
 
@@ -252,10 +246,8 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
         when (conn == nullPtr) $ do
           throwError "PQconnectdb returned a null pointer"
         status <- c_PQstatus conn
-        when (status /= c_CONNECTION_OK) $ do
-          merr <- c_PQerrorMessage conn >>= safePeekCString
-          let reason = maybe "" (": " <>) merr
-          throwError $ "openConnection failed" <> reason
+        when (status /= c_CONNECTION_OK) $
+          throwLibPQError conn fname
         pure conn
       where
         throwError :: String -> IO a
@@ -286,15 +278,16 @@ runQueryIO
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
 runQueryIO conn@Connection {..} sql = do
   runQueryImpl conn sql $ do
-    let allocParam = ParamAllocator $ withPGparam connPtr
-    withSQL sql allocParam $ \param query ->
-      (,)
-        <$> (fromIntegral <$> c_PQparamCount param)
-        <*> c_PQparamExec connPtr nullPtr param query c_RESULT_BINARY
+    withSQL sql $ \query params ->
+      withParams params $ \n oids values lengths formats -> do
+        res <- execQueryInterruptible connPtr $ do
+          c_PQexecParams connPtr query n oids values lengths formats c_FORMAT_BINARY
+        pure (fromIntegral n, res)
 
 -- | Name of a prepared query.
 newtype QueryName = QueryName T.Text
-  deriving (Eq, Ord, Show, IsString)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (IsString)
 
 -- | Low-level function for running a prepared SQL query.
 runPreparedQueryIO
@@ -306,108 +299,259 @@ runPreparedQueryIO
 runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
   runQueryImpl conn sql $ do
     when (T.null queryName) $ do
-      E.throwIO
-        DBException
-          { dbeQueryContext = sql
-          , dbeBackendPid = connBackendPid
-          , dbeError = HPQTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
-          , dbeCallStack = callStack
-          }
-    let allocParam = ParamAllocator $ withPGparam connPtr
-    withSQL sql allocParam $ \param query -> do
-      preparedQueries <- readIORef connPreparedQueries
-      BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
-        when (queryName `S.notMember` preparedQueries) . E.mask_ $ do
-          -- Mask asynchronous exceptions, because if preparation of the query
-          -- succeeds, we need to reflect that fact in cdPreparedQueries since
-          -- you can't prepare a query with the same name more than once.
-          res <- c_PQparamPrepare connPtr nullPtr param cname query
-          void . withForeignPtr res $ verifyResult sql connBackendPid connPtr
-          modifyIORef' connPreparedQueries $ S.insert queryName
-        (,)
-          <$> (fromIntegral <$> c_PQparamCount param)
-          <*> c_PQparamExecPrepared connPtr nullPtr param cname c_RESULT_BINARY
+      hpqTypesError "runPreparedQueryIO: unnamed prepared query is not supported"
+    withSQL sql $ \query params -> do
+      withParams params $ \n oids values lengths formats -> do
+        BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
+          preparedQueries <- readIORef connPreparedQueries
+          when (queryName `S.notMember` preparedQueries) $ do
+            -- The statement is prepared synchronously. Asynchronous
+            -- exceptions can't interrupt the blocking call, and the library
+            -- records the statement before they can be delivered again, so
+            -- connPreparedQueries stays in sync with the server. A statement
+            -- that exists server side but is not recorded would break the
+            -- connection: a second PREPARE fails with
+            -- duplicate_prepared_statement and aborts the active
+            -- transaction, if any. Preparation is normally quick, though it
+            -- can block, e.g. on locks held by DDL statements. As with
+            -- COMMIT/ROLLBACK of transactions, interruptibility is not worth
+            -- the trouble.
+            E.mask_ $ do
+              res <- c_PQprepare connPtr cname query n oids
+              when (res == nullPtr) $ do
+                throwLibPQError connPtr "runPreparedQueryIO"
+              (`E.finally` c_PQclear res) $ do
+                st <- c_PQresultStatus res
+                if st == c_PGRES_COMMAND_OK
+                  then modifyIORef' connPreparedQueries $ S.insert queryName
+                  else -- Let 'verifyResult' throw an appropriate error.
+                    void $ verifyResult connPtr res
+          res <- execQueryInterruptible connPtr $ do
+            c_PQexecPrepared connPtr cname n values lengths formats c_FORMAT_BINARY
+          pure (fromIntegral n, res)
 
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
+--
+-- Asynchronous exceptions interrupt the execution, unless the caller has
+-- them hard masked. The library cancels an interrupted query server side
+-- (see 'execQueryInterruptible').
+--
+-- The library wraps any synchronous exception thrown during execution in
+-- t'DBException' with the query attached as context.
 runQueryImpl
   :: (HasCallStack, IsSQL sql)
   => Connection
   -> sql
   -> IO (Int, ForeignPtr PGresult)
+  -- ^ Execute the query (see 'execQueryInterruptible') and return the number
+  -- of its parameters along with the result.
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
-runQueryImpl Connection {..} sql execSql = do
-  E.getMaskingState >>= \case
-    E.MaskedUninterruptible -> do
-      -- If asynchronous exceptions are already hard-masked, skip spawning a
-      -- separate worker thread and the interruption logic as it won't do
-      -- anything at this point.
-      doRunQuery
-    _ -> E.uninterruptibleMask $ \restore -> do
-      -- While the query runs, the current thread will not be able to receive
-      -- asynchronous exceptions. This prevents clients of the library from
-      -- interrupting execution of the query. To remedy that we spawn a separate
-      -- thread for the query execution and while we wait for its completion, we
-      -- are able to receive asynchronous exceptions (assuming that threaded GHC
-      -- runtime system is used) and react appropriately.
-      queryRunner <- asyncWithUnmask $ \unmask -> do
-        -- Unconditionally unmask asynchronous exceptions here so that 'cancel'
-        -- operation potentially invoked below works as expected.
-        unmask doRunQuery
-      -- If we receive an exception while waiting for the execution to complete,
-      -- we need to send a request to PostgreSQL for query cancellation and wait
-      -- for the query runner thread to terminate. It is paramount we make the
-      -- exception handler uninterruptible as we can't exit from the main block
-      -- until the query runner thread has terminated.
-      E.onException (restore $ wait queryRunner) $ do
-        c_PQcancel connPtr >>= \case
-          -- If query cancellation request was successfully processed, there is
-          -- nothing else to do apart from waiting for the runner to terminate.
-          Nothing -> cancel queryRunner
-          -- Otherwise we check what happened with the runner. If it already
-          -- finished we're fine, just ignore the result. If it didn't, something
-          -- weird is going on. Maybe the cancellation request went through when
-          -- the thread wasn't making a request to the server? In any case, try to
-          -- cancel again and wait for the thread to terminate.
-          Just _ ->
-            poll queryRunner >>= \case
-              Just _ -> pure ()
-              Nothing -> do
-                void $ c_PQcancel connPtr
-                cancel queryRunner
+runQueryImpl Connection {..} sql execQuery = attachQueryContext $ do
+  t1 <- getMonotonicTime
+  (paramCount, res) <- execQuery
+  t2 <- getMonotonicTime
+  affected <- withForeignPtr res $ verifyResult connPtr
+  -- Commands return no rows, so they contribute nothing to the row and
+  -- value counts.
+  (rows, columns) <- case affected of
+    Left _ -> pure (0, 0)
+    Right rows -> do
+      columns <- fromIntegral <$> withForeignPtr res c_PQnfields
+      pure (rows, columns)
+  let updateStats stats =
+        ConnectionStats
+          { statsQueries = statsQueries stats + 1
+          , statsRows = statsRows stats + rows
+          , statsValues = statsValues stats + (rows * columns)
+          , statsParams = statsParams stats + paramCount
+          , statsTime = statsTime stats + (t2 - t1)
+          }
+  pure (either id id affected, res, updateStats)
   where
-    doRunQuery = do
-      t1 <- getMonotonicTime
-      (paramCount, res) <- execSql
-      t2 <- getMonotonicTime
-      affected <- withForeignPtr res $ verifyResult sql connBackendPid connPtr
-      updateStats <- case affected of
-        Left _ ->
-          pure $ \stats ->
-            stats
-              { statsQueries = statsQueries stats + 1
-              , statsParams = statsParams stats + paramCount
-              , statsTime = statsTime stats + (t2 - t1)
-              }
-        Right rows -> do
-          columns <- fromIntegral <$> withForeignPtr res c_PQnfields
-          pure $ \stats ->
-            ConnectionStats
-              { statsQueries = statsQueries stats + 1
-              , statsRows = statsRows stats + rows
-              , statsValues = statsValues stats + (rows * columns)
-              , statsParams = statsParams stats + paramCount
-              , statsTime = statsTime stats + (t2 - t1)
-              }
-      pure (either id id affected, res, updateStats)
+    -- Attach the query and the backend pid as context to exceptions thrown
+    -- during execution.
+    attachQueryContext m = m `E.catch` rethrowWithContext sql connBackendPid
+
+----------------------------------------
+-- Helpers
+
+-- | Run a single query to completion, interruptibly when possible, and
+-- return its result.
+--
+-- Asynchronous exceptions cannot interrupt the blocking libpq call, so it
+-- runs in a child thread and the parent waits for the result. The wait is
+-- interruptible in the threaded runtime. In the non-threaded one, a blocking
+-- safe FFI call stalls the whole program. An interrupted parent requests
+-- cancellation of the query, but still waits for the child to finish, for
+-- two reasons. The child reads the query and its parameters from buffers
+-- that are only valid until the parent unwinds out of 'withParams'. Once
+-- the exception propagates, the connection can go back to its source (and
+-- e.g. be closed) while the child still uses it. The wait also leaves the
+-- connection idle, ready to run queries again.
+--
+-- If asynchronous exceptions are masked uninterruptibly, nothing can
+-- interrupt the wait anyway, so the blocking call runs directly in the
+-- current thread.
+execQueryInterruptible
+  :: Ptr PGconn
+  -> IO (Ptr PGresult)
+  -- ^ The blocking libpq call executing the query.
+  -> IO (ForeignPtr PGresult)
+execQueryInterruptible connPtr execQuery =
+  E.getMaskingState >>= \case
+    E.MaskedUninterruptible -> checkResult =<< execQuery
+    _ -> E.mask $ \restore -> do
+      resVar <- newEmptyTMVarIO
+      -- The child inherits the masked state, so nothing can interrupt the
+      -- handover of the result.
+      _ <- forkIO $ do
+        res <- execQuery
+        atomically $ putTMVar resVar res
+      -- The result is read, not taken. Nothing guarantees that an
+      -- asynchronous exception cannot arrive between the commit of the STM
+      -- transaction and the re-masking by 'restore'. The current RTS has no
+      -- delivery point there, but the documented semantics don't rule it
+      -- out. In that case 'cancelQuery' has to find the result in place.
+      rawRes <- restore (atomically $ readTMVar resVar) `E.onException` cancelQuery resVar
+      checkResult rawRes
+  where
+    fname = "execQueryInterruptible"
+
+    -- Wrap the result for GC. Throw if libpq couldn't send the query or if
+    -- the query put the connection in a copy mode.
+    checkResult :: Ptr PGresult -> IO (ForeignPtr PGresult)
+    checkResult rawRes = do
+      when (rawRes == nullPtr) $ throwLibPQError connPtr fname
+      res <- newForeignPtr c_ptr_PQclear rawRes
+      st <- withForeignPtr res c_PQresultStatus
+      -- The library doesn't support the copy modes a COPY statement puts the
+      -- connection in. Erroring out is fine: when libpq executes the next
+      -- query, it terminates the copy mode internally.
+      when (isCopyStatus st) $ do
+        hpqTypesError $ fname ++ ": COPY statements are not supported"
+      pure res
+
+    -- Whether a result status indicates one of the copy modes.
+    isCopyStatus :: ExecStatusType -> Bool
+    isCopyStatus st =
+      st == c_PGRES_COPY_IN || st == c_PGRES_COPY_OUT || st == c_PGRES_COPY_BOTH
+
+    -- Request cancellation of the query and wait until the child delivers
+    -- the (discarded) result.
+    cancelQuery :: TMVar (Ptr PGresult) -> IO ()
+    cancelQuery resVar = E.uninterruptibleMask_ $ do
+      -- If the query is already over, only release the result. A
+      -- cancellation request would target no query in particular and waste
+      -- a round trip to the server. It wouldn't affect subsequent queries,
+      -- because the backend discards cancellation requests that it receives
+      -- while idle.
+      atomically (tryTakeTMVar resVar) >>= \case
+        Just res -> c_PQclear res
+        Nothing -> do
+          requestCancellation
+          awaitResult initialCancelDelay
+      where
+        -- Ask the server to cancel the query and ignore errors, which are
+        -- necessarily synchronous inside uninterruptibleMask. If the
+        -- connection is broken, the blocking call fails as well and the
+        -- child delivers an error result shortly anyway.
+        requestCancellation :: IO ()
+        requestCancellation =
+          void (c_PQcancel connPtr) `E.catch` \(_ :: E.SomeException) -> pure ()
+
+        -- Wait for the child to deliver the result. Until it does, repeat
+        -- the cancellation request with a progressively larger delay.
+        --
+        -- The backend acts on a cancellation request only while a command
+        -- runs. It silently discards a request that arrives before it
+        -- started to execute the query, and the only sign that a request
+        -- took effect is the query ending early. Hence the repetition. The
+        -- delay grows, because what matters here is how long the backend
+        -- needs to read the query, which depends on its size and on how the
+        -- server is reached. The backend remembers a request that it
+        -- receives during execution until the query reaches an interrupt
+        -- check, so late repeats are merely wasted round trips, and the
+        -- growing delay keeps them rare.
+        awaitResult :: Int -> IO ()
+        awaitResult delay =
+          waitResultFor delay >>= \case
+            Just res -> c_PQclear res
+            Nothing -> do
+              requestCancellation
+              awaitResult . min maxCancelDelay $ 2 * delay
+
+        -- Wait until the child delivers the result or the given number of
+        -- microseconds elapses. 'System.Timeout.timeout' is of no use with
+        -- asynchronous exceptions masked uninterruptibly.
+        waitResultFor :: Int -> IO (Maybe (Ptr PGresult))
+        waitResultFor micros = do
+          expiredVar <- registerDelay micros
+          atomically $
+            (Just <$> takeTMVar resVar)
+              `orElse` (Nothing <$ (check =<< readTVar expiredVar))
+
+        initialCancelDelay :: Int
+        initialCancelDelay = 50 * 1000 -- 50 ms
+        maxCancelDelay :: Int
+        maxCancelDelay = 60 * 1000 * 1000 -- 60 s
+
+-- | Pass query parameters to the continuation in the format expected by
+-- 'c_PQexecParams' and 'c_PQexecPrepared', i.e. the number of parameters
+-- and arrays of their types, values, lengths and formats.
+--
+-- The pointers to the values alias the buffers of their ByteStrings without
+-- a copy, so they're valid only within the corresponding
+-- 'BS.unsafeUseAsCStringLen' callback. This is why 'withMany' marshals the
+-- parameters: the rest of the computation, including the call to the
+-- continuation that reads the pointers, runs inside the callbacks of all
+-- the parameters.
+withParams
+  :: [PQParam]
+  -> (CInt -> Ptr Oid -> Ptr CString -> Ptr CInt -> Ptr Format -> IO r)
+  -> IO r
+withParams params action =
+  withMany withParam params $ \entries -> do
+    let (oids, values, lengths) = unzip3 entries
+    withArray oids $ \oidsPtr ->
+      withArray values $ \valuesPtr ->
+        withArray lengths $ \lengthsPtr ->
+          withArray (replicate n c_FORMAT_BINARY) $ \formatsPtr ->
+            action (fromIntegral n) oidsPtr valuesPtr lengthsPtr formatsPtr
+  where
+    n = length params
+
+    -- Maximum size of a single value: MaxAllocSize from the PostgreSQL
+    -- sources.
+    maxValueSize :: Int
+    maxValueSize = 0x3fffffff
+
+    -- Marshal one parameter into its (oid, value, length) entry.
+    withParam :: PQParam -> ((Oid, CString, CInt) -> IO r) -> IO r
+    withParam (PQParam oid mvalue) k = case mvalue of
+      Nothing -> k (oid, nullPtr, 0)
+      Just value -> do
+        -- PostgreSQL cannot store a larger value, so reject it client side
+        -- with a clear error. In particular, the length then fits in the
+        -- CInt passed to libpq. A wrapped-around length would result in a
+        -- confusing error or silent truncation of the value.
+        when (BS.length value > maxValueSize) . hpqTypesError $
+          "withParams: value of length "
+            ++ show (BS.length value)
+            ++ " is larger than the maximum size of a value ("
+            ++ show maxValueSize
+            ++ " bytes)"
+        BS.unsafeUseAsCStringLen value $ \(ptr, len) ->
+          if ptr == nullPtr
+            -- A null pointer can back a ByteString. libpq interprets a null
+            -- pointer as SQL NULL, so pass a non-null empty string instead.
+            then k (oid, nullStringPtr, 0)
+            else k (oid, ptr, fromIntegral len)
 
 verifyResult
-  :: (HasCallStack, IsSQL sql)
-  => sql
-  -> BackendPid
-  -> Ptr PGconn
+  :: Ptr PGconn
   -> Ptr PGresult
   -> IO (Either Int Int)
-verifyResult sql pid conn res = do
+verifyResult conn res = do
   -- works even if res is NULL
   rst <- c_PQresultStatus res
   case rst of
@@ -423,48 +567,29 @@ verifyResult sql pid conn res = do
     _ | rst == c_PGRES_TUPLES_OK -> Right . fromIntegral <$> c_PQntuples res
     _ | rst == c_PGRES_FATAL_ERROR -> throwSQLError
     _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
-    -- The library doesn't support the copy modes a COPY statement puts the
-    -- connection in. Erroring out is fine: when libpq executes the next
-    -- query, it terminates the copy mode internally.
-    _ | isCopyStatus rst -> do
-      rethrowWithContext sql pid . toException $
-        HPQTypesError "verifyResult: COPY statements are not supported"
     _ | otherwise -> pure . Left $ 0
   where
-    isCopyStatus :: ExecStatusType -> Bool
-    isCopyStatus st =
-      st == c_PGRES_COPY_IN || st == c_PGRES_COPY_OUT || st == c_PGRES_COPY_BOTH
-
-    throwSQLError =
-      rethrowWithContext sql pid
-        =<< if res == nullPtr
-          then
-            E.toException . QueryError <$> (safePeekCString' =<< c_PQerrorMessage conn)
-          else
-            E.toException
-              <$> ( DetailedQueryError
-                      <$> field c_PG_DIAG_SEVERITY
-                      <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
-                      <*> field c_PG_DIAG_MESSAGE_PRIMARY
-                      <*> mfield c_PG_DIAG_MESSAGE_DETAIL
-                      <*> mfield c_PG_DIAG_MESSAGE_HINT
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
-                      <*> mfield c_PG_DIAG_INTERNAL_QUERY
-                      <*> mfield c_PG_DIAG_CONTEXT
-                      <*> mfield c_PG_DIAG_SOURCE_FILE
-                      <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
-                      <*> mfield c_PG_DIAG_SOURCE_FUNCTION
-                  )
+    throwSQLError
+      | res == nullPtr = throwLibPQError conn "verifyResult"
+      | otherwise =
+          E.throwIO
+            =<< DetailedQueryError
+              <$> field c_PG_DIAG_SEVERITY
+              <*> (stringToErrorCode <$> field c_PG_DIAG_SQLSTATE)
+              <*> field c_PG_DIAG_MESSAGE_PRIMARY
+              <*> mfield c_PG_DIAG_MESSAGE_DETAIL
+              <*> mfield c_PG_DIAG_MESSAGE_HINT
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_STATEMENT_POSITION)
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_INTERNAL_POSITION)
+              <*> mfield c_PG_DIAG_INTERNAL_QUERY
+              <*> mfield c_PG_DIAG_CONTEXT
+              <*> mfield c_PG_DIAG_SOURCE_FILE
+              <*> ((mread =<<) <$> mfield c_PG_DIAG_SOURCE_LINE)
+              <*> mfield c_PG_DIAG_SOURCE_FUNCTION
       where
         field f = fromMaybe "" <$> mfield f
         mfield f = safePeekCString =<< c_PQresultErrorField res f
 
     throwParseError sn =
-      E.throwIO
-        DBException
-          { dbeQueryContext = sql
-          , dbeBackendPid = pid
-          , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
-          , dbeCallStack = callStack
-          }
+      hpqTypesError $
+        "verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn
