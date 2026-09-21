@@ -472,6 +472,21 @@ savepointTest td = testCase "Savepoint support works"
     res2 <- fetchMany runIdentity
     assertEqualEq "Result of all queries is visible" [int1, int2] res2
 
+savepointDeadConnectionTest :: TestData -> Test
+savepointDeadConnectionTest td = testCase
+  "Failed savepoint cleanup doesn't mask the error of the action"
+  $ do
+    -- The action kills its own backend. The savepoint cleanup fails as well,
+    -- because the connection is gone. The error of the action must propagate
+    -- regardless.
+    eres <- try . runTestEnv td defaultTransactionSettings . withSavepoint "test" $ do
+      runSQL_ "SELECT pg_terminate_backend(pg_backend_pid())"
+    case eres of
+      Left DBException {..} ->
+        assertBool ("Exception comes from the action: " ++ show dbeQueryContext) $
+          "pg_terminate_backend" `L.isInfixOf` show dbeQueryContext
+      Right () -> assertFailure "DBException wasn't thrown"
+
 notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
   listen chan
@@ -851,6 +866,7 @@ tests td =
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
+  , savepointDeadConnectionTest td
   , restartTest td
   , notifyTest td
   , queryInterruptionTest td

@@ -14,6 +14,7 @@ import GHC.Stack
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Raw
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
@@ -39,7 +40,10 @@ withSavepoint (Savepoint savepoint) m =
           -- be interrupted and leave the savepoint in an unexpected state.
           uninterruptibleMask_ $ case ec of
             ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
-            _ -> rollbackAndReleaseSavepoint
+            -- If the action failed, its original exception must propagate.
+            -- Without this handler, a failure of the cleanup (e.g. after the
+            -- connection died) masks it.
+            _ -> rollbackAndReleaseSavepoint `catchSync` \_ -> pure ()
       )
       (\() -> m)
   where

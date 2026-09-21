@@ -15,6 +15,9 @@
   the connection in a state that admits no further queries, e.g. because the
   connection died, the `ROLLBACK` that ended the automatic transaction of the
   query failed. Its failure masked the exception thrown from the query.
+* Fix a bug in `withSavepoint`. If the action threw and the cleanup of the
+  savepoint failed as well, e.g. because the connection died, the failure of
+  the cleanup masked the exception of the action.
 * Row fetching functions no longer decode all rows of the result up front
   and retain them until the fold completes. They decode each row right
   before the fold function consumes it. As a result, e.g. `mapDB_` over a
