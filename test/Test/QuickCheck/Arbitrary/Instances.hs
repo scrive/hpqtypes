@@ -1,12 +1,14 @@
-{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.QuickCheck.Arbitrary.Instances where
 
 import Data.Aeson
+import Data.Aeson.Key qualified as K
+import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Char
+import Data.IP
 import Data.Int
 import Data.Scientific
 import Data.Text qualified as T
@@ -18,27 +20,21 @@ import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 
 import Database.PostgreSQL.PQTypes
-import Test.Aeson.Compat qualified as C
 
+-- | 'String' with a generator restricted to Latin-1 characters other than
+-- NUL. PostgreSQL rejects NUL in text values.
 newtype String0 = String0 {unString0 :: String}
-  deriving (Eq, Ord, Show)
-
-instance PQFormat String0 where
-  pqFormat = pqFormat @String
-
-instance FromSQL String0 where
-  type PQBase String0 = PQBase String
-  fromSQL = fmap String0 . fromSQL
-
-instance ToSQL String0 where
-  type PQDest String0 = PQDest String
-  toSQL (String0 s) = toSQL s
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (PQFormat, ToSQL, FromSQL)
 
 instance Arbitrary String0 where
   arbitrary = String0 . map (chr . fromIntegral . unWord0) <$> arbitrary
 
+-- | 'Word8' with a generator that excludes 0. Textual values built from
+-- these bytes ('String0', 'T.Text') therefore contain no NUL characters.
+-- PostgreSQL rejects NUL in text values.
 newtype Word0 = Word0 {unWord0 :: Word8}
-  deriving (Enum, Eq, Integral, Num, Ord, Real)
+  deriving newtype (Enum, Eq, Integral, Num, Ord, Real)
 
 instance Bounded Word0 where
   minBound = 1
@@ -47,6 +43,17 @@ instance Bounded Word0 where
 instance Arbitrary Word0 where
   arbitrary = arbitrarySizedBoundedIntegral
   shrink = shrinkIntegral
+
+newtype AsciiChar = AsciiChar {unAsciiChar :: Char}
+  deriving stock (Eq, Show)
+  deriving newtype (PQFormat, ToSQL, FromSQL)
+
+instance Arbitrary AsciiChar where
+  -- QuickCheck >= 2.10 generates Unicode characters for Char, but PostgreSQL
+  -- only accepts ASCII ones here. Unlike in text values, NUL is fine: a "char"
+  -- value is a raw byte.
+  arbitrary = AsciiChar . chr <$> oneof [choose (0, 127), choose (0, 255)]
+  shrink = map AsciiChar . shrink . unAsciiChar
 
 instance Arbitrary BS.ByteString where
   arbitrary = BS.pack . map unWord0 <$> arbitrary
@@ -63,11 +70,88 @@ instance Arbitrary U.UUID where
 
 ----------------------------------------
 
-instance Arbitrary Scientific where
-  arbitrary = scientific <$> arbitrary <*> ((`mod` 100) <$> arbitrary)
+-- | The three components of an interval are mutually independent and
+-- signed. The generator therefore draws them independently, with mixed signs
+-- and values past the carry boundaries (e.g. more than 24 hours worth of
+-- microseconds).
+instance Arbitrary Interval where
+  arbitrary =
+    mconcat
+      <$> sequence
+        [ imonths <$> choose (-1000, 1000)
+        , idays <$> choose (-1000, 1000)
+        , imicroseconds <$> choose (-172800000000, 172800000000) -- 2 days
+        ]
 
-instance Arbitrary C.Value0 where
-  arbitrary = C.mkValue0 <$> value depth depth
+-- | 'Interval' with structural equality. 'Eq' of 'Interval' compares the way
+-- the server's operators do. A roundtrip test that uses it can't see a
+-- change of components that preserves the estimate, e.g. days folded into
+-- microseconds. The server treats such values differently in arithmetic.
+newtype Interval0 = Interval0 Interval
+  deriving newtype (Arbitrary, FromSQL, PQFormat, Show, ToSQL)
+
+instance Eq Interval0 where
+  Interval0 a == Interval0 b = sameComponents a b
+
+instance Arbitrary json => Arbitrary (JSON json) where
+  arbitrary = JSON <$> arbitrary
+
+instance Arbitrary jsonb => Arbitrary (JSONB jsonb) where
+  arbitrary = JSONB <$> arbitrary
+
+instance Arbitrary a => Arbitrary (V.Vector a) where
+  arbitrary = V.fromList <$> arbitrary
+
+-- | Two-dimensional array with a generator that respects the rectangularity
+-- of PostgreSQL arrays.
+newtype Matrix a = Matrix [[a]]
+  deriving stock (Show)
+  deriving newtype (PQFormat, ToSQL, FromSQL)
+
+-- | The server normalizes arrays with no elements to zero-dimensional ones.
+-- A matrix of empty rows is therefore equal to the empty matrix.
+instance Eq a => Eq (Matrix a) where
+  Matrix [] == Matrix yss = all null yss
+  Matrix xss == Matrix [] = all null xss
+  Matrix xss == Matrix yss = xss == yss
+
+instance Arbitrary a => Arbitrary (Matrix a) where
+  arbitrary = do
+    let bound = (`mod` 100) . abs
+    outerDim <- bound <$> arbitrary
+    innerDim <- bound <$> arbitrary
+    Matrix <$> vectorOf outerDim (vectorOf innerDim arbitrary)
+
+-- | Like 'Matrix', but based on 'V.Vector'.
+newtype VMatrix a = VMatrix (V.Vector (V.Vector a))
+  deriving stock (Show)
+  deriving (PQFormat, ToSQL, FromSQL) via V.Vector (V.Vector a)
+
+instance Eq a => Eq (VMatrix a) where
+  VMatrix v1 == VMatrix v2
+    | V.null v1 = V.all V.null v2
+    | V.null v2 = V.all V.null v1
+    | otherwise = v1 == v2
+
+instance Arbitrary a => Arbitrary (VMatrix a) where
+  arbitrary = do
+    Matrix xss <- arbitrary
+    pure . VMatrix . V.fromList $ map V.fromList xss
+
+----------------------------------------
+
+instance Arbitrary Scientific where
+  arbitrary = scientific <$> arbitrary <*> (subtract 50 . (`mod` 100) <$> arbitrary)
+
+-- | 'Value' with a custom generator. The 'Arbitrary' instance from @aeson@ is
+-- unsuitable for roundtrip tests. Its strings and object keys can contain NUL
+-- characters, which PostgreSQL rejects. Its numbers have unbounded exponents,
+-- which explode in a @numeric@ column.
+newtype Value0 = Value0 {unValue0 :: Value}
+  deriving newtype (Eq, FromJSON, Show, ToJSON)
+
+instance Arbitrary Value0 where
+  arbitrary = Value0 <$> value depth depth
     where
       depth :: Int
       depth = 3
@@ -78,7 +162,8 @@ instance Arbitrary C.Value0 where
         | otherwise = oneof $ leafs ++ branches
         where
           branches =
-            [ Object . C.fromList <$> shortListOf ((,) <$> arbitrary <*> subValue)
+            [ Object . KM.fromList
+                <$> shortListOf ((,) . K.fromText <$> arbitrary <*> subValue)
             , Array . V.fromList <$> shortListOf subValue
             ]
           leafs =
@@ -91,11 +176,16 @@ instance Arbitrary C.Value0 where
           subValue = value (i - 1) n
           shortListOf = fmap (take depth) . listOf
 
+-- | 'Value0' with the SQL instances derived via t'JSONB'.
+newtype JSONBValue0 = JSONBValue0 Value0
+  deriving newtype (Arbitrary, Eq, Show)
+  deriving (PQFormat, ToSQL, FromSQL) via JSONB Value0
+
 -- | The @json@ type stores its input text verbatim. A raw value therefore
 -- roundtrips if the generator produces the encoding of a JSON value. The
 -- server rejects anything else.
 instance Arbitrary RawJSON where
-  arbitrary = RawJSON . BSL.toStrict . encode <$> arbitrary @C.Value0
+  arbitrary = RawJSON . BSL.toStrict . encode <$> arbitrary @Value0
 
 ----------------------------------------
 
@@ -131,731 +221,71 @@ instance Arbitrary UTCTime where
 
 ----------------------------------------
 
-{- FOURMOLU_DISABLE -}
+instance Arbitrary IP where
+  arbitrary = oneof [IPv4 <$> genIPv4, IPv6 <$> genIPv6]
 
-#if !MIN_VERSION_QuickCheck(2,9,0)
-instance Arbitrary a => Arbitrary (Identity a) where
-  arbitrary = Identity <$> arbitrary
-#endif
+instance Arbitrary IPRange where
+  arbitrary =
+    oneof
+      [ IPv4Range <$> (makeAddrRange <$> genIPv4 <*> choose (0, 32))
+      , IPv6Range <$> (makeAddrRange <$> genIPv6 <*> choose (0, 128))
+      ]
 
-#if !MIN_VERSION_QuickCheck(2,9,0)
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6) where
-    arbitrary = (,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
+genIPv4 :: Gen IPv4
+genIPv4 = toIPv4 <$> vectorOf 4 (choose (0, 255))
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7) where
-    arbitrary = (,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
+genIPv6 :: Gen IPv6
+genIPv6 = toIPv6 <$> vectorOf 8 (choose (0, 65535))
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8) where
-    arbitrary = (,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
+----------------------------------------
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9) where
-    arbitrary = (,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+-- | Range of a discrete type in the canonical form: inclusive lower bound,
+-- exclusive upper bound. The server normalizes such ranges to this form.
+discreteRange :: (Arbitrary a, Ord a) => Gen (Range a)
+discreteRange =
+  frequency
+    [ (1, pure Empty)
+    ,
+      ( 9
+      , do
+          (a, b) <- arbitrary `suchThat` uncurry (/=)
+          lower <- elements [Incl $ min a b, Inf]
+          upper <- elements [Excl $ max a b, Inf]
+          pure $ Range lower upper
+      )
+    ]
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) where
-    arbitrary = (,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-#endif
+-- | Range of a continuous type. The bounds never have an equal value,
+-- because the server normalizes such a range to 'Empty' unless both bounds
+-- are inclusive.
+continuousRange :: (Arbitrary a, Ord a) => Gen (Range a)
+continuousRange =
+  frequency
+    [ (1, pure Empty)
+    ,
+      ( 9
+      , do
+          (a, b) <- arbitrary `suchThat` uncurry (/=)
+          lower <- elements [Incl $ min a b, Excl $ min a b, Inf]
+          upper <- elements [Incl $ max a b, Excl $ max a b, Inf]
+          pure $ Range lower upper
+      )
+    ]
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) where
-    arbitrary = (,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
+instance Arbitrary (Range Int32) where
+  arbitrary = discreteRange
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) where
-    arbitrary = (,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
+instance Arbitrary (Range Int64) where
+  arbitrary = discreteRange
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) where
-    arbitrary = (,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary (Range Day) where
+  arbitrary = discreteRange
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) where
-    arbitrary = (,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary (Range Scientific) where
+  arbitrary = continuousRange
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) where
-    arbitrary = (,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary (Range LocalTime) where
+  arbitrary = continuousRange
 
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16) where
-    arbitrary = (,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) where
-    arbitrary = (,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18) where
-    arbitrary = (,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  , Arbitrary a46
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  , Arbitrary a46, Arbitrary a47
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  , Arbitrary a46, Arbitrary a47, Arbitrary a48
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  , Arbitrary a46, Arbitrary a47, Arbitrary a48, Arbitrary a49
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance
-  ( Arbitrary a1, Arbitrary a2, Arbitrary a3, Arbitrary a4, Arbitrary a5
-  , Arbitrary a6, Arbitrary a7, Arbitrary a8, Arbitrary a9, Arbitrary a10
-  , Arbitrary a11, Arbitrary a12, Arbitrary a13, Arbitrary a14, Arbitrary a15
-  , Arbitrary a16, Arbitrary a17, Arbitrary a18, Arbitrary a19, Arbitrary a20
-  , Arbitrary a21, Arbitrary a22, Arbitrary a23, Arbitrary a24, Arbitrary a25
-  , Arbitrary a26, Arbitrary a27, Arbitrary a28, Arbitrary a29, Arbitrary a30
-  , Arbitrary a31, Arbitrary a32, Arbitrary a33, Arbitrary a34, Arbitrary a35
-  , Arbitrary a36, Arbitrary a37, Arbitrary a38, Arbitrary a39, Arbitrary a40
-  , Arbitrary a41, Arbitrary a42, Arbitrary a43, Arbitrary a44, Arbitrary a45
-  , Arbitrary a46, Arbitrary a47, Arbitrary a48, Arbitrary a49, Arbitrary a50
-  ) => Arbitrary (a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50) where
-    arbitrary = (,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,)
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary (Range UTCTime) where
+  arbitrary = continuousRange
