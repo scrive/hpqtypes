@@ -30,6 +30,7 @@ import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
@@ -126,13 +127,34 @@ withConnectionData
   -> (ConnectionData m -> m r)
   -> m r
 withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
-  let maybeRestart = case tsRestartPredicate ts of
-        Just _ -> handleJust (expred n) $ \_ -> loop $ n + 1
-        Nothing -> id
-  maybeRestart
-    . fmap fst
-    . generalBracket (initConnectionData cs cam) finalizeConnectionData
-    $ action
+  eres <-
+    try
+      . fmap fst
+      . generalBracket
+        (initConnectionData cs cam)
+        ( \cd ec -> case ec of
+            ExitCaseSuccess {} -> finalizeConnectionData cd ec
+            -- If the action failed, its original exception must propagate.
+            -- Without this handler, a failure of the cleanup (e.g. of the
+            -- ROLLBACK query after the connection died) masks it and hides it
+            -- from the restart predicate below. The handler lets an
+            -- asynchronous exception through, so that e.g. a thread
+            -- cancellation delivered during the cleanup is not lost.
+            _ ->
+              finalizeConnectionData cd ec
+                `catchSync` \_ -> pure ()
+        )
+      $ action
+  case eres of
+    Right res -> pure res
+    -- The restart happens outside of the exception handler, so that the
+    -- retried transaction doesn't run with asynchronous exceptions masked.
+    -- An asynchronous exception never triggers a restart. The restart
+    -- predicate can match it if it's instantiated at SomeException.
+    Left e
+      | isAsyncException e -> throwM e
+      | Just () <- expred n e -> loop $ n + 1
+      | otherwise -> throwM e
   where
     cam = tsConnectionAcquisitionMode ts
 

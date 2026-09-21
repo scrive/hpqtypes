@@ -3,6 +3,7 @@
 module Main (main) where
 
 import Control.Concurrent.Lifted
+import Control.Exception qualified as E
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -641,6 +642,41 @@ jsonTest td = testCase "JSON conversion failures and raw values"
             "expected Number, but encountered String" `L.isInfixOf` show err
         Right () -> liftBase . assertFailure $ preface <> ": no error was thrown"
 
+restartTest :: TestData -> Test
+restartTest td =
+  testGroup
+    "Transaction restarts"
+    [ restartedTransactionIsNotMasked
+    , asyncExceptionsDontTriggerRestarts
+    ]
+  where
+    restartedTransactionIsNotMasked = testCase
+      "Restarted transaction doesn't run with asynchronous exceptions masked"
+      $ do
+        let ts =
+              defaultTransactionSettings
+                { tsRestartPredicate = Just . RestartPredicate $ \(e :: E.ErrorCall) _ ->
+                    e == E.ErrorCall "restart"
+                }
+        attempts <- newMVar (0 :: Int)
+        runTestEnv td ts $ do
+          n <- modifyMVar attempts $ \n -> pure (n + 1, n + 1)
+          when (n == 1) . throwM $ E.ErrorCall "restart"
+          ms <- liftBase E.getMaskingState
+          assertEqualEq "Unexpected masking state" E.Unmasked ms
+
+    asyncExceptionsDontTriggerRestarts = testCase
+      "Asynchronous exceptions don't trigger a transaction restart"
+      $ do
+        let ts =
+              defaultTransactionSettings
+                { tsRestartPredicate = Just . RestartPredicate $ \(_ :: SomeException) n ->
+                    n < 3
+                }
+        timeout 500000 (runTestEnv td ts $ runSQL_ "SELECT pg_sleep(2)") >>= \case
+          Just _ -> assertFailure "Query wasn't interrupted in time"
+          Nothing -> pure ()
+
 copyNotSupportedTest :: TestData -> Test
 copyNotSupportedTest td = testCase "COPY statements fail with an error"
   . runTestEnv td defaultTransactionSettings
@@ -798,6 +834,7 @@ tests td =
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
+  , restartTest td
   , notifyTest td
   , queryInterruptionTest td
   , finalizationInterruptionTest td

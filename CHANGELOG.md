@@ -5,6 +5,12 @@
 * Execution of a `COPY` statement now throws an error that says the statement
   is not supported. Previously the library silently reported success and left the
   connection in copy mode until the next query.
+* Fix transaction restart handling. A restarted transaction no longer runs
+  with asynchronous exceptions masked. An asynchronous exception, e.g. a
+  timeout, no longer triggers a restart. A restart predicate that matches
+  it makes no difference. If a transaction fails, a subsequent failure of
+  its cleanup no longer masks the original exception. Previously this hid
+  the exception from the restart predicate.
 * Row fetching functions no longer decode all rows of the result up front
   and retain them until the fold completes. They decode each row right
   before the fold function consumes it. As a result, e.g. `mapDB_` over a
