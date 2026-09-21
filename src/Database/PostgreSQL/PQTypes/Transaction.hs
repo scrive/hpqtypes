@@ -109,10 +109,17 @@ unsafeWithoutTransaction action = do
   getConnectionAcquisitionMode >>= \case
     AcquireOnDemand -> action
     AcquireAndHold {} ->
-      bracket_
-        (uninterruptibleMask_ $ runSQL_ "COMMIT" `onException` beginNoException)
-        begin
-        action
+      fst
+        <$> generalBracket
+          (uninterruptibleMask_ $ runSQL_ "COMMIT" `onException` beginNoException)
+          ( \() -> \case
+              ExitCaseSuccess _ -> begin
+              -- If the action failed, its original exception must propagate.
+              -- Without this handler, a failure of the BEGIN (e.g. after the
+              -- connection died) masks it.
+              _ -> begin `catchSync` \_ -> pure ()
+          )
+          (\() -> action)
 
 ----------------------------------------
 -- Helpers

@@ -487,6 +487,21 @@ savepointDeadConnectionTest td = testCase
           "pg_terminate_backend" `L.isInfixOf` show dbeQueryContext
       Right () -> assertFailure "DBException wasn't thrown"
 
+withoutTransactionDeadConnectionTest :: TestData -> Test
+withoutTransactionDeadConnectionTest td = testCase
+  "Failed BEGIN after unsafeWithoutTransaction doesn't mask the error of the action"
+  $ do
+    -- The action kills its own backend. The BEGIN that restores the
+    -- transaction fails as well, because the connection is gone. The error of
+    -- the action must propagate regardless.
+    eres <- try . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
+      runSQL_ "SELECT pg_terminate_backend(pg_backend_pid())"
+    case eres of
+      Left DBException {..} ->
+        assertBool ("Exception comes from the action: " ++ show dbeQueryContext) $
+          "pg_terminate_backend" `L.isInfixOf` show dbeQueryContext
+      Right () -> assertFailure "DBException wasn't thrown"
+
 notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
   listen chan
@@ -867,6 +882,7 @@ tests td =
   , readOnlyTest td
   , savepointTest td
   , savepointDeadConnectionTest td
+  , withoutTransactionDeadConnectionTest td
   , restartTest td
   , notifyTest td
   , queryInterruptionTest td

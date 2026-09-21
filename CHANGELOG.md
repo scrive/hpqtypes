@@ -3,8 +3,8 @@
   `connect`. If an asynchronous exception interrupted `connect`, the
   use-after-free was possible.
 * Execution of a `COPY` statement now throws an error that says the statement
-  is not supported. Previously the library silently reported success and left the
-  connection in copy mode until the next query.
+  is not supported. Previously the library silently reported success and left
+  the connection in copy mode until the next query.
 * Fix transaction restart handling. A restarted transaction no longer runs
   with asynchronous exceptions masked. An asynchronous exception, e.g. a
   timeout, no longer triggers a restart. A restart predicate that matches
@@ -18,6 +18,9 @@
 * Fix a bug in `withSavepoint`. If the action threw and the cleanup of the
   savepoint failed as well, e.g. because the connection died, the failure of
   the cleanup masked the exception of the action.
+* Fix a bug in `unsafeWithoutTransaction`. If the action threw and the `BEGIN`
+  that restores the transaction failed as well, e.g. because the connection
+  died, the failure of the `BEGIN` masked the exception of the action.
 * Row fetching functions no longer decode all rows of the result up front
   and retain them until the fold completes. They decode each row right
   before the fold function consumes it. As a result, e.g. `mapDB_` over a
