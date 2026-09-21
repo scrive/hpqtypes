@@ -1,4 +1,7 @@
 # hpqtypes-1.15.0.0 (????-??-??)
+* Fix a use-after-free of the buffer that holds the connection string in
+  `connect`. If an asynchronous exception interrupted `connect`, the
+  use-after-free was possible.
 * Row fetching functions no longer decode all rows of the result up front
   and retain them until the fold completes. They decode each row right
   before the fold function consumes it. As a result, e.g. `mapDB_` over a

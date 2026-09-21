@@ -38,7 +38,6 @@ import Data.Set qualified as S
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import GHC.Clock (getMonotonicTime)
@@ -187,7 +186,7 @@ poolSource cs mkPoolConfig = do
 -- 'disconnect', otherwise there will be a resource leak.
 connect :: ConnectionSettings -> IO Connection
 connect ConnectionSettings {..} = mask $ \unmask -> do
-  connPtr <- BS.useAsCString (T.encodeUtf8 csConnInfo) (openConnection unmask)
+  connPtr <- openConnection unmask $ T.encodeUtf8 csConnInfo
   (`onException` c_PQfinish connPtr) . unmask $ do
     status <- c_PQstatus connPtr
     when (status /= c_CONNECTION_OK) $
@@ -218,7 +217,7 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
   where
     fname = "connect"
 
-    openConnection :: (forall r. IO r -> IO r) -> CString -> IO (Ptr PGconn)
+    openConnection :: (forall r. IO r -> IO r) -> BS.ByteString -> IO (Ptr PGconn)
     openConnection unmask conninfo = do
       -- We use synchronous version of connecting to the database using
       -- 'PQconnectdb' instead of 'PQconnectStart' and 'PQconnectPoll', because
@@ -230,11 +229,14 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
       -- exception, so to guarantee prompt return in such scenario 'PQconnectdb'
       -- is run in a separate child thread. If the parent receives an exception
       -- while the child still runs, the child is signaled to clean up after
-      -- itself and left behind.
+      -- itself and left behind. This is why the child itself allocates the
+      -- buffer with the connection string. If the parent allocated it, the
+      -- exception would free it when it unwinds the stack, possibly while
+      -- 'PQconnectdb' still reads it.
       connVar <- newEmptyTMVarIO
       runningVar <- newTVarIO True
       _ <- forkIO $ do
-        conn <- c_PQconnectdb conninfo
+        conn <- BS.useAsCString conninfo c_PQconnectdb
         join . atomically $
           readTVar runningVar >>= \case
             True -> do
