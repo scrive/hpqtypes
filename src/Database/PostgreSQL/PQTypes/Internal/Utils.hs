@@ -17,6 +17,7 @@ module Database.PostgreSQL.PQTypes.Internal.Utils
   , unexpectedNULL
   , isAsyncException
   , catchSync
+  , runCleanup
   ) where
 
 import Control.Exception qualified as E
@@ -64,6 +65,21 @@ catchSync action handler =
     if isAsyncException e
       then throwM e
       else handler e
+
+-- | Run the cleanup of a bracket, given the exit case of the bracketed
+-- action.
+--
+-- If the action succeeded, a failure of the cleanup propagates. If the action
+-- failed, its own exception must propagate instead, so a synchronous failure
+-- of the cleanup is dropped. Without this, the failure of the cleanup would
+-- replace the exception of the action, and e.g. a restart predicate would
+-- never see it. This happens in practice: when the connection died, both the
+-- action and its cleanup fail. An asynchronous exception delivered during the
+-- cleanup still propagates, so that e.g. a thread cancellation is not lost.
+runCleanup :: MonadCatch m => ExitCase a -> m () -> m ()
+runCleanup ec cleanup = case ec of
+  ExitCaseSuccess _ -> cleanup
+  _ -> cleanup `catchSync` \_ -> pure ()
 
 -- Safely read value.
 mread :: Read a => String -> Maybe a

@@ -38,12 +38,9 @@ withSavepoint (Savepoint savepoint) m =
       ( \() ec ->
           -- Hard mask asynchronous exceptions, otherwise the queries below can
           -- be interrupted and leave the savepoint in an unexpected state.
-          uninterruptibleMask_ $ case ec of
+          uninterruptibleMask_ . runCleanup ec $ case ec of
             ExitCaseSuccess _ -> runQuery_ sqlReleaseSavepoint
-            -- If the action failed, its original exception must propagate.
-            -- Without this handler, a failure of the cleanup (e.g. after the
-            -- connection died) masks it.
-            _ -> rollbackAndReleaseSavepoint `catchSync` \_ -> pure ()
+            _ -> rollbackAndReleaseSavepoint
       )
       (\() -> m)
   where
@@ -112,13 +109,7 @@ unsafeWithoutTransaction action = do
       fst
         <$> generalBracket
           (uninterruptibleMask_ $ runSQL_ "COMMIT" `onException` beginNoException)
-          ( \() -> \case
-              ExitCaseSuccess _ -> begin
-              -- If the action failed, its original exception must propagate.
-              -- Without this handler, a failure of the BEGIN (e.g. after the
-              -- connection died) masks it.
-              _ -> begin `catchSync` \_ -> pure ()
-          )
+          (\() ec -> runCleanup ec begin)
           (\() -> action)
 
 ----------------------------------------

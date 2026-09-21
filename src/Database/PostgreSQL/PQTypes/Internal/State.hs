@@ -132,18 +132,7 @@ withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
       . fmap fst
       . generalBracket
         (initConnectionData cs cam)
-        ( \cd ec -> case ec of
-            ExitCaseSuccess {} -> finalizeConnectionData cd ec
-            -- If the action failed, its original exception must propagate.
-            -- Without this handler, a failure of the cleanup (e.g. of the
-            -- ROLLBACK query after the connection died) masks it and hides it
-            -- from the restart predicate below. The handler lets an
-            -- asynchronous exception through, so that e.g. a thread
-            -- cancellation delivered during the cleanup is not lost.
-            _ ->
-              finalizeConnectionData cd ec
-                `catchSync` \_ -> pure ()
-        )
+        (\cd ec -> runCleanup ec $ finalizeConnectionData cd ec)
       $ action
   case eres of
     Right res -> pure res
@@ -239,17 +228,10 @@ withConnection ConnectionData {..} action = do
               fmap fst
                 . generalBracket
                   (autoQuery conn "BEGIN READ ONLY")
-                  ( \() -> \case
-                      ExitCaseSuccess {} -> autoQuery conn "ROLLBACK"
-                      -- If the action failed, its original exception must
-                      -- propagate. Without this handler, a failure of the
-                      -- ROLLBACK masks it. This happens in practice: the
-                      -- action can leave the connection in a state in which
-                      -- no query can run, e.g. when the connection died. The
-                      -- connection returns to its source as failed either
-                      -- way, and the source disposes of it.
-                      _ -> autoQuery conn "ROLLBACK" `catchSync` \_ -> pure ()
-                  )
+                  -- If the ROLLBACK fails after the action failed, the
+                  -- connection returns to its source as failed either way,
+                  -- and the source disposes of it.
+                  (\() ec -> runCleanup ec $ autoQuery conn "ROLLBACK")
                 $ \() -> action conn
           )
     Acquired _ _ conn _ -> action conn
