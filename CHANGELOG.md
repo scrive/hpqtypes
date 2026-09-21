@@ -2,6 +2,9 @@
 * Fix a use-after-free of the buffer that holds the connection string in
   `connect`. If an asynchronous exception interrupted `connect`, the
   use-after-free was possible.
+* Execution of a `COPY` statement now throws an error that says the statement
+  is not supported. Previously the library silently reported success and left the
+  connection in copy mode until the next query.
 * Row fetching functions no longer decode all rows of the result up front
   and retain them until the fold completes. They decode each row right
   before the fold function consumes it. As a result, e.g. `mapDB_` over a

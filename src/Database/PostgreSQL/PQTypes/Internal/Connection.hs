@@ -423,8 +423,18 @@ verifyResult sql pid conn res = do
     _ | rst == c_PGRES_TUPLES_OK -> Right . fromIntegral <$> c_PQntuples res
     _ | rst == c_PGRES_FATAL_ERROR -> throwSQLError
     _ | rst == c_PGRES_BAD_RESPONSE -> throwSQLError
+    -- The library doesn't support the copy modes a COPY statement puts the
+    -- connection in. Erroring out is fine: when libpq executes the next
+    -- query, it terminates the copy mode internally.
+    _ | isCopyStatus rst -> do
+      rethrowWithContext sql pid . toException $
+        HPQTypesError "verifyResult: COPY statements are not supported"
     _ | otherwise -> pure . Left $ 0
   where
+    isCopyStatus :: ExecStatusType -> Bool
+    isCopyStatus st =
+      st == c_PGRES_COPY_IN || st == c_PGRES_COPY_OUT || st == c_PGRES_COPY_BOTH
+
     throwSQLError =
       rethrowWithContext sql pid
         =<< if res == nullPtr

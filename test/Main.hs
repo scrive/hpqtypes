@@ -641,6 +641,24 @@ jsonTest td = testCase "JSON conversion failures and raw values"
             "expected Number, but encountered String" `L.isInfixOf` show err
         Right () -> liftBase . assertFailure $ preface <> ": no error was thrown"
 
+copyNotSupportedTest :: TestData -> Test
+copyNotSupportedTest td = testCase "COPY statements fail with an error"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    eres <- try $ runSQL_ "COPY (SELECT 1) TO STDOUT"
+    case eres of
+      Left DBException {dbeError = err} -> case fromException $ toException err of
+        Just (HPQTypesError msg) ->
+          liftBase . assertBool ("Error message mentions COPY: " ++ msg) $
+            "COPY" `L.isInfixOf` msg
+        Nothing -> liftBase . assertFailure $ "Unexpected error: " ++ show err
+      Right () -> liftBase $ assertFailure "COPY statement didn't fail"
+    -- libpq ends the copy mode when the next query runs, so the connection
+    -- stays usable.
+    runSQL_ "SELECT 1"
+    n <- fetchOne (runIdentity @Int32)
+    assertEqualEq "Connection is usable after the failed COPY" 1 n
+
 xmlTest :: TestData -> Test
 xmlTest td = testCase "Put and get XML value works"
   . runTestEnv td defaultTransactionSettings
@@ -776,6 +794,7 @@ tests td =
   [ autocommitTest td
   , setRoleTest td
   , preparedStatementTest td
+  , copyNotSupportedTest td
   , xmlTest td
   , readOnlyTest td
   , savepointTest td
