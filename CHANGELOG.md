@@ -1,4 +1,8 @@
 # hpqtypes-1.15.0.0 (????-??-??)
+* Row fetching functions no longer decode all rows of the result up front
+  and retain them until the fold completes. They decode each row right
+  before the fold function consumes it. As a result, e.g. `mapDB_` over a
+  large result runs in constant additional memory.
 * Add `FromSQL` and `ToSQL` instances for `Word16`, `Word32` and `Word64`.
 * Add `FromSQL` and `ToSQL` instances for `Integer`, mapped to `numeric`.
 * `JSON` and `JSONB` now serialize and deserialize the wrapped type with its

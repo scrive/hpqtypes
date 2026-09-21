@@ -17,7 +17,6 @@ import Data.Functor.Identity
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
-import Foreign.Ptr
 import GHC.Stack
 import System.IO.Unsafe
 
@@ -64,6 +63,10 @@ instance Foldable QueryResult where
   foldl f acc = runIdentity . foldlImpl False (coerce f) acc
   foldl' f acc = runIdentity . foldlImpl True (coerce f) acc
 
+-- | Fold rows of a query result from the right. The fold decodes each row
+-- right before it passes it to the fold function, i.e. only after it folded
+-- the rows after it. No more rows than the fold function retains are alive at
+-- any time.
 foldrImpl
   :: (HasCallStack, Monad m)
   => Bool
@@ -71,8 +74,20 @@ foldrImpl
   -> acc
   -> QueryResult t
   -> m acc
-foldrImpl = foldImpl (fmap pred . c_PQntuples) (const . pure $ -1) pred
+foldrImpl strict f iacc qr = worker iacc $ checkedNtuples qr - 1
+  where
+    worker acc i
+      | i < 0 = pure acc
+      | otherwise = do
+          let t = decodeRow qr i
+          acc' <- t `seq` f t acc
+          worker `apply` acc' $ i - 1
 
+    apply = if strict then ($!) else ($)
+
+-- | Fold rows of a query result from the left. The fold decodes each row
+-- right before it passes it to the fold function. No more rows than the fold
+-- function retains are alive at any time.
 foldlImpl
   :: (HasCallStack, Monad m)
   => Bool
@@ -80,23 +95,27 @@ foldlImpl
   -> acc
   -> QueryResult t
   -> m acc
-foldlImpl strict = foldImpl (const $ pure 0) c_PQntuples succ strict . flip
+foldlImpl strict f iacc qr = worker iacc 0
+  where
+    n = checkedNtuples qr
+    worker acc i
+      | i == n = pure acc
+      | otherwise = do
+          let t = decodeRow qr i
+          acc' <- t `seq` f acc t
+          worker `apply` acc' $ i + 1
 
-foldImpl
-  :: (HasCallStack, Monad m)
-  => (Ptr PGresult -> IO CInt)
-  -> (Ptr PGresult -> IO CInt)
-  -> (CInt -> CInt)
-  -> Bool
-  -> (t -> acc -> m acc)
-  -> acc
-  -> QueryResult t
-  -> m acc
-foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) pid fres g) =
+    apply = if strict then ($!) else ($)
+
+-- | The number of rows of a query result, after a comparison of its width
+-- with the row type. A mismatch throws 'RowLengthMismatch' with the query
+-- attached as context.
+--
+-- Both are pure information about the immutable query result, so
+-- 'unsafePerformIO' is fine here.
+checkedNtuples :: HasCallStack => QueryResult t -> CInt
+checkedNtuples (QueryResult (SomeSQL ctx) pid fres g) =
   unsafePerformIO . withForeignPtr fres $ \res -> do
-    -- This bit is referentially transparent iff appropriate
-    -- FrowRow and FromSQL instances are (the ones provided
-    -- by the library fulfil this requirement).
     rowlen <- fromIntegral <$> c_PQnfields res
     when (rowlen /= pqVariablesP rowp) $
       E.throwIO
@@ -110,22 +129,29 @@ foldImpl initCtr termCtr advCtr strict f iacc (QueryResult (SomeSQL ctx) pid fre
                 }
           , dbeCallStack = callStack
           }
-    alloca $ \err -> do
-      n <- termCtr res
-      let worker acc i =
-            if i == n
-              then pure acc
-              else do
-                -- mask asynchronous exceptions so they won't be wrapped in DBException
-                obj <- E.mask_ (g <$> fromRow res err 0 i `E.catch` rethrowWithContext ctx pid)
-                worker `apply` (f obj =<< acc) $ advCtr i
-      worker (pure iacc) =<< initCtr res
+    c_PQntuples res
   where
     -- ⊥ of existential type hidden in QueryResult
     row = let _ = g row in row
     rowp = pure row
 
-    apply = if strict then ($!) else ($)
+-- | Decode a row of a query result and attach the query as context to
+-- exceptions thrown in the process.
+--
+-- Decoding is referentially transparent iff the FromRow and FromSQL instances
+-- are (the ones provided by the library fulfil this requirement), so
+-- 'unsafePerformIO' is fine here.
+--
+-- The caller must force the result right when it applies the fold function
+-- to it. The fold function itself is not obligated to force it, e.g.
+-- 'Database.PostgreSQL.PQTypes.Fold.fetchMany' doesn't. Without that,
+-- unforced thunks that retain the whole query result escape the fold, and
+-- decoding errors surface wherever the thunks are forced.
+decodeRow :: HasCallStack => QueryResult t -> CInt -> t
+decodeRow (QueryResult (SomeSQL ctx) pid fres g) i =
+  unsafePerformIO . withForeignPtr fres $ \res -> alloca $ \err -> do
+    -- mask asynchronous exceptions so they won't be wrapped in DBException
+    E.mask_ $ (g <$> fromRow res err 0 i) `E.catch` rethrowWithContext ctx pid
 
 -- Note: c_PQntuples/c_PQnfields are pure on a C level and QueryResult
 -- constructor is not exported to the end user (so it's not possible
