@@ -709,6 +709,23 @@ xmlTest td = testCase "Put and get XML value works"
     assertEqualEq "XML value correct" v v''
     runSQL_ "SET CLIENT_ENCODING TO 'latin-1'"
 
+onDemandDeadConnectionTest :: TestData -> Test
+onDemandDeadConnectionTest td = testCase
+  "Failed ROLLBACK of an on demand transaction doesn't mask the query error"
+  . runTestEnv td ts
+  $ do
+    -- The query kills its own backend. The ROLLBACK that ends the automatic
+    -- transaction fails as well, because the connection is gone. The error of
+    -- the query must propagate regardless.
+    eres <- try $ runSQL_ "SELECT pg_terminate_backend(pg_backend_pid())"
+    liftBase $ case eres of
+      Left DBException {..} ->
+        assertBool ("Exception comes from the query: " ++ show dbeQueryContext) $
+          "pg_terminate_backend" `L.isInfixOf` show dbeQueryContext
+      Right () -> assertFailure "DBException wasn't thrown"
+  where
+    ts = defaultTransactionSettings {tsConnectionAcquisitionMode = AcquireOnDemand}
+
 onDemandTest :: TestData -> Test
 onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do
   runSQL_ "SELECT a FROM test1_"
@@ -843,6 +860,7 @@ tests td =
   , integerTest td
   , jsonTest td
   , onDemandTest td
+  , onDemandDeadConnectionTest td
   , acquisitionModeChangeFailureTest td
   , commitFailureTest td
   , transactionTest td ReadCommitted

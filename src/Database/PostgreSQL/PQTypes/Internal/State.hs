@@ -236,13 +236,31 @@ withConnection ConnectionData {..} action = do
           (takeConnection cdConnectionSource)
           (putConnection cdConnectionSource)
           ( \(conn, _cdata) ->
-              bracket_
-                (liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn "BEGIN READ ONLY")
-                (liftBase . uninterruptibleMask_ $ runQueryIO @SQL conn "ROLLBACK")
-                (action conn)
+              fmap fst
+                . generalBracket
+                  (autoQuery conn "BEGIN READ ONLY")
+                  ( \() -> \case
+                      ExitCaseSuccess {} -> autoQuery conn "ROLLBACK"
+                      -- If the action failed, its original exception must
+                      -- propagate. Without this handler, a failure of the
+                      -- ROLLBACK masks it. This happens in practice: the
+                      -- action can leave the connection in a state in which
+                      -- no query can run, e.g. when the connection died. The
+                      -- connection returns to its source as failed either
+                      -- way, and the source disposes of it.
+                      _ -> autoQuery conn "ROLLBACK" `catchSync` \_ -> pure ()
+                  )
+                $ \() -> action conn
           )
     Acquired _ _ conn _ -> action conn
     Finalized -> error "finalized connection"
+  where
+    -- The queries that delimit the automatic transaction can't be
+    -- interrupted, otherwise the connection would end up in an unexpected
+    -- transaction state.
+    autoQuery :: MonadBase IO m => Connection -> SQL -> m ()
+    autoQuery conn sql =
+      liftBase . uninterruptibleMask_ . void $ runQueryIO @SQL conn sql
 
 initConnectionData
   :: (MonadBase IO m, MonadMask m)
