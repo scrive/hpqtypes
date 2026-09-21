@@ -94,7 +94,8 @@ getNotificationIO conn n = timeout n $ fix $ \loop -> do
       ptr <- c_PQnotifies connPtr
       if ptr /= nullPtr
         then do
-          msg <- peek ptr
-          c_PQfreemem ptr
+          -- Free the struct even if peek throws, e.g. when the channel name
+          -- or payload is not valid UTF-8.
+          msg <- peek ptr `E.finally` c_PQfreemem ptr
           pure $ Just msg
         else pure Nothing
