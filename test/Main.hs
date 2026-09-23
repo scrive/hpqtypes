@@ -1041,7 +1041,7 @@ getConnString =
     connString : args -> pure (T.pack connString, args)
     [] ->
       lookupEnv "GITHUB_ACTIONS" >>= \case
-        Just "true" -> pure ("host=postgres user=postgres password=postgres", [])
+        Just "true" -> pure ("host=localhost user=postgres password=postgres", [])
         _ -> printUsage >> exitFailure
   where
     printUsage = do

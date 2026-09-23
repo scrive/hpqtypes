@@ -7,9 +7,9 @@ synopsis:            Haskell bindings to libpqtypes
 description:         Efficient and easy-to-use bindings to (slightly modified)
                      @libpqtypes@, a @libpq@ extension that adds support
                      for a binary transport format and composite types.
-                     .
+
                      Source code of libpqtypes is bundled along with the bindings.
-                     .
+
                      Examples can be found in the
                      <https://github.com/scrive/hpqtypes/tree/master/examples examples>
                      directory.
@@ -21,11 +21,12 @@ author:              Scrive AB
 maintainer:          Andrzej Rybczak <andrzej@rybczak.net>
 copyright:           Scrive AB
 category:            Database
-tested-with:         GHC == { 9.2.8, 9.4.8, 9.6.7, 9.8.4, 9.10.3, 9.12.4, 9.14.1 }
+tested-with:         GHC ^>= { 9.2, 9.4, 9.6, 9.8, 9.10, 9.12, 9.14 }
 
-extra-source-files: README.md
+extra-doc-files:    README.md
                   , CHANGELOG.md
-                  , examples/Catalog.hs
+
+extra-source-files: examples/Catalog.hs
                   , libpqtypes/AUTHORS
                   , libpqtypes/Makefile.in
                   , libpqtypes/config.guess

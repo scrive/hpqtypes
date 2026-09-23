@@ -1,6 +1,6 @@
 # hpqtypes
 
-[![CI](https://github.com/scrive/hpqtypes/actions/workflows/haskell-ci.yml/badge.svg?branch=master)](https://github.com/scrive/hpqtypes/actions/workflows/haskell-ci.yml)
+[![CI](https://github.com/scrive/hpqtypes/actions/workflows/haskell-gha.yml/badge.svg?branch=master)](https://github.com/scrive/hpqtypes/actions/workflows/haskell-gha.yml)
 [![Hackage](https://img.shields.io/hackage/v/hpqtypes.svg)](https://hackage.haskell.org/package/hpqtypes)
 [![Stackage LTS](https://www.stackage.org/package/hpqtypes/badge/lts)](https://www.stackage.org/lts/package/hpqtypes)
 [![Stackage Nightly](https://www.stackage.org/package/hpqtypes/badge/nightly)](https://www.stackage.org/nightly/package/hpqtypes)
