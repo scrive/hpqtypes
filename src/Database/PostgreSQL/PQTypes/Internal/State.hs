@@ -14,11 +14,13 @@ module Database.PostgreSQL.PQTypes.Internal.State
   , updateStateWith
   ) where
 
+import Control.Concurrent qualified as C
 import Control.Concurrent.MVar.Lifted
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Data.Function
+import Data.IORef
 import Data.Typeable
 import Foreign.ForeignPtr
 import GHC.Stack
@@ -28,6 +30,7 @@ import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.Utils
@@ -104,6 +107,12 @@ finalizeConnectionState ics ec = \case
 data ConnectionData m = forall cdata. ConnectionData
   { cdConnectionSource :: !(InternalConnectionSource m cdata)
   , cdConnectionState :: !(MVar (ConnectionState cdata))
+  , cdAcquisitionMode :: !(IORef ConnectionAcquisitionMode)
+  -- ^ Kept apart from the connection state, so that
+  -- 'Database.PostgreSQL.PQTypes.Class.withNewSession' of a child thread
+  -- does not wait for a query of the parent and works after the session ended.
+  , cdOwnerThread :: !C.ThreadId
+  -- ^ Thread that started the session. Only this thread can use it.
   }
 
 getConnectionSource :: ConnectionData m -> ConnectionSourceM m
@@ -113,12 +122,7 @@ getConnectionAcquisitionModeIO
   :: HasCallStack
   => ConnectionData m
   -> IO ConnectionAcquisitionMode
-getConnectionAcquisitionModeIO ConnectionData {..} = do
-  readMVar cdConnectionState >>= \case
-    OnDemand -> pure AcquireOnDemand
-    Acquired isolationLevel permissions _ _ -> do
-      pure $ AcquireAndHold isolationLevel permissions
-    Finalized -> error "finalized connection"
+getConnectionAcquisitionModeIO ConnectionData {..} = readIORef cdAcquisitionMode
 
 withConnectionData
   :: (HasCallStack, MonadBase IO m, MonadMask m)
@@ -165,16 +169,18 @@ withConnectionData cs ts action = (`fix` 1) $ \loop n -> do
 changeAcquisitionModeTo
   :: (HasCallStack, MonadBase IO m, MonadMask m)
   => ConnectionAcquisitionMode
-  -> ConnectionData m
+  -> DBState m
   -> m ()
-changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
+changeAcquisitionModeTo cam st@DBState {dbConnectionData = ConnectionData {..}} = mask_ $ do
+  checkSessionOwner st
   -- Each branch of 'mkNewState' determines the new connection state along with
-  -- a follow-up action. The new state is installed with a single putMVar, so
-  -- that concurrent users of the MVar can never observe a stale state.
+  -- a follow-up action. The new state is installed before the follow-up action
+  -- runs, because the action can throw, e.g. to rethrow a failed COMMIT.
   connState <- takeMVar cdConnectionState
   (newConnState, after) <-
     mkNewState connState `onException` putMVar cdConnectionState connState
   putMVar cdConnectionState newConnState
+  liftBase $ atomicWriteIORef cdAcquisitionMode cam
   after
   where
     mkNewState = \case
@@ -214,10 +220,11 @@ changeAcquisitionModeTo cam ConnectionData {..} = mask_ $ do
 
 withConnection
   :: (HasCallStack, MonadBase IO m, MonadMask m)
-  => ConnectionData m
+  => DBState m
   -> (Connection -> m r)
   -> m r
-withConnection ConnectionData {..} action = do
+withConnection st@DBState {dbConnectionData = ConnectionData {..}} action = do
+  checkSessionOwner st
   bracket (takeMVar cdConnectionState) (putMVar cdConnectionState) $ \case
     OnDemand ->
       fst
@@ -244,17 +251,42 @@ withConnection ConnectionData {..} action = do
     autoQuery conn sql =
       liftBase . uninterruptibleMask_ . void $ runQueryIO @SQL conn sql
 
+checkSessionOwner
+  :: (HasCallStack, MonadBase IO m, MonadThrow m)
+  => DBState m
+  -> m ()
+checkSessionOwner DBState {dbConnectionData = ConnectionData {..}, ..} = do
+  currentThread <- liftBase C.myThreadId
+  when (currentThread /= cdOwnerThread) $ do
+    case dbLastQuery of
+      (pid, SomeSQL sql) ->
+        throwM
+          DBException
+            { dbeQueryContext = sql
+            , dbeBackendPid = pid
+            , dbeError =
+                ThreadMismatchError
+                  { tmeOwnerThread = cdOwnerThread
+                  , tmeCurrentThread = currentThread
+                  }
+            , dbeCallStack = callStack
+            }
+
 initConnectionData
   :: (MonadBase IO m, MonadMask m)
   => ConnectionSourceM m
   -> ConnectionAcquisitionMode
   -> m (ConnectionData m)
 initConnectionData (ConnectionSourceM ics) cam = do
+  ownerThread <- liftBase C.myThreadId
   connState <- newMVar =<< initConnectionState ics cam
+  acquisitionMode <- liftBase $ newIORef cam
   pure $
     ConnectionData
       { cdConnectionSource = ics
       , cdConnectionState = connState
+      , cdAcquisitionMode = acquisitionMode
+      , cdOwnerThread = ownerThread
       }
 
 finalizeConnectionData
@@ -263,10 +295,6 @@ finalizeConnectionData
   -> ExitCase r
   -> m ()
 finalizeConnectionData ConnectionData {..} ec = do
-  -- The state is marked as finalized only once takeMVar succeeds: it can be
-  -- interrupted by an asynchronous exception while another thread is using
-  -- the connection, in which case putting a value into the MVar we don't hold
-  -- would permanently deadlock the putMVar of that thread.
   connState <- takeMVar cdConnectionState
   finalizeConnectionState cdConnectionSource ec connState
     `finally` putMVar cdConnectionState Finalized
