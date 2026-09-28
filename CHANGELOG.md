@@ -1,4 +1,17 @@
 # hpqtypes-1.15.0.0 (????-??-??)
+* The thread that starts a DB session now owns it. If another thread uses the
+  session, the library throws `ThreadMismatchError` wrapped in `DBException`.
+  Previously, threads shared the session, including its connection and its
+  transaction. This change affects all threads that get the session from a
+  fork, e.g. the threads of `race` and `concurrently` from `lifted-async`. To
+  run queries in another thread, call `withNewSession` in that thread.
+* Rename `withNewConnection` to `withNewSession`, because the new session does
+  not always acquire a connection immediately. Replace each use of
+  `withNewConnection` with `withNewSession`.
+* Fix two bugs of `withNewSession` (`withNewConnection` in earlier versions)
+  in a forked thread. If the parent session ended first, the function failed
+  with the error `finalized connection`. While the parent session ran a query,
+  the function waited for the query to finish.
 * Fix a use-after-free of the buffer that holds the connection string in
   `connect`. If an asynchronous exception interrupted `connect`, the
   use-after-free was possible.
@@ -50,9 +63,6 @@
   issued `COMMIT` failed, e.g. because of a deferred constraint violation,
   the session stayed in the autocommit mode instead of starting a new
   transaction.
-* Fix a bug in connection finalization. If an asynchronous exception
-  interrupted the finalization while another thread used the connection,
-  the other thread deadlocked permanently.
 * Fix a bug in `withCursor` where an asynchronous exception cancelled the
   `CLOSE` query and left the cursor open.
 * Fix a bug in `withSavepoint` where an asynchronous exception cancelled the

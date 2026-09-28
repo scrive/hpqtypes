@@ -337,28 +337,6 @@ queryInterruptionTest td = testCase "Queries are interruptible" $ do
           assertFailure $ "Query" <+> show sql <+> "wasn't interrupted in time"
         Nothing -> pure ()
 
-finalizationInterruptionTest :: TestData -> Test
-finalizationInterruptionTest td = testCase
-  "Interrupted connection finalization doesn't deadlock other threads"
-  $ do
-    queryDone <- newEmptyMVar
-    -- Exit the runDBT scope while the forked thread is still using the
-    -- connection, so that the finalization blocks on the connection state
-    -- MVar, and interrupt it with a timeout.
-    eres <- timeout 500000 . runTestEnv td defaultTransactionSettings $ do
-      _ <- fork $ do
-        runSQL_ "SELECT pg_sleep(2)"
-        putMVar queryDone ()
-      threadDelay 200000
-    case eres of
-      Just _ -> assertFailure "Connection finalization wasn't interrupted in time"
-      Nothing -> pure ()
-    -- The forked thread needs to be able to finish, i.e. to return the
-    -- connection state to the MVar once its query completes.
-    timeout 5000000 (takeMVar queryDone) >>= \case
-      Just () -> pure ()
-      Nothing -> assertFailure "Forked thread deadlocked on the connection state MVar"
-
 autocommitTest :: TestData -> Test
 autocommitTest td = testCase "Autocommit mode works"
   . runTestEnv td defaultTransactionSettings
@@ -366,7 +344,7 @@ autocommitTest td = testCase "Autocommit mode works"
   $ do
     let sint = Identity (1 :: Int32)
     runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
-    withNewConnection $ do
+    withNewSession $ do
       n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
       assertEqualEq "Other connection sees autocommited data" 1 n
     runQuery_ $ rawSQL "DELETE FROM test1_ WHERE a = $1" sint
@@ -505,7 +483,7 @@ withoutTransactionDeadConnectionTest td = testCase
 notifyTest :: TestData -> Test
 notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransactionSettings . unsafeWithoutTransaction $ do
   listen chan
-  forkNewConn $ notify chan payload
+  forkNewSession $ notify chan payload
   mnt1 <- getNotification 250000
   liftBase $ assertBool "Notification received" (isJust mnt1)
   Just nt1 <- pure mnt1
@@ -513,29 +491,19 @@ notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransaction
   assertEqualEq "Payloads are equal" payload (ntPayload nt1)
 
   unlisten chan
-  forkNewConn $ notify chan payload
+  forkNewSession $ notify chan payload
   mnt2 <- getNotification 250000
   assertEqualEq "No notification received after unlisten" Nothing mnt2
 
   listen chan
   unlistenAll
-  forkNewConn $ notify chan payload
+  forkNewSession $ notify chan payload
   mnt3 <- getNotification 250000
   assertEqualEq "No notification received after unlistenAll" Nothing mnt3
   where
     chan = "test_channel"
     payload = "test_payload"
-    forkNewConn action = do
-      sem <- newEmptyMVar
-      void . fork . withNewConnection $ do
-        -- withNewConnection needs access to the connection state to get current
-        -- ConnectionAcquisitionMode, but getNotification called immediately
-        -- after takes ownership of the connection state for its duration, so if
-        -- CPU gets to it first, withNewConnection will block and notification
-        -- will never be sent.
-        putMVar sem ()
-        action
-      takeMVar sem
+    forkNewSession = void . fork . withNewSession
 
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl =
@@ -549,7 +517,7 @@ transactionTest td lvl =
     $ do
       let sint = Identity (5 :: Int32)
       runQuery_ $ rawSQL "INSERT INTO test1_ (a) VALUES ($1)" sint
-      withNewConnection $ do
+      withNewSession $ do
         n <- runQuery $ rawSQL "SELECT a FROM test1_ WHERE a = $1" sint
         assertEqualEq "Other connection doesn't see uncommited data" 0 n
       rollback
@@ -789,6 +757,51 @@ onDemandTest td = testCase "OnDemand mode works" . runTestEnv td ts $ do
     v :: Int32
     v = 1337
 
+sessionOwnerTest :: TestData -> Test
+sessionOwnerTest td =
+  testCase "Only the thread that owns a DB session can use it"
+    . runTestEnv td defaultTransactionSettings
+    $ do
+      result <- newEmptyMVar
+      _ <- fork $ do
+        sameSessionQuery <- try $ runSQL_ "SELECT 1"
+        sameSessionModeChange <- try unsafeAcquireOnDemandConnection
+        newSession <- try . withNewSession $ runSQL_ "SELECT 1"
+        putMVar result (sameSessionQuery, sameSessionModeChange, newSession)
+      (sameSessionQuery, sameSessionModeChange, newSession) <- takeMVar result
+      liftBase $ do
+        assertThreadMismatch "runSQL_" sameSessionQuery
+        assertThreadMismatch "unsafeAcquireOnDemandConnection" sameSessionModeChange
+        case newSession of
+          Left (e :: SomeException) ->
+            assertFailure $ "withNewSession failed in another thread: " ++ show e
+          Right () -> pure ()
+  where
+    assertThreadMismatch :: String -> Either SomeException () -> Assertion
+    assertThreadMismatch op = \case
+      Left e
+        | Just DBException {..} <- fromException e
+        , Just ThreadMismatchError {} <- cast dbeError ->
+            pure ()
+        | otherwise -> assertFailure $ op ++ " threw an unexpected exception: " ++ show e
+      Right () -> assertFailure $ op ++ " didn't throw ThreadMismatchError"
+
+childSessionTest :: TestData -> Test
+childSessionTest td = testCase
+  "Child thread can start a session after the parent session ended"
+  $ do
+    parentEnded <- newEmptyMVar
+    result <- newEmptyMVar
+    runTestEnv td defaultTransactionSettings $ do
+      void . fork $ do
+        takeMVar parentEnded
+        putMVar result =<< try (withNewSession $ runSQL_ "SELECT 1")
+    putMVar parentEnded ()
+    takeMVar result >>= \case
+      Left (e :: SomeException) ->
+        assertFailure $ "withNewSession failed in the child thread: " ++ show e
+      Right () -> pure ()
+
 commitFailureTest :: TestData -> Test
 commitFailureTest td = testCase
   "Transaction is active after a failed commit"
@@ -886,13 +899,14 @@ tests td =
   , restartTest td
   , notifyTest td
   , queryInterruptionTest td
-  , finalizationInterruptionTest td
   , cursorTest td
   , uuidTest td
   , integerTest td
   , jsonTest td
   , onDemandTest td
   , onDemandDeadConnectionTest td
+  , sessionOwnerTest td
+  , childSessionTest td
   , acquisitionModeChangeFailureTest td
   , commitFailureTest td
   , transactionTest td ReadCommitted

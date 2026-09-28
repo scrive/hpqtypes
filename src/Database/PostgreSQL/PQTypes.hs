@@ -19,6 +19,7 @@ module Database.PostgreSQL.PQTypes
   , DetailedQueryError (..)
   , QueryError (..)
   , HPQTypesError (..)
+  , ThreadMismatchError (..)
   , LibPQError (..)
   , ConversionError (..)
   , ArrayItemError (..)
