@@ -1,4 +1,4 @@
-# hpqtypes-1.15.0.0 (????-??-??)
+# hpqtypes-1.15.0.0 (2026-09-28)
 * The thread that starts a DB session now owns it. If another thread uses the
   session, the library throws `ThreadMismatchError` wrapped in `DBException`.
   Previously, threads shared the session, including its connection and its
