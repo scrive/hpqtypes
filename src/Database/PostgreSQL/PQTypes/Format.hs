@@ -85,12 +85,20 @@ instance PQFormat Float where
 instance PQFormat Double where
   pqFormat = BS.pack "%float8"
 
+-- | Corresponds to @int2@. A value above the 'maxBound' of 'Int16' is stored
+-- as the negative number with the same bit pattern, e.g. @40000@ as
+-- @-25536@. It decodes back to the original value, but the server compares,
+-- sorts and computes with the negative number.
 instance PQFormat Word16 where
   pqFormat = BS.pack "%int2"
 
+-- | Corresponds to @int4@. A value above the 'maxBound' of 'Int32' is stored
+-- as the negative number with the same bit pattern, like with 'Word16'.
 instance PQFormat Word32 where
   pqFormat = BS.pack "%int4"
 
+-- | Corresponds to @int8@. A value above the 'maxBound' of 'Int64' is stored
+-- as the negative number with the same bit pattern, like with 'Word16'.
 instance PQFormat Word64 where
   pqFormat = BS.pack "%int8"
 

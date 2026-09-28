@@ -639,6 +639,25 @@ integerTest td = testCase "Integer decoding from numeric works"
       , 10 ^ (100 :: Int) + 1
       ]
 
+wordBitPatternTest :: TestData -> Test
+wordBitPatternTest td = testCase
+  "Word16, Word32 and Word64 are stored with the bit pattern of the signed type"
+  . runTestEnv td defaultTransactionSettings
+  $ do
+    runQuery_ $ rawSQL "SELECT $1, $2, $3, $1::text, $2::text, $3::text" (w16, w32, w64)
+    result <- fetchOne $ id @(Word16, Word32, Word64, T.Text, T.Text, T.Text)
+    assertEqualEq
+      "The server sees negative numbers and the values roundtrip"
+      (w16, w32, w64, "-25536", "-1", "-9223372036854775808")
+      result
+  where
+    w16 :: Word16
+    w16 = 40000
+    w32 :: Word32
+    w32 = maxBound
+    w64 :: Word64
+    w64 = 2 ^ (63 :: Int)
+
 jsonTest :: TestData -> Test
 jsonTest td = testCase "JSON conversion failures and raw values"
   . runTestEnv td defaultTransactionSettings
@@ -931,6 +950,7 @@ tests td =
   , cursorTest td
   , uuidTest td
   , integerTest td
+  , wordBitPatternTest td
   , jsonTest td
   , onDemandTest td
   , onDemandDeadConnectionTest td
