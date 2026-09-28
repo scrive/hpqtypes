@@ -59,11 +59,19 @@ instance Storable Notification where
   peek ptr = do
     ntPID <- pure . CPid
       =<< #{peek PGnotify, be_pid} ptr
-    ntChannel <- fmap (Channel . flip rawSQL () . T.decodeUtf8) . BS.packCString
+    channel <- decode "channel name" =<< BS.packCString
       =<< #{peek PGnotify, relname} ptr
-    ntPayload <- fmap T.decodeUtf8 . BS.packCString
+    ntPayload <- decode ("payload on channel " ++ show channel) =<< BS.packCString
       =<< #{peek PGnotify, extra} ptr
+    let ntChannel = Channel $ rawSQL channel ()
     pure Notification{..}
+    where
+      -- The client encoding determines the encoding of the strings.
+      decode :: String -> BS.ByteString -> IO T.Text
+      decode what bytes = case T.decodeUtf8' bytes of
+        Right text -> pure text
+        Left err ->
+          hpqTypesError $ "Notification " ++ what ++ " is not valid UTF-8: " ++ show err
   poke _ _ = error "Storable Notification: poke is not supposed to be used"
 
 ----------------------------------------

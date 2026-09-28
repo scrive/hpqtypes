@@ -20,8 +20,10 @@ import GHC.Stack
 
 import Database.PostgreSQL.PQTypes.Class
 import Database.PostgreSQL.PQTypes.Internal.Connection
+import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 
 type InnerDBT m = StateT (DBState m)
@@ -89,9 +91,13 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
   unsafeAcquireOnDemandConnection = DBT . StateT $ \st -> do
     (,st) <$> changeAcquisitionModeTo AcquireOnDemand st
 
-  getNotification time = DBT . StateT $ \st -> do
-    withConnection st $ \conn -> do
-      (,st) <$> liftBase (getNotificationIO conn time)
+  getNotification time = withFrozenCallStack $ do
+    DBT . StateT $ \st -> withConnection st $ \conn -> do
+      case dbLastQuery st of
+        (_, SomeSQL sql) ->
+          fmap (,st) . liftBase $
+            getNotificationIO conn time
+              `catch` rethrowWithContext sql (connBackendPid conn)
 
   withNewSession m = DBT . StateT $ \st -> do
     cam <- liftBase . getConnectionAcquisitionModeIO $ dbConnectionData st

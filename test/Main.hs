@@ -505,6 +505,34 @@ notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransaction
     payload = "test_payload"
     forkNewSession = void . fork . withNewSession
 
+-- | The server converts the payload of a notification to the client encoding
+-- of the listener. With a client encoding other than UTF-8, the payload can
+-- be invalid UTF-8.
+notifyEncodingTest :: TestData -> Test
+notifyEncodingTest td = testCase "Notification payload in invalid UTF-8 is rejected"
+  . runTestEnv td defaultTransactionSettings
+  . unsafeWithoutTransaction
+  $ do
+    runSQL_ "SET client_encoding TO 'LATIN1'"
+    listen chan
+    -- A character without a LATIN1 equivalent would make the server close
+    -- the connection of the listener instead.
+    void . fork . withNewSession $ do
+      runSQL_ "SET client_encoding TO 'UTF8'"
+      notify chan "café"
+    result <- try $ getNotification 250000
+    runSQL_ "RESET client_encoding"
+    unlisten chan
+    liftBase $ case result of
+      Left DBException {..}
+        | Just (HPQTypesError msg) <- cast dbeError ->
+            assertBool ("Error names the channel: " ++ msg) $
+              "payload on channel \"latin1_channel\" is not valid UTF-8" `L.isInfixOf` msg
+        | otherwise -> assertFailure $ "Unexpected exception: " ++ show dbeError
+      Right nt -> assertFailure $ "No error, got " ++ show nt
+  where
+    chan = "latin1_channel"
+
 transactionTest :: TestData -> IsolationLevel -> Test
 transactionTest td lvl =
   testCase
@@ -898,6 +926,7 @@ tests td =
   , withoutTransactionDeadConnectionTest td
   , restartTest td
   , notifyTest td
+  , notifyEncodingTest td
   , queryInterruptionTest td
   , cursorTest td
   , uuidTest td

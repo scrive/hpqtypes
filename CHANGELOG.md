@@ -1,3 +1,8 @@
+# hpqtypes-1.15.1.0 (????-??-??)
+* `getNotification` now wraps its exceptions in `DBException` and rejects a
+  notification that is not valid UTF-8 at once. If you catch exceptions of
+  `getNotification`, catch `DBException`.
+
 # hpqtypes-1.15.0.0 (2026-09-28)
 * The thread that starts a DB session now owns it. If another thread uses the
   session, the library throws `ThreadMismatchError` wrapped in `DBException`.
