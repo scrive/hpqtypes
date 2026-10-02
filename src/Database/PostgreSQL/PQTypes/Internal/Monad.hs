@@ -23,6 +23,7 @@ import Database.PostgreSQL.PQTypes.Internal.Connection
 import Database.PostgreSQL.PQTypes.Internal.Exception
 import Database.PostgreSQL.PQTypes.Internal.Notification
 import Database.PostgreSQL.PQTypes.Internal.State
+import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
 import Database.PostgreSQL.PQTypes.Transaction.Settings
 
@@ -97,7 +98,7 @@ instance (m ~ n, MonadBase IO m, MonadMask m) => MonadDB (DBT_ m n) where
         (_, SomeSQL sql) ->
           fmap (,st) . liftBase $
             getNotificationIO conn time
-              `catch` rethrowWithContext sql (connBackendPid conn)
+              `catchSync` rethrowWithContext sql (connBackendPid conn)
 
   withNewSession m = DBT . StateT $ \st -> do
     cam <- liftBase . getConnectionAcquisitionModeIO $ dbConnectionData st

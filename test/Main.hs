@@ -500,6 +500,9 @@ notifyTest td = testCase "Notifications work" . runTestEnv td defaultTransaction
   forkNewSession $ notify chan payload
   mnt3 <- getNotification 250000
   assertEqualEq "No notification received after unlistenAll" Nothing mnt3
+
+  mnt4 <- timeout 100000 $ getNotification 10000000
+  assertEqualEq "Outer timeout interrupts the wait" Nothing mnt4
   where
     chan = "test_channel"
     payload = "test_payload"
