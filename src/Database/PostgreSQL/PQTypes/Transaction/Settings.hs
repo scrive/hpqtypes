@@ -20,8 +20,10 @@ instance Show RestartPredicate where
 
 data TransactionSettings = TransactionSettings
   { tsRestartPredicate :: !(Maybe RestartPredicate)
-  -- ^ Defines behavior of 'withTransaction' in case exceptions thrown within
-  -- supplied monadic action are not caught and reach its body.
+  -- ^ Defines behavior of
+  -- 'Database.PostgreSQL.PQTypes.Transaction.withTransaction' in case
+  -- exceptions thrown within supplied monadic action are not caught and reach
+  -- its body.
   --
   -- If set to 'Nothing', exceptions will be propagated as usual.
   --
@@ -36,13 +38,13 @@ data TransactionSettings = TransactionSettings
   , tsConnectionAcquisitionMode :: !ConnectionAcquisitionMode
   -- ^ Acquisition mode of a database connection.
   }
-  deriving (Show)
+  deriving stock (Show)
 
 data IsolationLevel = DefaultLevel | ReadCommitted | RepeatableRead | Serializable
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 data Permissions = DefaultPermissions | ReadOnly | ReadWrite
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Acquisition mode of a database connection.
 data ConnectionAcquisitionMode
@@ -56,7 +58,7 @@ data ConnectionAcquisitionMode
     -- and permissions and hold onto it for the duration of a
     -- t'Database.PostgreSQL.PQTypes.Class.MonadDB' constraint in scope.
     AcquireAndHold !IsolationLevel !Permissions
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Default transaction settings.
 defaultTransactionSettings :: TransactionSettings

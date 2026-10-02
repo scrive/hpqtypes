@@ -20,6 +20,11 @@ import Database.PostgreSQL.PQTypes.Transaction.Settings
 import Database.PostgreSQL.PQTypes.Utils
 
 -- | Wrapper that represents savepoint name.
+--
+-- /Warning:/ the library interpolates the name verbatim into @SAVEPOINT@,
+-- @ROLLBACK TO SAVEPOINT@ and @RELEASE SAVEPOINT@ statements, without quoting
+-- or escaping. The name must be a valid SQL identifier. If it comes from
+-- untrusted input, SQL injection is possible.
 newtype Savepoint = Savepoint (RawSQL ())
 
 instance IsString Savepoint where

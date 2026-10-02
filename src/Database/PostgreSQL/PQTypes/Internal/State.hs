@@ -26,7 +26,6 @@ import Foreign.ForeignPtr
 import GHC.Stack
 
 import Data.Monoid.Utils
-import Database.PostgreSQL.PQTypes.FromRow
 import Database.PostgreSQL.PQTypes.Internal.BackendPid
 import Database.PostgreSQL.PQTypes.Internal.C.Types
 import Database.PostgreSQL.PQTypes.Internal.Connection
@@ -244,10 +243,9 @@ withConnection st@DBState {dbConnectionData = ConnectionData {..}} action = do
     Acquired _ _ conn _ -> action conn
     Finalized -> error "finalized connection"
   where
-    -- The queries that delimit the automatic transaction can't be
-    -- interrupted, otherwise the connection would end up in an unexpected
-    -- transaction state.
-    autoQuery :: MonadBase IO m => Connection -> SQL -> m ()
+    -- The queries that delimit the automatic transaction are uninterruptible.
+    -- If one of them were interrupted, the transaction status of the
+    -- connection would be unknown.
     autoQuery conn sql =
       liftBase . uninterruptibleMask_ . void $ runQueryIO @SQL conn sql
 
@@ -308,13 +306,13 @@ data DBState m = DBState
   , dbConnectionStats :: !ConnectionStats
   -- ^ Statistics associated with the session.
   , dbRestartPredicate :: !(Maybe RestartPredicate)
-  -- ^ Restart predicate from initial 'TransactionSettings'.
+  -- ^ Restart predicate from initial t'TransactionSettings'.
   , dbLastQuery :: !(BackendPid, SomeSQL)
   -- ^ Last SQL query that was executed along with ID of the server process
   -- attached to the session that executed it.
   , dbRecordLastQuery :: !Bool
   -- ^ Whether running query should override 'dbLastQuery'.
-  , dbQueryResult :: !(forall row. FromRow row => Maybe (QueryResult row))
+  , dbQueryResult :: !(Maybe QueryResult)
   -- ^ Current query result.
   }
 
@@ -348,6 +346,12 @@ updateStateWith conn st sql (r, res, updateStats) = do
             if dbRecordLastQuery st
               then (connBackendPid conn, SomeSQL sql)
               else dbLastQuery st
-        , dbQueryResult = Just $ mkQueryResult sql (connBackendPid conn) res
+        , dbQueryResult =
+            Just
+              QueryResult
+                { qrSQL = SomeSQL sql
+                , qrBackendPid = connBackendPid conn
+                , qrResult = res
+                }
         }
     )
