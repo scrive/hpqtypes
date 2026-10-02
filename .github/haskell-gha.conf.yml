@@ -1,7 +1,11 @@
 branches:
 - master
-apt:
-- libpq-dev
+fourmolu:
+  enabled: true
+  version: 0.20.1.0
+hlint:
+  enabled: true
+  version: '3.10'
 services:
   postgres:
     image: postgres:18
@@ -9,10 +13,8 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
     - 5432:5432
-    options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-fourmolu:
-  enabled: true
-  version: 0.20.1.0
-hlint:
-  enabled: true
-  version: '3.10'
+    options: >-
+      --health-cmd pg_isready
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 5
