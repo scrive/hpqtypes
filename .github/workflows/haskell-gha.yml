@@ -76,8 +76,6 @@ jobs:
       fail-fast: false
       matrix:
         ghc:
-        - '9.2'
-        - '9.4'
         - '9.6'
         - '9.8'
         - '9.10'
@@ -85,12 +83,6 @@ jobs:
         - '9.14'
     steps:
     - uses: actions/checkout@v7
-
-    - name: Install the gold linker
-      if: contains(fromJSON('["9.2","9.4"]'), matrix.ghc)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends binutils-gold
 
     - uses: haskell-actions/setup@v2
       id: setup
@@ -129,7 +121,7 @@ jobs:
         EOF
 
     - name: Enable parallel module builds for the local packages
-      if: contains(fromJSON('["9.2","9.4","9.6"]'), matrix.ghc)
+      if: contains(fromJSON('["9.6"]'), matrix.ghc)
       working-directory: ${{ runner.temp }}/haskell-gha
       run: |
         cat >> cabal.project.local <<'EOF'
