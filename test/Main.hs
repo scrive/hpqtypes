@@ -31,7 +31,6 @@ import Test.HUnit hiding (Test, assertEqual)
 import Test.QuickCheck
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Random
-import TextShow
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
@@ -615,7 +614,7 @@ integerTest td = testCase "Integer decoding from numeric works"
     -- The server strips trailing zero base-10000 digit groups from the wire
     -- representation of numeric, so values that are multiples of 10000 arrive
     -- with fewer digits than their weight indicates.
-    runSQL_ . mkSQL $ "SELECT " <> showt n <> " :: numeric"
+    runSQL_ . mkSQL $ "SELECT " <> T.pack (show n) <> " :: numeric"
     n' <- fetchOne runIdentity
     assertEqualEq ("Integer" <+> show n <+> "is decoded correctly") n n'
 
@@ -922,7 +921,7 @@ rowTest td _r = testCase
   . runTimes 100
   $ do
     row :: row <- randomValue 100
-    let fmt = mintercalate ", " $ map (T.append "$" . showt) [1 .. pqVariables @row]
+    let fmt = mintercalate ", " $ map (T.append "$" . T.pack . show) [1 .. pqVariables @row]
     runQuery_ $ rawSQL ("SELECT" <+> fmt) row
     row' <- fetchOne id
     assertEqualEq "Row doesn't change after getting through database" row row'

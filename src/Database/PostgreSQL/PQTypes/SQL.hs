@@ -17,7 +17,6 @@ import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Foreign.Marshal.Alloc
-import TextShow
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes.Format
@@ -55,7 +54,7 @@ instance IsSQL SQL where
         SqlParam (v :: t) -> toSQL v pa $ \base ->
           BS.unsafeUseAsCString (pqFormat0 @t) $ \fmt -> do
             verifyPQTRes err "withSQL (SQL)" =<< c_PQputf1 param err fmt base
-            modifyMVar nums $ \n -> pure . (,"$" <> showt n) $! n + 1
+            modifyMVar nums $ \n -> pure . (,"$" <> T.pack (show n)) $! n + 1
 
 instance SG.Semigroup SQL where
   SQL a <> SQL b = SQL (a S.>< b)
