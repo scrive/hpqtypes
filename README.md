@@ -1,6 +1,6 @@
 # hpqtypes-effectful
 
-[![CI](https://github.com/haskell-effectful/hpqtypes-effectful/actions/workflows/haskell-gha.yml/badge.svg?branch=master)](https://github.com/haskell-effectful/hpqtypes-effectful/actions/workflows/haskell-gha.yml)
+[![CI](https://github.com/haskell-effectful/hpqtypes-effectful/actions/workflows/haskell-gha.yaml/badge.svg?branch=master)](https://github.com/haskell-effectful/hpqtypes-effectful/actions/workflows/haskell-gha.yaml)
 [![Hackage](https://img.shields.io/hackage/v/hpqtypes-effectful.svg)](https://hackage.haskell.org/package/hpqtypes-effectful)
 [![Stackage LTS](https://www.stackage.org/package/hpqtypes-effectful/badge/lts)](https://www.stackage.org/lts/package/hpqtypes-effectful)
 [![Stackage Nightly](https://www.stackage.org/package/hpqtypes-effectful/badge/nightly)](https://www.stackage.org/nightly/package/hpqtypes-effectful)
