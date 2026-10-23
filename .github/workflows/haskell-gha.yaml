@@ -127,6 +127,10 @@ jobs:
         echo "GHC ${{ steps.setup.outputs.ghc-version }}, cabal ${{ steps.setup.outputs.cabal-version }}, image $ImageOS $ImageVersion" >> "$GITHUB_STEP_SUMMARY"
         echo "image=$ImageOS" >> "$GITHUB_OUTPUT"
 
+    - name: Create the database for the tests of hpqtypes-extras
+      run: |
+        docker exec ${{ job.services.postgres.id }} createdb -U postgres hpqtypes_extras
+
     - name: Unpack the source tarballs
       run: |
         shopt -s extglob

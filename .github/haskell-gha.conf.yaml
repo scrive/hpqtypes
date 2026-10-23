@@ -18,3 +18,10 @@ services:
       --health-interval 10s
       --health-timeout 5s
       --health-retries 5
+hooks:
+  # The test suites of hpqtypes and hpqtypes-extras would interfere with each
+  # other in one database, so hpqtypes-extras gets its own.
+  after-setup:
+  - name: Create the database for the tests of hpqtypes-extras
+    run: |
+      docker exec ${{ job.services.postgres.id }} createdb -U postgres hpqtypes_extras
