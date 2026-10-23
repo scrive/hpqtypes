@@ -13,6 +13,7 @@ import Data.Aeson hiding ((<?>))
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.Function
+import Data.IORef
 import Data.Int
 import Data.List qualified as L
 import Data.Maybe
@@ -34,6 +35,7 @@ import Test.QuickCheck.Random
 
 import Data.Monoid.Utils
 import Database.PostgreSQL.PQTypes
+import Database.PostgreSQL.PQTypes.Observer
 import Prelude.Instances ()
 import Test.Aeson.Compat (Value0)
 import Test.QuickCheck.Arbitrary.Instances
@@ -906,6 +908,83 @@ acquisitionModeChangeFailureTest td = testCase
     n <- fetchOne $ runIdentity @Int32
     assertEqualEq "Unexpected query result" 1 n
 
+data ObservedQuery = ObservedQuery
+  { oqQuery :: T.Text
+  , oqPreparedName :: Maybe T.Text
+  , oqResult :: Either String QueryOutcome
+  }
+  deriving (Eq, Show)
+
+-- | Run an action with an observer that records the observed queries.
+withRecordingObserver :: TestData -> (TestData -> IO ()) -> IO ([ThreadId], [ObservedQuery])
+withRecordingObserver (gen, cs) action = do
+  threads <- newIORef []
+  queries <- newIORef []
+  let observer = QueryObserver $ do
+        tid <- myThreadId
+        modifyIORef threads (tid :)
+        pure $ QueryObservation $ \qi run -> do
+          let record result =
+                atomicModifyIORef' queries $ \qs ->
+                  (ObservedQuery (qiQuery qi) (qiPreparedName qi) result : qs, ())
+          eres <- E.try run
+          case eres of
+            Left (e :: SomeException) -> record (Left $ show e) >> E.throwIO e
+            Right (outcome, r) -> record (Right outcome) >> pure r
+  action (gen, cs {csQueryObserver = Just observer})
+  (,) <$> (reverse <$> readIORef threads) <*> (reverse <$> readIORef queries)
+
+queryObserverTest :: TestData -> Test
+queryObserverTest td =
+  testGroup
+    "Query observer"
+    [ observesQueries
+    , observesFailures
+    ]
+  where
+    observesQueries = testCase "Query observer sees all queries" $ do
+      testThread <- myThreadId
+      (threads, queries) <- withRecordingObserver td $ \td' -> do
+        runTestEnv td' defaultTransactionSettings $ do
+          runSQL_ $ "SELECT" <?> (42 :: Int32)
+          runPreparedQuery_ "observer_select" $ "SELECT" <?> (1 :: Int32)
+          runSQL_ "CREATE TEMP TABLE observer_ (a INTEGER)"
+          runSQL_ "INSERT INTO observer_ (a) VALUES (1), (2)"
+      assertBool "Observation starts in the thread that runs the query" $
+        all (== testThread) threads
+      assertEqualEq "Observation starts for each query" (length queries) (length threads)
+      let query = filter (\oq -> oqQuery oq == "SELECT $1" && isNothing (oqPreparedName oq)) queries
+      assertEqualEq
+        "Query has placeholders in place of parameters"
+        [ObservedQuery "SELECT $1" Nothing (Right $ ReturnedRows 1)]
+        query
+      let prepared = filter (isJust . oqPreparedName) queries
+      assertEqualEq
+        "Prepared query is observed with its name"
+        [ObservedQuery "SELECT $1" (Just "observer_select") (Right $ ReturnedRows 1)]
+        prepared
+      assertBool "Command is observed" $
+        ObservedQuery "INSERT INTO observer_ (a) VALUES (1), (2)" Nothing (Right $ AffectedRows 2)
+          `elem` queries
+      assertBool "Transaction start is observed" $
+        any (("BEGIN" `T.isPrefixOf`) . oqQuery) queries
+      assertEqualEq "Transaction end is observed last" (Just "COMMIT") (oqQuery <$> lastMaybe queries)
+
+    observesFailures = testCase "Query observer sees failed queries" $ do
+      (_, queries) <- withRecordingObserver td $ \td' -> do
+        runTestEnv td' defaultTransactionSettings $ do
+          eres <- try $ runSQL_ "SELECT * FROM observer_nonexistent_"
+          case eres of
+            Left DBException {} -> pure ()
+            Right () -> liftBase $ assertFailure "Query didn't fail"
+      case filter (\oq -> oqQuery oq == "SELECT * FROM observer_nonexistent_") queries of
+        [ObservedQuery {oqResult = Left err}] ->
+          assertBool ("Error mentions the table: " ++ err) $
+            "observer_nonexistent_" `L.isInfixOf` err
+        oqs -> assertFailure $ "Unexpected observed queries: " ++ show oqs
+
+    lastMaybe = listToMaybe . reverse
+
 rowTest
   :: forall row
    . (Arbitrary row, Eq row, Show row, ToRow row, FromRow row)
@@ -936,7 +1015,8 @@ _printTime m = do
 
 tests :: TestData -> [Test]
 tests td =
-  [ autocommitTest td
+  [ queryObserverTest td
+  , autocommitTest td
   , setRoleTest td
   , preparedStatementTest td
   , copyNotSupportedTest td

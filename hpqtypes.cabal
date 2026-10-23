@@ -1,7 +1,7 @@
 cabal-version:       3.0
 build-type:          Simple
 name:                hpqtypes
-version:             1.15.1.0
+version:             1.16.0.0
 synopsis:            Haskell bindings to libpqtypes
 
 description:         Efficient and easy-to-use bindings to (slightly modified)
@@ -73,6 +73,7 @@ library
                      , Database.PostgreSQL.PQTypes.Format
                      , Database.PostgreSQL.PQTypes.Interval
                      , Database.PostgreSQL.PQTypes.Notification
+                     , Database.PostgreSQL.PQTypes.Observer
                      , Database.PostgreSQL.PQTypes.SQL
                      , Database.PostgreSQL.PQTypes.SQL.Raw
                      , Database.PostgreSQL.PQTypes.SQL.Class
@@ -87,6 +88,7 @@ library
                      , Database.PostgreSQL.PQTypes.Internal.Exception
                      , Database.PostgreSQL.PQTypes.Internal.Monad
                      , Database.PostgreSQL.PQTypes.Internal.Notification
+                     , Database.PostgreSQL.PQTypes.Internal.Observer
                      , Database.PostgreSQL.PQTypes.Internal.QueryResult
                      , Database.PostgreSQL.PQTypes.Internal.State
                      , Database.PostgreSQL.PQTypes.Internal.C.Put
