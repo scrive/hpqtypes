@@ -142,6 +142,8 @@ jobs:
         tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha
         mkdir -p "$RUNNER_TEMP"/haskell-gha/hpqtypes-extras
         tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-extras-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/hpqtypes-extras
+        mkdir -p "$RUNNER_TEMP"/haskell-gha/hpqtypes-effectful
+        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-effectful-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/hpqtypes-effectful
 
     - name: Configure the project
       working-directory: ${{ runner.temp }}/haskell-gha
@@ -230,6 +232,7 @@ jobs:
         }
         check hpqtypes .
         check hpqtypes-extras hpqtypes-extras
+        check hpqtypes-effectful hpqtypes-effectful
         exit "$failed"
 
     - name: Build the documentation

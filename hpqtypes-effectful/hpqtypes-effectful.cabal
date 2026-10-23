@@ -10,7 +10,7 @@ author:             Scrive AB
 synopsis:           Adaptation of the hpqtypes library for the effectful ecosystem.
 
 description:        Adaptation of the @<https://hackage.haskell.org/package/hpqtypes hpqtypes>@ library for the @<https://hackage.haskell.org/package/effectful effectful>@ ecosystem.
-homepage:           https://github.com/haskell-effectful/hpqtypes-effectful
+homepage:           https://github.com/scrive/hpqtypes
 
 extra-doc-files:
   CHANGELOG.md
@@ -18,10 +18,11 @@ extra-doc-files:
 
 tested-with: GHC ^>= { 9.2, 9.4, 9.6, 9.8, 9.10, 9.12, 9.14 }
 
-bug-reports: https://github.com/haskell-effectful/hpqtypes-effectful/issues
+bug-reports: https://github.com/scrive/hpqtypes/issues
 source-repository head
   type:     git
-  location: https://github.com/haskell-effectful/hpqtypes-effectful
+  location: https://github.com/scrive/hpqtypes.git
+  subdir:   hpqtypes-effectful
 
 common language
     ghc-options:        -Wall -Wcompat -Wredundant-constraints
