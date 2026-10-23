@@ -1,4 +1,12 @@
-# hpqtypes-1.15.1.0 (????-??-??)
+# hpqtypes-1.16.0.0 (????-??-??)
+* Add query observers for tracing, see `Database.PostgreSQL.PQTypes.Observer`.
+  Set the new field `csQueryObserver` of `ConnectionSettings` to observe
+  every query of a connection, including the `BEGIN`, `COMMIT` and `ROLLBACK`
+  that the library runs itself. The new package `hpqtypes-opentelemetry`
+  provides an observer that creates OpenTelemetry spans.
+* Add `errorCodeToString`, the inverse of `stringToErrorCode`.
+* `Connection` has new fields: `connDatabase`, `connHost`, `connPort` and
+  `connQueryObserver`.
 * `getNotification` now wraps its exceptions in `DBException` and rejects a
   notification that is not valid UTF-8 at once. If you catch exceptions of
   `getNotification`, catch `DBException`.
