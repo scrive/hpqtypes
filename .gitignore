@@ -7,3 +7,8 @@
 /libpqtypes/src/stamp-h1
 TAGS
 .ghc.environment.*
+TAGS.mtime
+/cabal.project.local
+.envrc
+.direnv/
+.dir-locals.el
