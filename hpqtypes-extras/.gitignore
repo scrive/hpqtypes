@@ -1,0 +1,6 @@
+TAGS
+TAGS.mtime
+dist/
+dist-newstyle/
+cabal.project.local
+.ghc.environment.*
