@@ -13,3 +13,5 @@
 - warn: {lhs: fmap f $ g, rhs: f <$> g}
 - warn: {lhs: maybe x identity, rhs: fromMaybe x}
 - warn: {lhs: return, rhs: pure}
+- ignore: {name: "Use infix"}
+- ignore: {name: "Avoid lambda using `infix`"}

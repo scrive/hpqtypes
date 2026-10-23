@@ -1,4 +1,5 @@
 packages: .
+        , hpqtypes-extras
 
 allow-newer: *:base
            , *:containers

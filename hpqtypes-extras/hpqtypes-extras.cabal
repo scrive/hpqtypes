@@ -9,7 +9,7 @@ description:         The following extras for hpqtypes library:
                      * System for automatic validation and migration
                        of a database schema.
 
-homepage:            https://github.com/scrive/hpqtypes-extras
+homepage:            https://github.com/scrive/hpqtypes
 license:             BSD-3-Clause
 license-file:        LICENSE
 extra-doc-files:     CHANGELOG.md, README.md
@@ -24,7 +24,8 @@ tested-with:         GHC ^>= { 9.2, 9.4, 9.6, 9.8, 9.10, 9.12, 9.14 }
 
 Source-repository head
   Type:     git
-  Location: https://github.com/scrive/hpqtypes-extras.git
+  Location: https://github.com/scrive/hpqtypes.git
+  Subdir:   hpqtypes-extras
 
 common common-stanza
   Default-Language: Haskell2010
