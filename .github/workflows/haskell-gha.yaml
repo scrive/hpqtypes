@@ -127,6 +127,10 @@ jobs:
         echo "GHC ${{ steps.setup.outputs.ghc-version }}, cabal ${{ steps.setup.outputs.cabal-version }}, image $ImageOS $ImageVersion" >> "$GITHUB_STEP_SUMMARY"
         echo "image=$ImageOS" >> "$GITHUB_OUTPUT"
 
+    - name: Create the database for the tests of hpqtypes-extras
+      run: |
+        docker exec ${{ job.services.postgres.id }} createdb -U postgres hpqtypes_extras
+
     - name: Unpack the source tarballs
       run: |
         shopt -s extglob
@@ -136,6 +140,10 @@ jobs:
           if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP"/haskell-gha; fi
         done
         tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha
+        mkdir -p "$RUNNER_TEMP"/haskell-gha/hpqtypes-extras
+        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-extras-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/hpqtypes-extras
+        mkdir -p "$RUNNER_TEMP"/haskell-gha/hpqtypes-effectful
+        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/hpqtypes-effectful-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/hpqtypes-effectful
 
     - name: Configure the project
       working-directory: ${{ runner.temp }}/haskell-gha
@@ -223,6 +231,8 @@ jobs:
           (cd "$2" && cabal check) || { echo "::error::cabal check failed for the package $1"; failed=1; }
         }
         check hpqtypes .
+        check hpqtypes-extras hpqtypes-extras
+        check hpqtypes-effectful hpqtypes-effectful
         exit "$failed"
 
     - name: Build the documentation
