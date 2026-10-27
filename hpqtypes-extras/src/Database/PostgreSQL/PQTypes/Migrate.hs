@@ -24,7 +24,7 @@ createTable :: MonadDB m => Bool -> Table -> m ()
 createTable withConstraints table@Table {..} = do
   -- Create empty table and add the columns.
   runQuery_ $ sqlCreateTable tblName
-  runQuery_ $ sqlAlterTable tblName $ map sqlAddColumn tblColumns
+  runQuery_ . sqlAlterTable tblName $ map sqlAddColumn tblColumns
   -- Add the primary key if applicable.
   forM_ tblPrimaryKey $ \pk -> runQuery_ $ sqlAlterTable tblName [sqlAddPK tblName pk]
   -- Add indexes.

@@ -28,7 +28,7 @@ testConnectionStatsWithNewSession td = runTest td $ do
   runSQL_ "SELECT 1"
   runSQL_ "SELECT 2"
   stats <- getConnectionStats
-  liftIO $ assertEqual "Incorrect statsQueries" 2 $ statsQueries stats
+  liftIO . assertEqual "Incorrect statsQueries" 2 $ statsQueries stats
   unsafeWithoutTransaction
     . bracket_
       (runSQL_ "CREATE TABLE some_table (field INT)")
@@ -38,7 +38,7 @@ testConnectionStatsWithNewSession td = runTest td $ do
         runSQL_ "INSERT INTO some_table VALUES (1)"
         withNewSession $ do
           newStats <- getConnectionStats
-          liftIO $ assertEqual "Connection stats should be reset" 0 $ statsQueries newStats
+          liftIO . assertEqual "Connection stats should be reset" 0 $ statsQueries newStats
           noOfResults <- runSQL "SELECT * FROM some_table"
           liftIO $ assertEqual "Results should not be visible yet" 0 noOfResults
       noOfResults <- runSQL "SELECT * FROM some_table"

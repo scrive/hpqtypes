@@ -121,7 +121,7 @@ instance
               { reRange = validRange
               , reValue = b
               }
-      Right a -> return $ SQLEnum a
+      Right a -> pure $ SQLEnum a
 
 -- | A special case of 'SQLEnum', where the enum is to be encoded as text
 -- ('SQLEnum' can't be used because of the 'Enum' constraint on the domain of
@@ -193,7 +193,7 @@ instance EnumAsTextEncoding a => FromSQL (SQLEnumAsText a) where
               { ivValue = text
               , ivValidValues = Just validValues
               }
-      Right a -> return $ SQLEnumAsText a
+      Right a -> pure $ SQLEnumAsText a
 
 -- | To be used in doctests to prove injectivity of encoding functions.
 --

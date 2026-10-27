@@ -14,11 +14,7 @@ import Test.Env
 import Test.LastQuery
 
 tests :: TestData -> [TestTree]
-tests td =
-  concat
-    [ lastQueryTests td
-    , connectionTests td
-    ]
+tests td = lastQueryTests td ++ connectionTests td
 
 main :: IO ()
 main = do

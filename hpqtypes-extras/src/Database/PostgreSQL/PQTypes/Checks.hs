@@ -158,12 +158,12 @@ checkDatabaseWithReport
       checkInitialSetups = mconcatMapM checkInitialSetupForTable
 
       checkInitialSetupForTable table = case tblInitialSetup table of
-        Nothing -> return mempty
+        Nothing -> pure mempty
         Just setup ->
           checkInitialSetup setup >>= \case
-            True -> return mempty
+            True -> pure mempty
             False ->
-              return . validationError $
+              pure . validationError $
                 "Initial setup for table '"
                   <> tblNameText table
                   <> "' is not valid"
@@ -183,7 +183,7 @@ currentCatalog :: (MonadDB m, MonadThrow m) => m (RawSQL ())
 currentCatalog = do
   runSQL_ "SELECT current_catalog::text"
   dbname <- fetchOne runIdentity
-  return $ unsafeSQL $ "\"" ++ dbname ++ "\""
+  pure . unsafeSQL $ "\"" ++ dbname ++ "\""
 
 -- | Check for a given extension. We need to read from 'pg_extension'
 -- table as Amazon RDS limits usage of 'CREATE EXTENSION IF NOT EXISTS'.
@@ -221,11 +221,11 @@ setDBTimeZoneToUTC = do
 -- the DB.
 getDBTableNames :: MonadDB m => m [Text]
 getDBTableNames = do
-  runQuery_ $ sqlSelect "information_schema.tables" $ do
+  runQuery_ . sqlSelect "information_schema.tables" $ do
     sqlResult "table_name::text"
     sqlWhere "table_name <> 'table_versions'"
     sqlWhere "table_type = 'BASE TABLE'"
-    sqlWhereExists $ sqlSelect "unnest(current_schemas(false)) as cs" $ do
+    sqlWhereExists . sqlSelect "unnest(current_schemas(false)) as cs" $ do
       sqlResult "TRUE"
       sqlWhere "cs = table_schema"
   fetchMany runIdentity
@@ -264,10 +264,10 @@ checkUnknownTables tables = do
     then do
       mapM_ (logInfo_ . (<+>) "Unknown table:") absent
       mapM_ (logInfo_ . (<+>) "Table not present in the database:") notPresent
-      return $
+      pure $
         validateIsNull "Unknown tables:" absent
           <> validateIsNull "Tables not present in the database:" notPresent
-    else return mempty
+    else pure mempty
 
 validateIsNull :: Text -> [Text] -> ValidationResult
 validateIsNull _ [] = mempty
@@ -280,7 +280,7 @@ checkExistenceOfVersionsForTables
   => [Table]
   -> m ValidationResult
 checkExistenceOfVersionsForTables tables = do
-  runQuery_ $ sqlSelect "table_versions" $ do
+  runQuery_ . sqlSelect "table_versions" $ do
     sqlResult "name::text"
   (existingTableNames :: [Text]) <- fetchMany runIdentity
 
@@ -294,10 +294,10 @@ checkExistenceOfVersionsForTables tables = do
       mapM_
         (logInfo_ . (<+>) "Table not present in the 'table_versions':")
         notPresent
-      return $
+      pure $
         validateIsNull "Unknown entry in table_versions':" absent
           <> validateIsNull "Tables not present in the 'table_versions':" notPresent
-    else return mempty
+    else pure mempty
 
 checkDomainsStructure
   :: (MonadDB m, MonadThrow m)
@@ -325,7 +325,7 @@ checkDomainsStructure defs = fmap mconcat . forM defs $ \def -> do
       "ARRAY(SELECT c.convalidated FROM pg_catalog.pg_constraint c \
       \WHERE c.contype = 'c' AND c.contypid = t1.oid \
       \ORDER by c.oid)" -- are constraints validated?
-    sqlWhereEq "t1.typname" $ unRawSQL $ domName def
+    sqlWhereEq "t1.typname" . unRawSQL $ domName def
   mdom <- fetchMaybe $
     \(dname, dtype, nullable, defval, cnames, conds, valids) ->
       Domain
@@ -347,7 +347,7 @@ checkDomainsStructure defs = fmap mconcat . forM defs $ \def -> do
                 (unArray1 conds)
                 (unArray1 valids)
         }
-  return $ case mdom of
+  pure $ case mdom of
     Just dom
       | dom /= def ->
           topMessage "domain" (unRawSQL $ domName dom) $
@@ -393,7 +393,7 @@ checkEnumTypes defs = fmap mconcat . forM defs $ \defEnum -> do
     sqlResult "t.typname::text" -- name
     sqlResult
       "ARRAY(SELECT e.enumlabel::text FROM pg_catalog.pg_enum e WHERE e.enumtypid = t.oid ORDER BY e.enumsortorder)" -- values
-    sqlWhereEq "t.typname" $ unRawSQL $ etName defEnum
+    sqlWhereEq "t.typname" . unRawSQL $ etName defEnum
   enum <- fetchMaybe $
     \(enumName, enumValues) ->
       EnumType
@@ -459,7 +459,7 @@ checkTablesWereDropped mgrs = do
   fmap mconcat . forM droppedTableNames $
     \tblName -> do
       mver <- checkTableVersion (T.unpack . unRawSQL $ tblName)
-      return $
+      pure $
         if isNothing mver
           then mempty
           else
@@ -488,7 +488,7 @@ checkCompositesStructure tablesWithVersions ccm ovm compositeList =
     [] | noTablesPresent tablesWithVersions && ccm == CreateCompositesIfDatabaseEmpty -> do
       -- DB is not initialized, create composites if there are any defined.
       mapM_ (runQuery_ . sqlCreateComposite) compositeList
-      return mempty
+      pure mempty
     dbCompositeTypes ->
       pure $
         mconcat
@@ -571,7 +571,7 @@ checkDBStructure options tables = fmap mconcat . forM tables $ \(table, version)
   result <- topMessage "table" (tblNameText table) <$> checkTableStructure table
   -- If we allow higher table versions in the database, show inconsistencies as
   -- info messages only.
-  return $
+  pure $
     if eoAllowHigherTableVersions options && tblVersion table < version
       then validationErrorsToInfos result
       else result
@@ -580,18 +580,24 @@ checkDBStructure options tables = fmap mconcat . forM tables $ \(table, version)
     checkTableStructure table@Table {..} = do
       -- get table description from pg_catalog as describeTable
       -- mechanism from HDBC doesn't give accurate results
-      runQuery_ $ sqlSelect "pg_catalog.pg_attribute a" $ do
+      runQuery_ . sqlSelect "pg_catalog.pg_attribute a" $ do
         sqlResult "a.attname::text"
         sqlResult "pg_catalog.format_type(a.atttypid, a.atttypmod)"
-        sqlResult . parenthesize . toSQLCommand $
-          sqlSelect "pg_catalog.pg_collation c, pg_catalog.pg_type t" $ do
+        sqlResult
+          . parenthesize
+          . toSQLCommand
+          . sqlSelect "pg_catalog.pg_collation c, pg_catalog.pg_type t"
+          $ do
             sqlResult "c.collname::text"
             -- `typcollation` specifies the default collation of the type (if
             -- any), and `attcollation` is the collation of the column.
             sqlWhere "c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation"
         sqlResult "NOT a.attnotnull"
-        sqlResult . parenthesize . toSQLCommand $
-          sqlSelect "pg_catalog.pg_attrdef d" $ do
+        sqlResult
+          . parenthesize
+          . toSQLCommand
+          . sqlSelect "pg_catalog.pg_attrdef d"
+          $ do
             sqlResult "pg_catalog.pg_get_expr(d.adbin, d.adrelid)"
             sqlWhere "d.adrelid = a.attrelid"
             sqlWhere "d.adnum = a.attnum"
@@ -612,7 +618,7 @@ checkDBStructure options tables = fmap mconcat . forM tables $ \(table, version)
       fkeys <- fetchMany fetchForeignKey
       triggers <- getDBTriggers tblName
       checkedOverlaps <- checkOverlappingIndexes tblName
-      return $
+      pure $
         mconcat
           [ checkColumns 1 tblColumns desc
           , checkPrimaryKey tblPrimaryKey pk
@@ -909,7 +915,7 @@ checkDBConsistency options domains enums tablesWithVersions migrations = do
             ]
           expectedMigrationVersions =
             reverse
-              $ take (length presentMigrationVersions)
+              . take (length presentMigrationVersions)
               $ reverse [0 .. tblVersion table - 1]
       checkMigrationsListValidity
         table
@@ -991,7 +997,7 @@ checkDBConsistency options domains enums tablesWithVersions migrations = do
     initializeDB = do
       logInfo_ "Running initial setup for tables..."
       forM_ tables $ \t -> case tblInitialSetup t of
-        Nothing -> return ()
+        Nothing -> pure ()
         Just tis -> do
           logInfo_ $ "Initializing" <+> tblNameText t <> "..."
           initialSetup tis
@@ -1024,7 +1030,7 @@ checkDBConsistency options domains enums tablesWithVersions migrations = do
                       ++ show actualVer
                       ++ " -> "
                       ++ show expectedVer
-              | otherwise -> return ()
+              | otherwise -> pure ()
 
     validateDropTableMigrationsAgainstDB :: [(Text, Int32)] -> m ()
     validateDropTableMigrationsAgainstDB dbTablesWithVersions = do
@@ -1125,7 +1131,7 @@ checkDBConsistency options domains enums tablesWithVersions migrations = do
             sqlDropTable
               mgrTableName
               mgrDropTableMode
-          runQuery_ $ sqlDelete "table_versions" $ do
+          runQuery_ . sqlDelete "table_versions" $ do
             sqlWhereEq "name" (T.unpack . unRawSQL $ mgrTableName)
         CreateIndexConcurrentlyMigration mLocalIndexName idx -> do
           logMigration
@@ -1222,7 +1228,7 @@ checkDBConsistency options domains enums tablesWithVersions migrations = do
               <+> showt (succ mgrFrom)
 
         updateTableVersion = do
-          runQuery_ $ sqlUpdate "table_versions" $ do
+          runQuery_ . sqlUpdate "table_versions" $ do
             sqlSet "version" (succ mgrFrom)
             sqlWhereEq "name" (T.unpack . unRawSQL $ mgrTableName)
 
@@ -1434,7 +1440,7 @@ checkTableVersion tblName = do
           <?> tblName
       mver <- fetchMaybe runIdentity
       case mver of
-        Just ver -> return $ Just ver
+        Just ver -> pure $ Just ver
         Nothing ->
           error $
             "checkTableVersion: table '"
@@ -1442,13 +1448,15 @@ checkTableVersion tblName = do
               ++ "' is present in the database, "
               ++ "but there is no corresponding version info in 'table_versions'."
     else do
-      return Nothing
+      pure Nothing
 
 -- *** TABLE STRUCTURE ***
 
 sqlGetTableID :: RawSQL () -> SQL
-sqlGetTableID tableName = parenthesize . toSQLCommand $
-  sqlSelect "pg_catalog.pg_class c" $ do
+sqlGetTableID tableName = parenthesize
+  . toSQLCommand
+  . sqlSelect "pg_catalog.pg_class c"
+  $ do
     sqlResult "c.oid"
     sqlLeftJoinOn "pg_catalog.pg_namespace n" "n.oid = c.relnamespace"
     sqlWhereEq "c.relname" $ unRawSQL tableName
@@ -1469,7 +1477,7 @@ sqlGetPrimaryKey tableName = do
     fetchMaybe $ unArray1 . runIdentity
 
   case mColumnNumbers of
-    Nothing -> do return Nothing
+    Nothing -> do pure Nothing
     Just columnNumbers -> do
       columnNames <- do
         forM columnNumbers $ \k -> do

@@ -902,7 +902,7 @@ testDBSchema1 step = do
         ("Erica" :: String, "Hackett" :: String)
         deletedName
 
-  return (badGuyIds, robberyIds)
+  pure (badGuyIds, robberyIds)
 
 migrateDBToSchema2 :: (String -> TestM ()) -> TestM ()
 migrateDBToSchema2 step = do
@@ -974,7 +974,7 @@ testDBSchema2 step badGuyIds robberyIds = do
       2
       (length arrestedIds')
 
-  return ()
+  pure ()
 
 migrateDBToSchema3 :: (String -> TestM ()) -> TestM ()
 migrateDBToSchema3 step = do
@@ -1039,7 +1039,7 @@ testDBSchema3 step badGuyIds robberyIds = do
       2
       (length sentencedIds')
 
-  return ()
+  pure ()
 
 migrateDBToSchema4 :: (String -> TestM ()) -> TestM ()
 migrateDBToSchema4 step = do
@@ -1068,7 +1068,7 @@ testDBSchema4 step = do
       True
       colCashExists
 
-  return ()
+  pure ()
 
 migrateDBToSchema5 :: (String -> TestM ()) -> TestM ()
 migrateDBToSchema5 step = do
@@ -1101,7 +1101,7 @@ testDBSchema5 step = do
   (flashExists :: Bool) <- fetchOne runIdentity
   liftIO $ assertEqual "Table 'flash' doesn't exist" False flashExists
 
-  return ()
+  pure ()
 
 -- | May require 'ALTER SCHEMA public OWNER TO $user' the first time
 -- you run this.
@@ -1791,20 +1791,20 @@ migrationTest2 connSource =
     runQuery_ $ sqlCreateComposite composite
 
     assertNoException "checkDatabase should run fine for consistent DB"
-      $ checkDatabase extrasOptions
+      . checkDatabase extrasOptions
       $ emptyDbDefinitions {dbComposites = [composite], dbTables = currentSchema}
     assertException "checkDatabase fails if composite type definition is not provided"
-      $ checkDatabase extrasOptions
+      . checkDatabase extrasOptions
       $ emptyDbDefinitions {dbTables = currentSchema}
     assertNoException
       "checkDatabaseAllowUnknownTables runs fine \
       \for consistent DB"
-      $ checkDatabase extrasOptionsWithUnknownObjects
+      . checkDatabase extrasOptionsWithUnknownObjects
       $ emptyDbDefinitions {dbComposites = [composite], dbTables = currentSchema}
     assertNoException
       "checkDatabaseAllowUnknownTables runs fine \
       \for consistent DB with unknown composite type in the database"
-      $ checkDatabase extrasOptionsWithUnknownObjects
+      . checkDatabase extrasOptionsWithUnknownObjects
       $ emptyDbDefinitions {dbTables = currentSchema}
     assertException "checkDatabase should throw exception for wrong schema" $
       checkDatabase extrasOptions emptyDbDefinitions {dbTables = differentSchema}
@@ -1817,33 +1817,33 @@ migrationTest2 connSource =
       "INSERT INTO table_versions (name, version) \
       \VALUES ('unknown_table', 0)"
     assertException "checkDatabase throw when extra entry in 'table_versions'"
-      $ checkDatabase extrasOptions
+      . checkDatabase extrasOptions
       $ emptyDbDefinitions {dbTables = currentSchema}
     assertNoException
       "checkDatabaseAllowUnknownObjects \
       \accepts extra entry in 'table_versions'"
-      $ checkDatabase extrasOptionsWithUnknownObjects
+      . checkDatabase extrasOptionsWithUnknownObjects
       $ emptyDbDefinitions {dbTables = currentSchema}
     runSQL_ "DELETE FROM table_versions where name='unknown_table'"
 
     runSQL_ "CREATE TABLE unknown_table (title text)"
     assertException "checkDatabase should throw with unknown table"
-      $ checkDatabase extrasOptions
+      . checkDatabase extrasOptions
       $ emptyDbDefinitions {dbTables = currentSchema}
     assertNoException "checkDatabaseAllowUnknownObjects accepts unknown table"
-      $ checkDatabase extrasOptionsWithUnknownObjects
+      . checkDatabase extrasOptionsWithUnknownObjects
       $ emptyDbDefinitions {dbTables = currentSchema}
 
     runSQL_
       "INSERT INTO table_versions (name, version) \
       \VALUES ('unknown_table', 0)"
     assertException "checkDatabase should throw with unknown table"
-      $ checkDatabase extrasOptions
+      . checkDatabase extrasOptions
       $ emptyDbDefinitions {dbTables = currentSchema}
     assertNoException
       "checkDatabaseAllowUnknownObjects \
       \accepts unknown tables with version"
-      $ checkDatabase extrasOptionsWithUnknownObjects
+      . checkDatabase extrasOptionsWithUnknownObjects
       $ emptyDbDefinitions {dbTables = currentSchema}
 
     freshTestDB step
@@ -1870,12 +1870,12 @@ migrationTest2 connSource =
     assertException
       "checkDatabase should throw when PK missing from table \
       \'participated_in_robbery' and check is enabled"
-      $ checkDatabase optionsWithPKCheck
+      . checkDatabase optionsWithPKCheck
       $ emptyDbDefinitions {dbTables = withMissingPKSchema}
     assertNoException
       "checkDatabase should not throw when PK missing from table \
       \'participated_in_robbery' and check is disabled"
-      $ checkDatabase optionsNoPKCheck
+      . checkDatabase optionsNoPKCheck
       $ emptyDbDefinitions {dbTables = withMissingPKSchema}
 
     freshTestDB step
@@ -2041,7 +2041,7 @@ migrationTest5 connSource =
         , mgrFrom = 1
         , mgrAction =
             StandardMigration
-              $ runQuery_
+              . runQuery_
               $ sqlAlterTable "bank" [sqlAddColumn stringColumn]
         }
 
@@ -2063,7 +2063,7 @@ migrationTest5 connSource =
         , mgrFrom = 3
         , mgrAction =
             StandardMigration
-              $ runQuery_
+              . runQuery_
               $ sqlAlterTable "bank" [sqlAddColumn boolColumn]
         }
 
@@ -2089,8 +2089,9 @@ migrationTest5 connSource =
       rows_new :: [Maybe T.Text] <- fetchMany runIdentity
       runQuery_ . sqlSelect "bank" $ sqlResult "name"
       rows_old :: [Maybe T.Text] <- fetchMany runIdentity
-      liftIO . assertEqual "All name_new are equal name" True
-        $ all (uncurry (==))
+      liftIO
+        . assertEqual "All name_new are equal name" True
+        . all (uncurry (==))
         $ zip rows_new rows_old
 
     checkAddBoolColumn = do
@@ -2306,7 +2307,7 @@ nullsNotDistinctTests connSource = do
     do
       runQuery_ . sqlInsert "nulltests2" $ do
         sqlSet "content" (Nothing @T.Text)
-      assertDBException "Cannot insert twice a null value with NULLS NOT DISTINCT" $ runQuery_ . sqlInsert "nulltests2" $ do
+      assertDBException "Cannot insert twice a null value with NULLS NOT DISTINCT" . runQuery_ . sqlInsert "nulltests2" $ do
         sqlSet "content" (Nothing @T.Text)
   where
     nullTableTest1 =
@@ -2343,11 +2344,11 @@ sqlAnyAllTests =
     "SQL ANY/ALL tests"
     [ testCase "sqlAll produces correct queries" $ do
         assertSqlEqual "empty sqlAll is TRUE" "TRUE" . sqlAll $ pure ()
-        assertSqlEqual "sigle condition is emmited as is" "cond" $ sqlAll $ sqlWhere "cond"
+        assertSqlEqual "sigle condition is emmited as is" "cond" . sqlAll $ sqlWhere "cond"
         assertSqlEqual
           "each condition as well as entire condition is parenthesized"
           "((cond1) AND (cond2))"
-          $ sqlAll
+          . sqlAll
           $ do
             sqlWhere "cond1"
             sqlWhere "cond2"
@@ -2355,7 +2356,7 @@ sqlAnyAllTests =
         assertSqlEqual
           "sqlAll can be nested"
           "((cond1) AND (cond2) AND (((cond3) AND (cond4))))"
-          $ sqlAll
+          . sqlAll
           $ do
             sqlWhere "cond1"
             sqlWhere "cond2"
@@ -2364,11 +2365,11 @@ sqlAnyAllTests =
               sqlWhere "cond4"
     , testCase "sqlAny produces correct queries" $ do
         assertSqlEqual "empty sqlAny is FALSE" "FALSE" . sqlAny $ pure ()
-        assertSqlEqual "sigle condition is emmited as is" "cond" $ sqlAny $ sqlWhere "cond"
+        assertSqlEqual "sigle condition is emmited as is" "cond" . sqlAny $ sqlWhere "cond"
         assertSqlEqual
           "each condition as well as entire condition is parenthesized"
           "((cond1) OR (cond2))"
-          $ sqlAny
+          . sqlAny
           $ do
             sqlWhere "cond1"
             sqlWhere "cond2"
@@ -2376,7 +2377,7 @@ sqlAnyAllTests =
         assertSqlEqual
           "sqlAny can be nested"
           "((cond1) OR (cond2) OR (((cond3) OR (cond4))))"
-          $ sqlAny
+          . sqlAny
           $ do
             sqlWhere "cond1"
             sqlWhere "cond2"
@@ -2387,7 +2388,7 @@ sqlAnyAllTests =
         assertSqlEqual
           "sqlAny and sqlAll can be mixed"
           "((((cond1) OR (cond2))) AND (((cond3) OR (cond4))))"
-          $ sqlAll
+          . sqlAll
           $ do
             sqlWhere . sqlAny $ do
               sqlWhere "cond1"
@@ -2486,14 +2487,14 @@ enumTest connSource =
 assertNoException :: String -> TestM () -> TestM ()
 assertNoException t =
   eitherExc
-    (const $ liftIO $ assertFailure ("Exception thrown for: " ++ t))
-    (const $ return ())
+    (const . liftIO $ assertFailure ("Exception thrown for: " ++ t))
+    (const $ pure ())
 
 assertException :: String -> TestM () -> TestM ()
 assertException t =
   eitherExc
-    (const $ return ())
-    (const $ liftIO $ assertFailure ("No exception thrown for: " ++ t))
+    (const $ pure ())
+    (const . liftIO $ assertFailure ("No exception thrown for: " ++ t))
 
 assertDBException :: String -> TestM () -> TestM ()
 assertDBException t c =
@@ -2513,7 +2514,7 @@ testCaseSteps' testName connSource f =
     let step s = liftIO $ step' s
     withStdOutLogger $ \logger ->
       runLogT "hpqtypes-extras-test" logger defaultLogLevel
-        $ runDBT connSource defaultTransactionSettings
+        . runDBT connSource defaultTransactionSettings
         $ f step
 
 tableDefsWithPgCrypto :: [Table] -> DatabaseDefinitions
@@ -2594,7 +2595,7 @@ numericColumnTypeTestMigration =
        , mgrFrom = 0
        , mgrAction = StandardMigration $ do
            runQuery_
-             $ sqlAlterTable
+             . sqlAlterTable
                tableName
              $ sqlAddColumn <$> tblColumns numericColumnTypeTestTable
        }

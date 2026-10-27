@@ -93,7 +93,7 @@ resultCheck
 resultCheck ValidationResult {..} = do
   mapM_ logInfo_ vrInfos
   case vrErrors of
-    [] -> return ()
+    [] -> pure ()
     msgs -> do
       mapM_ logAttention_ msgs
       error "resultCheck: validation failed"

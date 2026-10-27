@@ -71,7 +71,7 @@ getDBCompositeTypes = do
         sqlWhereEq "a.attrelid" oid
         sqlOrderBy "a.attnum"
       columns <- fetchMany fetch
-      return CompositeType {ctName = unsafeSQL name, ctColumns = columns}
+      pure CompositeType {ctName = unsafeSQL name, ctColumns = columns}
       where
         fetch :: (String, ColumnType) -> CompositeColumn
         fetch (cname, ctype) =

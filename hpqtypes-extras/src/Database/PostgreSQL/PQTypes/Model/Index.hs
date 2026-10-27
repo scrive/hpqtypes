@@ -161,7 +161,8 @@ uniqueIndexOnColumnWithCondition column whereC =
 indexName :: RawSQL () -> TableIndex -> RawSQL ()
 indexName tname TableIndex {..} =
   flip rawSQL ()
-    $ T.take 63 . unRawSQL
+    . T.take 63
+    . unRawSQL
     $ mconcat
       [ if idxUnique then "unique_idx__" else "idx__"
       , tname
