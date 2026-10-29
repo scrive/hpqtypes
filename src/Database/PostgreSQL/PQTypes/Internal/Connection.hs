@@ -38,6 +38,8 @@ import Data.Set qualified as S
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error qualified as T
+import Foreign.C.String
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import GHC.Clock (getMonotonicTime)
@@ -50,6 +52,7 @@ import Database.PostgreSQL.PQTypes.Internal.Composite
 import Database.PostgreSQL.PQTypes.Internal.Error
 import Database.PostgreSQL.PQTypes.Internal.Error.Code
 import Database.PostgreSQL.PQTypes.Internal.Exception
+import Database.PostgreSQL.PQTypes.Internal.Observer
 import Database.PostgreSQL.PQTypes.Internal.QueryResult
 import Database.PostgreSQL.PQTypes.Internal.Utils
 import Database.PostgreSQL.PQTypes.SQL.Class
@@ -66,6 +69,9 @@ data ConnectionSettings = ConnectionSettings
   , csComposites :: ![T.Text]
   -- ^ A list of composite types to register. In order to be able to
   -- (de)serialize specific composite types, you need to register them.
+  , csQueryObserver :: !(Maybe QueryObserver)
+  -- ^ Observer of all queries of the connection, e.g. for tracing. See
+  -- "Database.PostgreSQL.PQTypes.Observer".
   }
   deriving (Eq, Ord, Show)
 
@@ -79,6 +85,7 @@ defaultConnectionSettings =
     , csClientEncoding = Just "UTF-8"
     , csRole = Nothing
     , csComposites = []
+    , csQueryObserver = Nothing
     }
 
 ----------------------------------------
@@ -124,6 +131,14 @@ data Connection = Connection
   -- ^ Process ID of the server process attached to the current session.
   , connPreparedQueries :: !(IORef (S.Set T.Text))
   -- ^ A set of named prepared statements of the connection.
+  , connDatabase :: !(Maybe T.Text)
+  -- ^ Name of the database.
+  , connHost :: !(Maybe T.Text)
+  -- ^ Host of the server, or the directory of its Unix-domain socket.
+  , connPort :: !(Maybe T.Text)
+  -- ^ Port of the server.
+  , connQueryObserver :: !(Maybe QueryObserver)
+  -- ^ Observer of the queries of the connection.
   }
 
 data InternalConnectionSource m cdata = InternalConnectionSource
@@ -198,11 +213,18 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
     registerComposites connPtr csComposites
     conn <- do
       preparedQueries <- newIORef S.empty
+      database <- peekConnText =<< c_PQdb connPtr
+      host <- peekConnText =<< c_PQhost connPtr
+      port <- peekConnText =<< c_PQport connPtr
       pure
         Connection
           { connPtr = connPtr
           , connBackendPid = noBackendPid
           , connPreparedQueries = preparedQueries
+          , connDatabase = database
+          , connHost = host
+          , connPort = port
+          , connQueryObserver = csQueryObserver
           }
     F.forM_ csRole $ \role -> runQueryIO conn $ "SET ROLE " <> role
 
@@ -215,6 +237,13 @@ connect ConnectionSettings {..} = mask $ \unmask -> do
         rethrowWithContext selectPid noBackendPid $ toException err
   where
     fname = "connect"
+
+    peekConnText :: CString -> IO (Maybe T.Text)
+    peekConnText cs
+      | cs == nullPtr = pure Nothing
+      | otherwise = do
+          value <- decodeText <$> BS.packCString cs
+          pure $ if T.null value then Nothing else Just value
 
     openConnection :: (forall r. IO r -> IO r) -> BS.ByteString -> IO (Ptr PGconn)
     openConnection unmask conninfo = do
@@ -275,9 +304,9 @@ runQueryIO
   -> sql
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
 runQueryIO conn@Connection {..} sql = do
-  runQueryImpl conn sql $ do
+  runQueryImpl conn sql Nothing $ \observe -> do
     let allocParam = ParamAllocator $ withPGparam connPtr
-    withSQL sql allocParam $ \param query ->
+    withSQL sql allocParam $ \param query -> observe query $ do
       (,)
         <$> (fromIntegral <$> c_PQparamCount param)
         <*> c_PQparamExec connPtr nullPtr param query c_RESULT_BINARY
@@ -294,7 +323,7 @@ runPreparedQueryIO
   -> sql
   -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
 runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
-  runQueryImpl conn sql $ do
+  runQueryImpl conn sql (Just queryName) $ \observe -> do
     when (T.null queryName) $ do
       E.throwIO
         DBException
@@ -304,7 +333,7 @@ runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
           , dbeCallStack = callStack
           }
     let allocParam = ParamAllocator $ withPGparam connPtr
-    withSQL sql allocParam $ \param query -> do
+    withSQL sql allocParam $ \param query -> observe query $ do
       preparedQueries <- readIORef connPreparedQueries
       BS.useAsCString (T.encodeUtf8 queryName) $ \cname -> do
         when (queryName `S.notMember` preparedQueries) . E.mask_ $ do
@@ -318,14 +347,27 @@ runPreparedQueryIO conn@Connection {..} (QueryName queryName) sql = do
           <$> (fromIntegral <$> c_PQparamCount param)
           <*> c_PQparamExecPrepared connPtr nullPtr param cname c_RESULT_BINARY
 
+type QueryRunResult = (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
+
 -- | Shared implementation of 'runQueryIO' and 'runPreparedQueryIO'.
+--
+-- The function that executes the query gets a function that it needs to wrap
+-- the execution with, given the text of the query.
 runQueryImpl
   :: (HasCallStack, IsSQL sql)
   => Connection
   -> sql
-  -> IO (Int, ForeignPtr PGresult)
-  -> IO (Int, ForeignPtr PGresult, ConnectionStats -> ConnectionStats)
-runQueryImpl Connection {..} sql execSql = do
+  -> Maybe T.Text
+  -- ^ Name of the prepared statement.
+  -> ( (CString -> IO (Int, ForeignPtr PGresult) -> IO QueryRunResult)
+       -> IO QueryRunResult
+     )
+  -> IO QueryRunResult
+runQueryImpl Connection {..} sql preparedName execSql = do
+  -- Start the observation in the calling thread, as the query might run in
+  -- another one.
+  observation <- traverse startQueryObservation connQueryObserver
+  let doRunQuery = execSql $ observe observation
   E.getMaskingState >>= \case
     E.MaskedUninterruptible -> do
       -- If asynchronous exceptions are already hard-masked, skip spawning a
@@ -365,9 +407,25 @@ runQueryImpl Connection {..} sql execSql = do
                 void $ c_PQcancel connPtr
                 cancel queryRunner
   where
-    doRunQuery = do
+    observe observation query execQuery = case observation of
+      Nothing -> snd <$> runQuery execQuery
+      Just o -> do
+        queryText <- decodeText <$> BS.packCString query
+        let queryInfo =
+              QueryInfo
+                { qiQuery = queryText
+                , qiPreparedName = preparedName
+                , qiBackendPid = connBackendPid
+                , qiDatabase = connDatabase
+                , qiHost = connHost
+                , qiPort = connPort
+                , qiCallStack = callStack
+                }
+        observeQuery o queryInfo $ runQuery execQuery
+
+    runQuery execQuery = do
       t1 <- getMonotonicTime
-      (paramCount, res) <- execSql
+      (paramCount, res) <- execQuery
       t2 <- getMonotonicTime
       affected <- withForeignPtr res $ verifyResult sql connBackendPid connPtr
       updateStats <- case affected of
@@ -388,7 +446,10 @@ runQueryImpl Connection {..} sql execSql = do
               , statsParams = statsParams stats + paramCount
               , statsTime = statsTime stats + (t2 - t1)
               }
-      pure (either id id affected, res, updateStats)
+      pure
+        ( either AffectedRows ReturnedRows affected
+        , (either id id affected, res, updateStats)
+        )
 
 verifyResult
   :: (HasCallStack, IsSQL sql)
@@ -458,3 +519,6 @@ verifyResult sql pid conn res = do
           , dbeError = HPQTypesError ("verifyResult: string returned by PQcmdTuples is not a valid number: " ++ show sn)
           , dbeCallStack = callStack
           }
+
+decodeText :: BS.ByteString -> T.Text
+decodeText = T.decodeUtf8With T.lenientDecode

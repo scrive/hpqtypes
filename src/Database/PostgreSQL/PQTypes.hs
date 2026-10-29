@@ -16,6 +16,7 @@ module Database.PostgreSQL.PQTypes
 
     -- * Exceptions
   , ErrorCode (..)
+  , errorCodeToString
   , DetailedQueryError (..)
   , QueryError (..)
   , HPQTypesError (..)

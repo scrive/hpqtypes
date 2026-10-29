@@ -6,6 +6,9 @@ module Database.PostgreSQL.PQTypes.Internal.C.Interface
   , c_PQerrorMessage
   , c_PQsetClientEncoding
   , c_PQsocket
+  , c_PQdb
+  , c_PQhost
+  , c_PQport
   , c_PQconsumeInput
   , c_PQresultStatus
   , c_PQresultErrorField
@@ -57,6 +60,15 @@ foreign import ccall unsafe "PQerrorMessage"
 
 foreign import ccall unsafe "PQsocket"
   c_PQsocket :: Ptr PGconn -> IO Fd
+
+foreign import ccall unsafe "PQdb"
+  c_PQdb :: Ptr PGconn -> IO CString
+
+foreign import ccall unsafe "PQhost"
+  c_PQhost :: Ptr PGconn -> IO CString
+
+foreign import ccall unsafe "PQport"
+  c_PQport :: Ptr PGconn -> IO CString
 
 -- | Safe as it sends a query to the server.
 foreign import ccall safe "PQsetClientEncoding"
